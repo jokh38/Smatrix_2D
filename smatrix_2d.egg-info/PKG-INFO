@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: smatrix_2d
+Version: 7.2
+Requires-Python: >=3.9
+Requires-Dist: numpy>=1.20.0
+Requires-Dist: scipy>=1.9.0
+Requires-Dist: matplotlib>=3.3.0
+Dynamic: requires-dist
+Dynamic: requires-python

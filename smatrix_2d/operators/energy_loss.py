@@ -61,20 +61,13 @@ class EnergyLossOperator:
             E_new = E_src - deltaE
 
             if abs(deltaE) < 1e-12:
-                for ith in range(Ntheta):
-                    for iz in range(Nz):
-                        for ix in range(Nx):
-                            psi_out[iE_src, ith, iz, ix] += psi[iE_src, ith, iz, ix]
+                self._copy_weight_slice(psi, psi_out, iE_src)
                 continue
 
             if E_new < E_cutoff:
-                residual_energy = max(0.0, E_new)
-
-                for ith in range(Ntheta):
-                    for iz in range(Nz):
-                        for ix in range(Nx):
-                            weight = psi[iE_src, ith, iz, ix]
-                            deposited_energy[iz, ix] += weight * residual_energy
+                self._deposit_cutoff_energy(
+                    psi, deposited_energy, iE_src, max(0.0, E_new)
+                )
                 continue
 
             iE_target = np.searchsorted(
@@ -85,11 +78,7 @@ class EnergyLossOperator:
                 continue
 
             if iE_target >= Ne - 1:
-                for ith in range(Ntheta):
-                    for iz in range(Nz):
-                        for ix in range(Nx):
-                            weight = psi[iE_src, ith, iz, ix]
-                            psi_out[iE_target, ith, iz, ix] += weight
+                self._deposit_to_bottom_bin(psi, psi_out, iE_src, iE_target)
                 continue
 
             E_lo = self.grid.E_edges[iE_target]
@@ -101,16 +90,54 @@ class EnergyLossOperator:
             w_lo = (E_hi - E_new) / (E_hi - E_lo)
             w_hi = (E_new - E_lo) / (E_hi - E_lo)
 
-            for ith in range(Ntheta):
-                for iz in range(Nz):
-                    for ix in range(Nx):
-                        weight = psi[iE_src, ith, iz, ix]
-
-                        if weight < 1e-12:
-                            continue
-
-                        psi_out[iE_target, ith, iz, ix] += w_lo * weight
-                        psi_out[iE_target + 1, ith, iz, ix] += w_hi * weight
-                        deposited_energy[iz, ix] += deltaE * weight
+            self._deposit_interpolated(
+                psi, psi_out, deposited_energy, iE_src, iE_target, w_lo, w_hi, deltaE
+            )
 
         return psi_out, deposited_energy
+
+    def _copy_weight_slice(
+        self,
+        psi: np.ndarray,
+        psi_out: np.ndarray,
+        iE_src: int,
+    ) -> None:
+        psi_out[iE_src] = psi[iE_src]
+
+    def _deposit_cutoff_energy(
+        self,
+        psi: np.ndarray,
+        deposited_energy: np.ndarray,
+        iE_src: int,
+        residual_energy: float,
+    ) -> None:
+        weight_slice = psi[iE_src]
+        deposited_energy += np.sum(weight_slice, axis=0) * residual_energy
+
+    def _deposit_to_bottom_bin(
+        self,
+        psi: np.ndarray,
+        psi_out: np.ndarray,
+        iE_src: int,
+        iE_target: int,
+    ) -> None:
+        psi_out[iE_target] += psi[iE_src]
+
+    def _deposit_interpolated(
+        self,
+        psi: np.ndarray,
+        psi_out: np.ndarray,
+        deposited_energy: np.ndarray,
+        iE_src: int,
+        iE_target: int,
+        w_lo: float,
+        w_hi: float,
+        deltaE: float,
+    ) -> None:
+        weight_slice = psi[iE_src]
+        mask = weight_slice >= 1e-12
+
+        psi_out[iE_target] += w_lo * weight_slice * mask
+        psi_out[iE_target + 1] += w_hi * weight_slice * mask
+
+        deposited_energy += deltaE * np.sum(weight_slice * mask, axis=0)

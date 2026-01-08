@@ -10,6 +10,7 @@ from typing import Tuple
 
 from smatrix_2d.core.grid import PhaseSpaceGrid2D
 from smatrix_2d.core.constants import PhysicsConstants2D
+from typing import List, Tuple
 
 
 class BackwardTransportMode(Enum):
@@ -153,7 +154,7 @@ class SpatialStreamingOperator:
         z_in: float,
         delta_s: float,
         theta: float,
-    ) -> Tuple[float, np.ndarray]:
+    ) -> Tuple[float, List[Tuple[int, int, float]]]:
         """Compute spatial displacement with shift-and-deposit.
 
         Args:
@@ -163,69 +164,79 @@ class SpatialStreamingOperator:
             theta: Direction angle [rad]
 
         Returns:
-            (weight_to_rejected, [(ix, weight), ...]) tuple
+            (weight_to_rejected, [(ix, iz, weight), ...]) tuple
         """
+        x_new, z_new = self._compute_new_position(x_in, z_in, delta_s, theta)
+
+        if self._is_out_of_bounds(x_new, z_new):
+            return 1.0, []
+
+        ix_target, iz_target = self._find_target_cell(x_new, z_new)
+
+        if self._is_on_cell_center(x_new, z_new, ix_target, iz_target):
+            return 0.0, [(ix_target, iz_target, 1.0)]
+
+        cells_to_deposit = self._find_adjacent_cells(x_new, z_new, ix_target, iz_target)
+
+        return self._compute_deposition_weights(cells_to_deposit)
+
+    def _compute_new_position(
+        self,
+        x_in: float,
+        z_in: float,
+        delta_s: float,
+        theta: float,
+    ) -> Tuple[float, float]:
         v_x = np.cos(theta)
         v_z = np.sin(theta)
+        return x_in + delta_s * v_x, z_in + delta_s * v_z
 
-        x_new = x_in + delta_s * v_x
-        z_new = z_in + delta_s * v_z
-
-        # Check boundaries
-        if (x_new < self.grid.x_edges[0] or
+    def _is_out_of_bounds(self, x_new: float, z_new: float) -> bool:
+        return (
+            x_new < self.grid.x_edges[0] or
             x_new > self.grid.x_edges[-1] or
             z_new < self.grid.z_edges[0] or
-            z_new > self.grid.z_edges[-1]):
-            return 1.0, []
+            z_new > self.grid.z_edges[-1]
+        )
 
-        # Find x bin
-        ix = np.searchsorted(self.grid.x_edges, x_new, side='right') - 1
-        if ix < 0 or ix >= len(self.grid.x_centers):
-            return 1.0, []
+    def _find_target_cell(self, x_new: float, z_new: float) -> Tuple[int, int]:
+        ix_target = int(np.searchsorted(self.grid.x_edges, x_new, side='right') - 1)
+        iz_target = int(np.searchsorted(self.grid.z_edges, z_new, side='right') - 1)
+        return ix_target, iz_target
 
-        x_left = self.grid.x_edges[ix]
-        x_right = self.grid.x_edges[ix + 1]
-
-        # Find z bin
-        iz = np.searchsorted(self.grid.z_edges, z_new, side='right') - 1
-        if iz < 0 or iz >= len(self.grid.z_centers):
-            return 1.0, []
-
-        z_left = self.grid.z_edges[iz]
-        z_right = self.grid.z_edges[iz + 1]
-
-        # Find target cell using searchsorted
-        ix_target = np.searchsorted(self.grid.x_edges, x_new, side='right') - 1
-        iz_target = np.searchsorted(self.grid.z_edges, z_new, side='right') - 1
-
-        # Check if out of bounds (including exact edge match)
+    def _is_on_cell_center(
+        self,
+        x_new: float,
+        z_new: float,
+        ix_target: int,
+        iz_target: int,
+    ) -> bool:
         if ix_target < 0 or ix_target >= len(self.grid.x_centers):
-            return 1.0, []
+            return False
         if iz_target < 0 or iz_target >= len(self.grid.z_centers):
-            return 1.0, []
+            return False
 
-        # Check if exactly on cell center
+        dx = abs(x_new - self.grid.x_centers[ix_target])
+        dz = abs(z_new - self.grid.z_centers[iz_target])
+        return dx < 1e-12 and dz < 1e-12
+
+    def _find_adjacent_cells(
+        self,
+        x_new: float,
+        z_new: float,
+        ix_target: int,
+        iz_target: int,
+    ) -> List[Tuple[int, int]]:
         x_left = self.grid.x_edges[ix_target]
         x_right = self.grid.x_edges[ix_target + 1]
         z_left = self.grid.z_edges[iz_target]
         z_right = self.grid.z_edges[iz_target + 1]
 
-        # Compute distance to cell center
-        dx = abs(x_new - self.grid.x_centers[ix_target])
-        dz = abs(z_new - self.grid.z_centers[iz_target])
-        on_center = dx < 1e-12 and dz < 1e-12
-
-        if on_center:
-            # Deposit to single cell with full weight
-            return 0.0, [(ix_target, iz_target, 1.0)]
-
-        # Compute distances to edges
         dist_left_x = abs(x_new - x_left)
         dist_right_x = abs(x_new - x_right)
         dist_left_z = abs(z_new - z_left)
         dist_right_z = abs(z_new - z_right)
 
-        # Find minimum distance to any edge
         min_edge_dist = min(dist_left_x, dist_right_x, dist_left_z, dist_right_z)
 
         cells_to_deposit = []
@@ -238,20 +249,22 @@ class SpatialStreamingOperator:
         if abs(min_edge_dist - dist_right_z) < 1e-12 and iz_target < len(self.grid.z_centers) - 1:
             cells_to_deposit.append((ix_target, iz_target + 1))
 
-        # Remove duplicates and assign equal weights
-        cells_to_deposit = list(set(cells_to_deposit))
-        n_cells = len(cells_to_deposit)
+        return list(set(cells_to_deposit))
+
+    def _compute_deposition_weights(self, cells: List[Tuple[int, int]]) -> Tuple[float, List[Tuple[int, int, float]]]:
+        n_cells = len(cells)
+
         if n_cells == 0:
             return 1.0, []
         elif n_cells == 1:
-            return 0.0, [(cells_to_deposit[0][0], cells_to_deposit[0][1], 1.0)]
+            return 0.0, [(cells[0][0], cells[0][1], 1.0)]
         elif n_cells == 2:
-            return 0.0, [(c[0], c[1], 0.5) for c in cells_to_deposit]
+            return 0.0, [(c[0], c[1], 0.5) for c in cells]
         elif n_cells == 4:
-            return 0.0, [(c[0], c[1], 0.25) for c in cells_to_deposit]
+            return 0.0, [(c[0], c[1], 0.25) for c in cells]
         else:
             weight = 1.0 / n_cells
-            return 0.0, [(c[0], c[1], weight) for c in cells_to_deposit]
+            return 0.0, [(c[0], c[1], weight) for c in cells]
 
     def _process_phase_space_angle(
         self,

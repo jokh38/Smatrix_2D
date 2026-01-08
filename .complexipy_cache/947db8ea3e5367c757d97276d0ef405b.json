@@ -1,0 +1,1099 @@
+{
+  "functions": [
+    {
+      "complexity": 5,
+      "file_name": "demo_transport.py",
+      "function_name": "main",
+      "path": "Smatrix_2D/examples/demo_transport.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "grid.py",
+      "function_name": "create_phase_space_grid",
+      "path": "Smatrix_2D/smatrix_2d/core/grid.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "grid.py",
+      "function_name": "GridSpecs2D::__post_init__",
+      "path": "Smatrix_2D/smatrix_2d/core/grid.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "grid.py",
+      "function_name": "create_energy_grid",
+      "path": "Smatrix_2D/smatrix_2d/core/grid.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "materials.py",
+      "function_name": "create_water_material",
+      "path": "Smatrix_2D/smatrix_2d/core/materials.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "materials.py",
+      "function_name": "MaterialProperties2D::__post_init__",
+      "path": "Smatrix_2D/smatrix_2d/core/materials.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "state.py",
+      "function_name": "TransportState::conservation_check",
+      "path": "Smatrix_2D/smatrix_2d/core/state.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "state.py",
+      "function_name": "TransportState::total_dose",
+      "path": "Smatrix_2D/smatrix_2d/core/state.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "state.py",
+      "function_name": "TransportState::total_weight",
+      "path": "Smatrix_2D/smatrix_2d/core/state.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "state.py",
+      "function_name": "create_initial_state",
+      "path": "Smatrix_2D/smatrix_2d/core/state.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "state.py",
+      "function_name": "TransportState::__post_init__",
+      "path": "Smatrix_2D/smatrix_2d/core/state.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "kernels.py",
+      "function_name": "GPUTransportStep::apply_step",
+      "path": "Smatrix_2D/smatrix_2d/gpu/kernels.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "kernels.py",
+      "function_name": "create_gpu_transport_step",
+      "path": "Smatrix_2D/smatrix_2d/gpu/kernels.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "kernels.py",
+      "function_name": "GPUTransportStep::__init__",
+      "path": "Smatrix_2D/smatrix_2d/gpu/kernels.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "kernels.py",
+      "function_name": "GPUTransportStep::_angular_scattering_kernel",
+      "path": "Smatrix_2D/smatrix_2d/gpu/kernels.py"
+    },
+    {
+      "complexity": 26,
+      "file_name": "kernels.py",
+      "function_name": "GPUTransportStep::_energy_loss_kernel",
+      "path": "Smatrix_2D/smatrix_2d/gpu/kernels.py"
+    },
+    {
+      "complexity": 40,
+      "file_name": "kernels.py",
+      "function_name": "GPUTransportStep::_spatial_streaming_kernel",
+      "path": "Smatrix_2D/smatrix_2d/gpu/kernels.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "memory_layout.py",
+      "function_name": "GPUMemoryLayout::__init__",
+      "path": "Smatrix_2D/smatrix_2d/gpu/memory_layout.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "memory_layout.py",
+      "function_name": "GPUMemoryLayout::_compute_strides",
+      "path": "Smatrix_2D/smatrix_2d/gpu/memory_layout.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "memory_layout.py",
+      "function_name": "GPUMemoryLayout::compute_suggested_block_config",
+      "path": "Smatrix_2D/smatrix_2d/gpu/memory_layout.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "memory_layout.py",
+      "function_name": "GPUMemoryLayout::estimate_tile_size",
+      "path": "Smatrix_2D/smatrix_2d/gpu/memory_layout.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "memory_layout.py",
+      "function_name": "GPUMemoryLayout::get_byte_size",
+      "path": "Smatrix_2D/smatrix_2d/gpu/memory_layout.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "memory_layout.py",
+      "function_name": "create_gpu_memory_layout",
+      "path": "Smatrix_2D/smatrix_2d/gpu/memory_layout.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "memory_layout.py",
+      "function_name": "GPUMemoryLayout::check_coalescing_access",
+      "path": "Smatrix_2D/smatrix_2d/gpu/memory_layout.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "angular_scattering.py",
+      "function_name": "AngularScatteringOperator::__init__",
+      "path": "Smatrix_2D/smatrix_2d/operators/angular_scattering.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "angular_scattering.py",
+      "function_name": "AngularScatteringOperator::compute_sigma_theta",
+      "path": "Smatrix_2D/smatrix_2d/operators/angular_scattering.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "angular_scattering.py",
+      "function_name": "AngularScatteringOperator::_apply_scattering_spatial_cell",
+      "path": "Smatrix_2D/smatrix_2d/operators/angular_scattering.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "angular_scattering.py",
+      "function_name": "AngularScatteringOperator::_compute_effective_energy",
+      "path": "Smatrix_2D/smatrix_2d/operators/angular_scattering.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "angular_scattering.py",
+      "function_name": "AngularScatteringOperator::get_scattering_kernel",
+      "path": "Smatrix_2D/smatrix_2d/operators/angular_scattering.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "angular_scattering.py",
+      "function_name": "AngularScatteringOperator::apply",
+      "path": "Smatrix_2D/smatrix_2d/operators/angular_scattering.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "energy_loss.py",
+      "function_name": "EnergyLossOperator::__init__",
+      "path": "Smatrix_2D/smatrix_2d/operators/energy_loss.py"
+    },
+    {
+      "complexity": 61,
+      "file_name": "energy_loss.py",
+      "function_name": "EnergyLossOperator::apply",
+      "path": "Smatrix_2D/smatrix_2d/operators/energy_loss.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::__init__",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::apply",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::compute_step_size",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 10,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::_process_phase_space_angle",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 11,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::check_backward_transport",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 25,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::shift_and_deposit",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "transport_step.py",
+      "function_name": "FirstOrderSplitting",
+      "path": "Smatrix_2D/smatrix_2d/transport/transport_step.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "transport_step.py",
+      "function_name": "StrangSplitting",
+      "path": "Smatrix_2D/smatrix_2d/transport/transport_step.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "transport_step.py",
+      "function_name": "TransportStep::__init__",
+      "path": "Smatrix_2D/smatrix_2d/transport/transport_step.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "transport_step.py",
+      "function_name": "TransportStep::apply_first_order",
+      "path": "Smatrix_2D/smatrix_2d/transport/transport_step.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "transport_step.py",
+      "function_name": "TransportStep::apply_strang",
+      "path": "Smatrix_2D/smatrix_2d/transport/transport_step.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "transport_step.py",
+      "function_name": "TransportStep::apply",
+      "path": "Smatrix_2D/smatrix_2d/transport/transport_step.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "visualization.py",
+      "function_name": "plot_depth_dose",
+      "path": "Smatrix_2D/smatrix_2d/utils/visualization.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "visualization.py",
+      "function_name": "plot_dose_map",
+      "path": "Smatrix_2D/smatrix_2d/utils/visualization.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "visualization.py",
+      "function_name": "plot_lateral_profile",
+      "path": "Smatrix_2D/smatrix_2d/utils/visualization.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "metrics.py",
+      "function_name": "compute_convergence_order",
+      "path": "Smatrix_2D/smatrix_2d/validation/metrics.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "metrics.py",
+      "function_name": "compute_l2_norm",
+      "path": "Smatrix_2D/smatrix_2d/validation/metrics.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "metrics.py",
+      "function_name": "compute_linf_norm",
+      "path": "Smatrix_2D/smatrix_2d/validation/metrics.py"
+    },
+    {
+      "complexity": 7,
+      "file_name": "metrics.py",
+      "function_name": "_compute_gamma_for_point",
+      "path": "Smatrix_2D/smatrix_2d/validation/metrics.py"
+    },
+    {
+      "complexity": 8,
+      "file_name": "metrics.py",
+      "function_name": "check_rotational_invariance",
+      "path": "Smatrix_2D/smatrix_2d/validation/metrics.py"
+    },
+    {
+      "complexity": 11,
+      "file_name": "metrics.py",
+      "function_name": "compute_gamma_pass_rate",
+      "path": "Smatrix_2D/smatrix_2d/validation/metrics.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "tests.py",
+      "function_name": "TransportValidator::__init__",
+      "path": "Smatrix_2D/smatrix_2d/validation/tests.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "tests.py",
+      "function_name": "TransportValidator::check_positivity",
+      "path": "Smatrix_2D/smatrix_2d/validation/tests.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "tests.py",
+      "function_name": "TransportValidator::check_conservation",
+      "path": "Smatrix_2D/smatrix_2d/validation/tests.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "tests.py",
+      "function_name": "TransportValidator::run_all_tests",
+      "path": "Smatrix_2D/smatrix_2d/validation/tests.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "tests.py",
+      "function_name": "TransportValidator::test_rotational_invariance",
+      "path": "Smatrix_2D/smatrix_2d/validation/tests.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "tests.py",
+      "function_name": "TransportValidator::test_vacuum_transport",
+      "path": "Smatrix_2D/smatrix_2d/validation/tests.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "angular_operator",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "angular_operator_mid_policy",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "atol",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "constant_stopping_power",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "constants",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "default_grid_specs",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "energy_operator",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "first_order_transport",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "grid",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "initial_state",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "linear_stopping_power",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "material",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "rtol",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "small_grid",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "small_grid_specs",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "spatial_operator",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "spatial_operator_allowance",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "spatial_operator_angular_cap",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "state_multiple_particles",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "step_size",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "strang_transport",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "tolerance",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "uniform_state",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "conftest.py",
+      "function_name": "vacuum_stopping_power",
+      "path": "Smatrix_2D/tests/conftest.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreateEnergyGrid::test_energy_centers_are_midpoints",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreateEnergyGrid::test_logarithmic_energy_grid",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreateEnergyGrid::test_range_based_grid_with_dummy_range",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreateEnergyGrid::test_range_based_grid_without_material_range",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreateEnergyGrid::test_uniform_energy_grid",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreateEnergyGrid::test_unknown_grid_type",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreateInitialState::test_initial_state_creation",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreateInitialState::test_initial_state_default_weight",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreateInitialState::test_initial_state_finds_nearest_bins",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreateInitialState::test_initial_state_total_weight",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreatePhaseSpaceGrid::test_angular_grid_boundaries",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreatePhaseSpaceGrid::test_delta_values",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreatePhaseSpaceGrid::test_grid_creation",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreatePhaseSpaceGrid::test_spatial_grid_boundaries",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestCreateWaterMaterial::test_water_material_properties",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestGridSpecs2D::test_default_theta_range",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestGridSpecs2D::test_initialization",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestGridSpecs2D::test_invalid_cutoff_less_than_min",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestGridSpecs2D::test_invalid_negative_dimensions",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestGridSpecs2D::test_invalid_negative_theta_range",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestGridSpecs2D::test_invalid_zero_dimensions",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestGridSpecs2D::test_invalid_zero_theta_range",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestMaterialProperties2D::test_initialization",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestMaterialProperties2D::test_invalid_negative_density",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestMaterialProperties2D::test_invalid_negative_excitation_energy",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestMaterialProperties2D::test_invalid_negative_radiation_length",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestMaterialProperties2D::test_invalid_zero_density",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestTransportState::test_conservation_check_fails",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestTransportState::test_conservation_check_passes",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestTransportState::test_conservation_check_with_sinks",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestTransportState::test_initialization",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestTransportState::test_invalid_psi_shape",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestTransportState::test_total_dose",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_core.py",
+      "function_name": "TestTransportState::test_total_weight",
+      "path": "Smatrix_2D/tests/test_core.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_integration.py",
+      "function_name": "TestEdgeCases::test_transport_at_boundary",
+      "path": "Smatrix_2D/tests/test_integration.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_integration.py",
+      "function_name": "TestEdgeCases::test_transport_with_zero_initial_weight",
+      "path": "Smatrix_2D/tests/test_integration.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "test_integration.py",
+      "function_name": "TestEdgeCases::test_transport_very_low_energy",
+      "path": "Smatrix_2D/tests/test_integration.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "test_integration.py",
+      "function_name": "TestFullTransportPipeline::test_transport_consistency_check",
+      "path": "Smatrix_2D/tests/test_integration.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "test_integration.py",
+      "function_name": "TestFullTransportPipeline::test_transport_oblique_beam",
+      "path": "Smatrix_2D/tests/test_integration.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "test_integration.py",
+      "function_name": "TestFullTransportPipeline::test_transport_positivity_preservation",
+      "path": "Smatrix_2D/tests/test_integration.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "test_integration.py",
+      "function_name": "TestFullTransportPipeline::test_transport_with_energy_loss",
+      "path": "Smatrix_2D/tests/test_integration.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "test_integration.py",
+      "function_name": "TestFullTransportPipeline::test_transport_with_scattering",
+      "path": "Smatrix_2D/tests/test_integration.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "test_integration.py",
+      "function_name": "TestFullTransportPipeline::test_complete_transport_simulation",
+      "path": "Smatrix_2D/tests/test_integration.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestAngularScatteringOperator::test_apply_conserves_weight",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestAngularScatteringOperator::test_apply_preserves_positivity",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestAngularScatteringOperator::test_apply_unknown_policy",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestAngularScatteringOperator::test_apply_with_mid_policy",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestAngularScatteringOperator::test_apply_zero_state",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestAngularScatteringOperator::test_compute_sigma_theta",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestAngularScatteringOperator::test_compute_sigma_theta_low_energy",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestAngularScatteringOperator::test_get_scattering_kernel_normalization",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestAngularScatteringOperator::test_get_scattering_kernel_periodic_boundary",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestAngularScatteringOperator::test_initialization",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestEnergyLossOperator::test_apply_absorbs_below_cutoff",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestEnergyLossOperator::test_apply_conserves_weight_below_cutoff",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestEnergyLossOperator::test_apply_energy_advection",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestEnergyLossOperator::test_apply_preserves_positivity",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestEnergyLossOperator::test_apply_with_zero_stopping_power",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestEnergyLossOperator::test_deposited_energy_shape",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestEnergyLossOperator::test_initialization",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestSpatialStreamingOperator::test_apply_conserves_or_accounts_weight",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestSpatialStreamingOperator::test_apply_preserves_positivity",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestSpatialStreamingOperator::test_check_backward_transport_angular_cap",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestSpatialStreamingOperator::test_check_backward_transport_forward",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestSpatialStreamingOperator::test_check_backward_transport_hard_reject",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestSpatialStreamingOperator::test_check_backward_transport_small_allowance",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestSpatialStreamingOperator::test_compute_step_size_forward_transport",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestSpatialStreamingOperator::test_initialization",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestSpatialStreamingOperator::test_shift_and_deposit_inside_boundary",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_operators.py",
+      "function_name": "TestSpatialStreamingOperator::test_shift_and_deposit_outside_boundary",
+      "path": "Smatrix_2D/tests/test_operators.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_transport.py",
+      "function_name": "TestSplittingMethods::test_first_order_splitting_factory",
+      "path": "Smatrix_2D/tests/test_transport.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_transport.py",
+      "function_name": "TestSplittingMethods::test_strang_splitting_factory",
+      "path": "Smatrix_2D/tests/test_transport.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_transport.py",
+      "function_name": "TestTransportStep::test_apply_first_order_conserves_weight",
+      "path": "Smatrix_2D/tests/test_transport.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_transport.py",
+      "function_name": "TestTransportStep::test_apply_preserves_positivity",
+      "path": "Smatrix_2D/tests/test_transport.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_transport.py",
+      "function_name": "TestTransportStep::test_apply_strang_conserves_weight",
+      "path": "Smatrix_2D/tests/test_transport.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_transport.py",
+      "function_name": "TestTransportStep::test_apply_unknown_splitting_type",
+      "path": "Smatrix_2D/tests/test_transport.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_transport.py",
+      "function_name": "TestTransportStep::test_apply_updates_dose",
+      "path": "Smatrix_2D/tests/test_transport.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_transport.py",
+      "function_name": "TestTransportStep::test_initialization",
+      "path": "Smatrix_2D/tests/test_transport.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "test_transport.py",
+      "function_name": "TestTransportStep::test_apply_multiple_steps",
+      "path": "Smatrix_2D/tests/test_transport.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "test_transport.py",
+      "function_name": "TestVacuumTransport::test_vacuum_conserves_weight",
+      "path": "Smatrix_2D/tests/test_transport.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestCheckRotationalInvariance::test_rotation_of_uniform_field",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestCheckRotationalInvariance::test_zero_rotation",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeConvergenceOrder::test_first_order_convergence",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeConvergenceOrder::test_half_order_convergence",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeConvergenceOrder::test_no_convergence",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeConvergenceOrder::test_second_order_convergence",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeGammaPassRate::test_dose_difference_below_threshold",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeGammaPassRate::test_empty_roi",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeGammaPassRate::test_identical_distributions",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeGammaPassRate::test_with_custom_roi",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeL2Norm::test_identical_distributions",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeL2Norm::test_scaled_distribution",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeL2Norm::test_with_roi_mask",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeL2Norm::test_zero_reference",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeLinfNorm::test_identical_distributions",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeLinfNorm::test_localized_difference",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeLinfNorm::test_max_difference",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "test_validation.py",
+      "function_name": "TestComputeLinfNorm::test_zero_reference",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    },
+    {
+      "complexity": 7,
+      "file_name": "test_validation.py",
+      "function_name": "TestCheckRotationalInvariance::test_rotated_gaussian",
+      "path": "Smatrix_2D/tests/test_validation.py"
+    }
+  ],
+  "targets": [
+    "/workspaces/Smatrix_2D"
+  ]
+}
