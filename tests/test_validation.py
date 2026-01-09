@@ -2,7 +2,6 @@
 
 import pytest
 import numpy as np
-from numpy.testing import assert_allclose
 
 from smatrix_2d.validation.metrics import (
     compute_l2_norm,

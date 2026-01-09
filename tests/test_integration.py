@@ -5,7 +5,6 @@ import numpy as np
 from numpy.testing import assert_allclose
 
 from smatrix_2d.core.state import create_initial_state
-from smatrix_2d.transport.transport_step import FirstOrderSplitting
 
 
 class TestFullTransportPipeline:
@@ -72,7 +71,6 @@ class TestFullTransportPipeline:
         )
 
         initial_weight = state.total_weight()
-        initial_angle = np.pi / 2
 
         # Run transport with scattering
         for _ in range(50):

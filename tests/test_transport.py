@@ -10,6 +10,8 @@ from smatrix_2d.transport.transport_step import (
     StrangSplitting,
     SplittingType,
 )
+from smatrix_2d.operators.angular_scattering import AngularScatteringOperator
+from smatrix_2d.operators.energy_loss import EnergyLossOperator
 
 
 class TestTransportStep:

@@ -2,17 +2,10 @@
 
 import pytest
 import numpy as np
-from numpy.testing import assert_allclose, assert_array_less
+from numpy.testing import assert_allclose
 
-from smatrix_2d.operators.angular_scattering import (
-    AngularScatteringOperator,
-    EnergyReferencePolicy,
-)
-from smatrix_2d.operators.spatial_streaming import (
-    SpatialStreamingOperator,
-    BackwardTransportMode,
-)
-from smatrix_2d.operators.energy_loss import EnergyLossOperator
+from smatrix_2d.operators.angular_scattering import EnergyReferencePolicy
+from smatrix_2d.operators.spatial_streaming import BackwardTransportMode
 
 
 class TestAngularScatteringOperator:

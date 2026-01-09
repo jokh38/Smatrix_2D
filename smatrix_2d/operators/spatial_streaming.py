@@ -10,7 +10,7 @@ from typing import Tuple
 
 from smatrix_2d.core.grid import PhaseSpaceGrid2D
 from smatrix_2d.core.constants import PhysicsConstants2D
-from typing import List, Tuple
+from typing import List
 
 
 class BackwardTransportMode(Enum):
@@ -79,17 +79,16 @@ class SpatialStreamingOperator:
         Returns:
             (delta_s, deltaE_step) tuple
         """
-        mu = np.cos(theta)
         eta = np.sin(theta)
 
         # Edge-safe lateral handling
         eta_safe = max(abs(eta), self.eta_eps)
 
         # Candidate limits
-        if mu > 0:
-            s_z = self.grid.delta_z / mu
+        if eta > 0:
+            s_z = self.grid.delta_z / eta
         elif self.backward_mode == BackwardTransportMode.SMALL_BACKWARD_ALLOWANCE:
-            s_z = self.grid.delta_z / abs(mu)
+            s_z = self.grid.delta_z / abs(eta)
         else:
             s_z = np.inf
 
@@ -116,18 +115,18 @@ class SpatialStreamingOperator:
     def check_backward_transport(
         self,
         theta: float,
-        mu: float,
+        forward_component: float,
     ) -> Tuple[bool, float]:
         """Check if transport should proceed based on backward mode.
 
         Args:
             theta: Direction angle [rad]
-            mu: cos(theta)
+            forward_component: Component in forward (z) direction (sin(theta))
 
         Returns:
             (allow_transport, weight_to_reject) tuple
         """
-        if mu > 0:
+        if forward_component > 0:
             return True, 0.0
 
         if self.backward_mode == BackwardTransportMode.HARD_REJECT:
@@ -140,7 +139,7 @@ class SpatialStreamingOperator:
                 return True, 0.0
 
         elif self.backward_mode == BackwardTransportMode.SMALL_BACKWARD_ALLOWANCE:
-            if mu <= self.mu_min:
+            if forward_component <= self.mu_min:
                 return False, 1.0
             else:
                 return True, 0.0
@@ -287,9 +286,10 @@ class SpatialStreamingOperator:
             (psi_out_angle, weight_to_rejected) tuple
         """
         theta = self.grid.th_centers[ith]
-        mu = np.cos(theta)
+        eta = np.sin(theta)  # z-component (forward direction)
 
-        allow_transport, weight_to_reject = self.check_backward_transport(theta, mu)
+        # Check backward transport using z-component (eta) for forward direction
+        allow_transport, weight_to_reject = self.check_backward_transport(theta, eta)
 
         if not allow_transport:
             angle_slice = psi[iE, ith, :, :]

@@ -2,7 +2,7 @@
 
 import pytest
 import numpy as np
-from numpy.testing import assert_allclose, assert_array_equal
+from numpy.testing import assert_allclose
 
 from smatrix_2d.core.grid import (
     GridSpecs2D,
@@ -13,7 +13,6 @@ from smatrix_2d.core.grid import (
 )
 from smatrix_2d.core.materials import MaterialProperties2D, create_water_material
 from smatrix_2d.core.state import TransportState, create_initial_state
-from smatrix_2d.core.constants import PhysicsConstants2D
 
 
 class TestGridSpecs2D:

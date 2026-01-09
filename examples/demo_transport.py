@@ -6,11 +6,11 @@ transport simulation, and visualization.
 
 import sys
 import numpy as np
+import os
 
-# Add parent directory to path for imports
-sys.path.insert(0, '/workspaces/Smatrix')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from smatrix_2d.core.grid import GridSpecs2D, create_phase_space_grid
+from smatrix_2d.core.grid import GridSpecs2D, create_phase_space_grid, EnergyGridType
 from smatrix_2d.core.state import create_initial_state
 from smatrix_2d.core.materials import create_water_material
 from smatrix_2d.core.constants import PhysicsConstants2D
@@ -44,6 +44,7 @@ def main():
         E_min=1.0,
         E_max=100.0,
         E_cutoff=2.0,
+        energy_grid_type=EnergyGridType.UNIFORM,
     )
 
     grid = create_phase_space_grid(specs)
@@ -68,7 +69,7 @@ def main():
     )
 
     A_stream = SpatialStreamingOperator(
-        grid, constants, BackwardTransportMode.HARD_REJECT
+        grid, constants, BackwardTransportMode.SMALL_BACKWARD_ALLOWANCE
     )
 
     A_E = EnergyLossOperator(grid)
@@ -147,21 +148,21 @@ def main():
     # 9. Create visualizations
     print("\n[9] Creating visualizations...")
 
-    dose_2d = state.deposited_energy.T  # Transpose to [Nz, Nx]
+    dose_2d = state.deposited_energy  # Already [Nz, Nx]
 
     plot_dose_map(
         dose_2d,
         grid.x_centers,
         grid.z_centers,
         title='Dose Distribution [MeV]',
-        save_path='/workspaces/Smatrix/2D_prototype/output/dose_map.png',
+        save_path='output/dose_map.png',
     )
 
     plot_depth_dose(
         dose_2d,
         grid.z_centers,
         title='Depth-Dose Curve',
-        save_path='/workspaces/Smatrix/2D_prototype/output/depth_dose.png',
+        save_path='output/depth_dose.png',
     )
 
     # Find depth of maximum dose
@@ -171,12 +172,13 @@ def main():
     plot_lateral_profile(
         dose_2d,
         grid.x_centers,
+        grid.z_centers,
         z_peak,
         title='Lateral Profile at Bragg Peak',
-        save_path='/workspaces/Smatrix/2D_prototype/output/lateral_profile.png',
+        save_path='output/lateral_profile.png',
     )
 
-    print("\n[10] Output saved to 2D_prototype/output/")
+    print("\n[10] Output saved to output/")
     print("=" * 50)
     print("Demo complete!")
 

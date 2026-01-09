@@ -187,7 +187,31 @@
       "path": "Smatrix_2D/smatrix_2d/operators/energy_loss.py"
     },
     {
-      "complexity": 61,
+      "complexity": 0,
+      "file_name": "energy_loss.py",
+      "function_name": "EnergyLossOperator::_copy_weight_slice",
+      "path": "Smatrix_2D/smatrix_2d/operators/energy_loss.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "energy_loss.py",
+      "function_name": "EnergyLossOperator::_deposit_cutoff_energy",
+      "path": "Smatrix_2D/smatrix_2d/operators/energy_loss.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "energy_loss.py",
+      "function_name": "EnergyLossOperator::_deposit_interpolated",
+      "path": "Smatrix_2D/smatrix_2d/operators/energy_loss.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "energy_loss.py",
+      "function_name": "EnergyLossOperator::_deposit_to_bottom_bin",
+      "path": "Smatrix_2D/smatrix_2d/operators/energy_loss.py"
+    },
+    {
+      "complexity": 11,
       "file_name": "energy_loss.py",
       "function_name": "EnergyLossOperator::apply",
       "path": "Smatrix_2D/smatrix_2d/operators/energy_loss.py"
@@ -196,6 +220,30 @@
       "complexity": 0,
       "file_name": "spatial_streaming.py",
       "function_name": "SpatialStreamingOperator::__init__",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::_compute_new_position",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::_find_target_cell",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::_is_out_of_bounds",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::shift_and_deposit",
       "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
     },
     {
@@ -211,6 +259,24 @@
       "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
     },
     {
+      "complexity": 5,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::_compute_deposition_weights",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::_is_on_cell_center",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
+      "complexity": 8,
+      "file_name": "spatial_streaming.py",
+      "function_name": "SpatialStreamingOperator::_find_adjacent_cells",
+      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
+    },
+    {
       "complexity": 10,
       "file_name": "spatial_streaming.py",
       "function_name": "SpatialStreamingOperator::_process_phase_space_angle",
@@ -220,12 +286,6 @@
       "complexity": 11,
       "file_name": "spatial_streaming.py",
       "function_name": "SpatialStreamingOperator::check_backward_transport",
-      "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
-    },
-    {
-      "complexity": 25,
-      "file_name": "spatial_streaming.py",
-      "function_name": "SpatialStreamingOperator::shift_and_deposit",
       "path": "Smatrix_2D/smatrix_2d/operators/spatial_streaming.py"
     },
     {

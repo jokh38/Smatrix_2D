@@ -3,8 +3,8 @@
 import pytest
 import numpy as np
 
-from smatrix_2d.core.grid import GridSpecs2D, PhaseSpaceGrid2D, create_phase_space_grid, EnergyGridType
-from smatrix_2d.core.materials import MaterialProperties2D, create_water_material
+from smatrix_2d.core.grid import GridSpecs2D, create_phase_space_grid, EnergyGridType
+from smatrix_2d.core.materials import create_water_material
 from smatrix_2d.core.state import TransportState, create_initial_state
 from smatrix_2d.core.constants import PhysicsConstants2D
 from smatrix_2d.operators.angular_scattering import AngularScatteringOperator, EnergyReferencePolicy
