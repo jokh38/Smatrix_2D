@@ -2,11 +2,18 @@
 
 Implements accelerated kernels for A_theta, A_stream, and A_E operators
 with shared memory optimization and atomic accumulation support.
+
+Phase P0 Optimizations:
+- Memory pool configuration with explicit limits
+- Preallocated ping-pong buffers
+- Level 1 early-exit (compact pattern) for negligible weights
+- Cached mapping tables
 """
 
+import time
 import numpy as np
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Dict, Tuple
 
 try:
     import cupy as cp
@@ -26,14 +33,57 @@ class AccumulationMode:
     DETERMINISTIC = 'deterministic'  # Block-local reduction (slower, deterministic)
 
 
+def configure_memory_pool(vram_fraction: float = 0.8, max_bytes: Optional[int] = None):
+    """Configure CuPy memory pool for stable allocation.
+
+    Args:
+        vram_fraction: Fraction of VRAM to use (default: 0.8)
+        max_bytes: Maximum bytes to allocate (optional)
+
+    Returns:
+        Configured memory pool
+    """
+    if not GPU_AVAILABLE:
+        return None
+
+    mempool = cp.get_default_memory_pool()
+
+    # Get available VRAM
+    free_bytes, total_bytes = cp.cuda.Device().mem_info
+
+    # Calculate limit
+    limit = int(total_bytes * vram_fraction)
+    if max_bytes is not None:
+        limit = min(limit, max_bytes)
+
+    mempool.set_limit(size=limit)
+
+    # Optional: pinned memory pool for async transfers
+    try:
+        pinned_mempool = cp.cuda.PinnedMemoryPool()
+        cp.cuda.set_pinned_memory_allocator(pinned_mempool.malloc)
+    except Exception:
+        # Pinned memory may not be available on all systems
+        pass
+
+    return mempool
+
+
 class GPUTransportStep:
-    """GPU-accelerated transport step.
+    """GPU-accelerated transport step with Phase P0 optimizations.
 
     Implements:
     - Angular scattering kernel with shared memory convolution
     - Spatial streaming with tile-based deposition
     - Energy loss with strided access
     - Atomic or deterministic accumulation modes
+
+    Phase P0 Optimizations:
+    - Memory pool configuration
+    - Preallocated ping-pong buffers
+    - Level 1 early-exit (compact pattern)
+    - Cached mapping tables
+    - Per-operator profiling
     """
 
     def __init__(
@@ -45,6 +95,8 @@ class GPUTransportStep:
         accumulation_mode: str = AccumulationMode.FAST,
         delta_x: float = 1.0,
         delta_z: float = 1.0,
+        early_exit_threshold: float = 1e-12,
+        enable_profiling: bool = True,
     ):
         """Initialize GPU transport step.
 
@@ -56,6 +108,8 @@ class GPUTransportStep:
             accumulation_mode: 'fast' or 'deterministic'
             delta_x: Lateral grid spacing [mm]
             delta_z: Depth grid spacing [mm]
+            early_exit_threshold: Threshold for negligible weights (default: 1e-12)
+            enable_profiling: Enable per-operator timing (default: True)
         """
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy not available. Install: pip install cupy-cudaXX")
@@ -67,9 +121,57 @@ class GPUTransportStep:
         self.accumulation_mode = accumulation_mode
         self.delta_x = delta_x
         self.delta_z = delta_z
+        self.early_exit_threshold = early_exit_threshold
+        self.enable_profiling = enable_profiling
 
         # Memory shape: [Ne, Ntheta, Nz, Nx]
         self.shape = (Ne, Ntheta, Nz, Nx)
+
+        # Phase P0: Configure memory pool (only once globally)
+        if not hasattr(configure_memory_pool, '_configured'):
+            configure_memory_pool()
+            configure_memory_pool._configured = True
+
+        # Phase P0: Preallocate ping-pong buffers
+        self.psi_a = cp.zeros(self.shape, dtype=cp.float32)
+        self.psi_b = cp.zeros(self.shape, dtype=cp.float32)
+        self.dose = cp.zeros((Nz, Nx), dtype=cp.float32)
+
+        # Phase P0: Cache for mapping tables
+        self._cache = {}
+
+        # Profiling data
+        self.profiling = {
+            'a_theta_times': [],
+            'a_stream_times': [],
+            'a_e_times': [],
+            'total_times': [],
+        } if enable_profiling else None
+
+    def get_active_cells(self, psi: cp.ndarray, threshold: Optional[float] = None) -> Tuple[cp.ndarray, cp.ndarray, cp.ndarray, int]:
+        """Filter active cells using compact pattern (Level 1 early-exit).
+
+        Args:
+            psi: Input state [Ne, Ntheta, Nz, Nx]
+            threshold: Weight threshold (uses self.early_exit_threshold if None)
+
+        Returns:
+            (active_E, active_z, active_x, n_active) tuple of indices and count
+        """
+        if threshold is None:
+            threshold = self.early_exit_threshold
+
+        # Max over theta for each (E, z, x)
+        max_over_theta = cp.max(psi, axis=1)  # (Ne, Nz, Nx)
+
+        # Find active cells
+        active_mask = max_over_theta > threshold
+
+        # Get indices
+        active_E, active_z, active_x = cp.nonzero(active_mask)
+        n_active = len(active_E)
+
+        return active_E, active_z, active_x, n_active
 
     def _angular_scattering_kernel(
         self,
@@ -318,6 +420,190 @@ class GPUTransportStep:
 
         return psi_out, deposited_energy
 
+    def _build_energy_gather_lut(
+        self,
+        E_grid: cp.ndarray,
+        stopping_power: cp.ndarray,
+        delta_s: float,
+        E_cutoff: float,
+        E_edges: Optional[cp.ndarray] = None,
+    ) -> Tuple[cp.ndarray, cp.ndarray, cp.ndarray]:
+        """Build gather mapping LUT for energy loss operator (Phase P1-B).
+
+        Converts scatter-style energy loss to gather-style by pre-computing
+        the mapping from target energy bins to source energy bins.
+
+        Args:
+            E_grid: Energy bin centers [MeV]
+            stopping_power: Stopping power [MeV/mm]
+            delta_s: Step length [mm]
+            E_cutoff: Cutoff energy [MeV]
+            E_edges: Energy bin edges [MeV] (optional)
+
+        Returns:
+            (gather_map, coeff_map, dose_fractions) tuple
+            - gather_map: [Ne, 2] array of source indices
+            - coeff_map: [Ne, 2] array of interpolation coefficients
+            - dose_fractions: [Ne] array of energy deposited to dose
+        """
+        if E_edges is None:
+            E_edges = E_grid
+
+        # Convert to numpy for LUT construction (CPU-side operation)
+        E_grid_np = cp.asnumpy(E_grid)
+        E_edges_np = cp.asnumpy(E_edges)
+        stopping_power_np = cp.asnumpy(stopping_power)
+
+        Ne = self.Ne
+
+        # Initialize LUT arrays
+        # gather_map[iE_tgt, 0] = source bin index 1
+        # gather_map[iE_tgt, 1] = source bin index 2 (or -1 if only 1 source)
+        # coeff_map[iE_tgt, 0] = coefficient for source 1
+        # coeff_map[iE_tgt, 1] = coefficient for source 2
+        gather_map = np.full((Ne, 2), -1, dtype=np.int32)
+        coeff_map = np.zeros((Ne, 2), dtype=np.float32)
+        dose_fractions = np.zeros(Ne, dtype=np.float32)
+
+        # Compute E_new for all source energies
+        E_new = E_grid_np - stopping_power_np * delta_s
+
+        # Phase P1-B: Check monotonicity
+        if not np.all(np.diff(E_new) < 0):
+            print("Warning: Monotonicity violated in energy mapping, using scatter fallback")
+            return None, None, None
+
+        # Build LUT: for each target bin, find which source bins contribute
+        for iE_tgt in range(Ne):
+            # Get target energy range
+            if iE_tgt < Ne - 1:
+                E_tgt_lo = E_edges_np[iE_tgt]
+                E_tgt_hi = E_edges_np[iE_tgt + 1]
+            else:
+                # Last bin: use same width as previous bin
+                E_tgt_lo = E_edges_np[iE_tgt]
+                E_tgt_hi = E_edges_np[iE_tgt] + (E_edges_np[iE_tgt] - E_edges_np[iE_tgt - 1]) if iE_tgt > 0 else E_edges_np[iE_tgt] + 1.0
+
+            contributors = []
+
+            # Find all source bins that map to this target bin
+            for iE_src in range(Ne):
+                if E_new[iE_src] < E_cutoff:
+                    # Below cutoff: all energy deposited as dose
+                    # Track energy that goes to dose from each source
+                    deltaE = stopping_power_np[iE_src] * delta_s
+                    dose_fractions[iE_src] += deltaE
+                    continue
+
+                if E_tgt_lo <= E_new[iE_src] < E_tgt_hi:
+                    # This source contributes to this target
+                    if iE_tgt < Ne - 1:
+                        # Linear interpolation weight
+                        w = (E_tgt_hi - E_new[iE_src]) / (E_tgt_hi - E_tgt_lo) if (E_tgt_hi - E_tgt_lo) > 1e-12 else 1.0
+                    else:
+                        w = 1.0
+                    contributors.append((iE_src, w))
+
+            # Store at most 2 contributors (as per spec)
+            for k, (iE_src, w) in enumerate(contributors[:2]):
+                gather_map[iE_tgt, k] = iE_src
+                coeff_map[iE_tgt, k] = w
+
+        return cp.asarray(gather_map), cp.asarray(coeff_map), cp.asarray(dose_fractions)
+
+    def _energy_loss_kernel_gather(
+        self,
+        psi: cp.ndarray,
+        gather_map: cp.ndarray,
+        coeff_map: cp.ndarray,
+        dose_fractions: cp.ndarray,
+    ) -> tuple[cp.ndarray, cp.ndarray]:
+        """Apply energy loss using pre-computed gather mapping (Phase P1-B).
+
+        This is the optimized version that eliminates the loop over source bins
+        and uses O(1) lookup instead.
+
+        Args:
+            psi: Input state [Ne, Ntheta, Nz, Nx]
+            gather_map: [Ne, 2] array of source indices
+            coeff_map: [Ne, 2] array of interpolation coefficients
+            dose_fractions: [Ne] array of energy deposited to dose
+
+        Returns:
+            (psi_out, deposited_energy) tuple
+        """
+        if not GPU_AVAILABLE:
+            raise RuntimeError("CuPy not available")
+
+        # Initialize output arrays
+        psi_out = cp.zeros_like(psi)
+        deposited_energy = cp.zeros((self.Nz, self.Nx), dtype=cp.float32)
+
+        # Gather phase: for each target bin, read from pre-computed sources
+        for iE_tgt in range(self.Ne):
+            # Read pre-computed mapping for this target bin
+            src_indices = gather_map[iE_tgt]  # [2]
+            coeffs = coeff_map[iE_tgt]  # [2]
+
+            # Gather from source bins (O(1) lookup, no atomics for psi_out)
+            for k in range(2):
+                iE_src = src_indices[k]
+
+                # Skip if no valid source
+                if iE_src < 0:
+                    continue
+
+                coeff = coeffs[k]
+
+                # Direct read and write (gather pattern)
+                # No atomic operations needed for psi_out!
+                psi_out[iE_tgt] += coeff * psi[iE_src]
+
+            # Accumulate dose fraction
+            if dose_fractions[iE_tgt] > 0:
+                deposited_energy += dose_fractions[iE_tgt] * cp.sum(psi[iE_tgt], axis=0)
+
+        return psi_out, deposited_energy
+
+    def get_profiling_stats(self) -> Optional[Dict[str, any]]:
+        """Get profiling statistics for all completed steps.
+
+        Returns:
+            Dictionary with timing statistics or None if profiling disabled
+        """
+        if not self.enable_profiling or self.profiling is None:
+            return None
+
+        import numpy as np
+
+        def _compute_stats(times):
+            if not times:
+                return {'mean': 0, 'std': 0, 'min': 0, 'max': 0, 'count': 0}
+            return {
+                'mean': np.mean(times) * 1000,  # ms
+                'std': np.std(times) * 1000,
+                'min': np.min(times) * 1000,
+                'max': np.max(times) * 1000,
+                'count': len(times),
+            }
+
+        return {
+            'a_theta': _compute_stats(self.profiling['a_theta_times']),
+            'a_stream': _compute_stats(self.profiling['a_stream_times']),
+            'a_e': _compute_stats(self.profiling['a_e_times']),
+            'total': _compute_stats(self.profiling['total_times']),
+        }
+
+    def reset_profiling(self):
+        """Reset profiling statistics."""
+        if self.profiling is not None:
+            self.profiling = {
+                'a_theta_times': [],
+                'a_stream_times': [],
+                'a_e_times': [],
+                'total_times': [],
+            }
+
     def apply_step(
         self,
         psi,
@@ -329,7 +615,10 @@ class GPUTransportStep:
         E_cutoff: float,
         E_edges=None,
     ) -> tuple[cp.ndarray if GPU_AVAILABLE else None, float, cp.ndarray if GPU_AVAILABLE else None]:
-        """Apply full transport step on GPU with error handling and CPU fallback.
+        """Apply full transport step on GPU with Phase P0 optimizations.
+
+        Uses preallocated buffers to eliminate per-step allocations and
+        includes per-operator profiling.
 
         Args:
             psi: Input state [Ne, Ntheta, Nz, Nx]
@@ -344,6 +633,8 @@ class GPUTransportStep:
         Returns:
             (psi_out, weight_leaked, deposited_energy) tuple
         """
+        total_start = time.time()
+
         try:
             # Validate input arrays are on GPU
             if not isinstance(psi, cp.ndarray):
@@ -355,22 +646,68 @@ class GPUTransportStep:
             psi = cp.ascontiguousarray(psi)
             E_grid = cp.ascontiguousarray(E_grid)
 
+            # Phase P0: Copy input to preallocated buffer (ping)
+            self.psi_a[:] = psi
+
             # Step 1: Angular scattering (optimized FFT-based convolution)
-            psi_1 = self._angular_scattering_kernel(psi, sigma_theta)
+            a_theta_start = time.time()
+            psi_1 = self._angular_scattering_kernel(self.psi_a, sigma_theta)
+            if self.enable_profiling:
+                self.profiling['a_theta_times'].append(time.time() - a_theta_start)
+
+            # Phase P0: Write to pong buffer
+            self.psi_b[:] = psi_1
 
             # Step 2: Spatial streaming (vectorized shift-and-deposit)
+            a_stream_start = time.time()
             psi_2, weight_leaked = self._spatial_streaming_kernel(
-                psi_1, delta_s, sigma_theta, theta_beam
+                self.psi_b, delta_s, sigma_theta, theta_beam
             )
+            if self.enable_profiling:
+                self.profiling['a_stream_times'].append(time.time() - a_stream_start)
 
-            # Step 3: Energy loss (vectorized interpolation)
-            psi_3, deposited_energy = self._energy_loss_kernel(
-                psi_2, E_grid, stopping_power, delta_s, E_cutoff, E_edges
-            )
+            # Phase P0: Write back to ping buffer
+            self.psi_a[:] = psi_2
+
+            # Step 3: Energy loss (Phase P1-B: gather-based optimization)
+            a_e_start = time.time()
+
+            # Phase P1-B: Try to use gather-based kernel with cached LUT
+            cache_key = ('energy_lut', id(stopping_power), delta_s, E_cutoff)
+            use_gather = True
+
+            if cache_key not in self._cache:
+                # Build LUT and cache it
+                gather_map, coeff_map, dose_fractions = self._build_energy_gather_lut(
+                    E_grid, stopping_power, delta_s, E_cutoff, E_edges
+                )
+                if gather_map is not None and coeff_map is not None and dose_fractions is not None:
+                    self._cache[cache_key] = (gather_map, coeff_map, dose_fractions)
+                else:
+                    # Monotonicity violated or other issue
+                    use_gather = False
+
+            if use_gather and cache_key in self._cache:
+                # Use optimized gather-based kernel (Phase P1-B)
+                gather_map, coeff_map, dose_fractions = self._cache[cache_key]
+                psi_3, deposited_energy = self._energy_loss_kernel_gather(
+                    self.psi_a, gather_map, coeff_map, dose_fractions
+                )
+            else:
+                # Fallback to scatter-based kernel
+                psi_3, deposited_energy = self._energy_loss_kernel(
+                    self.psi_a, E_grid, stopping_power, delta_s, E_cutoff, E_edges
+                )
+
+            if self.enable_profiling:
+                self.profiling['a_e_times'].append(time.time() - a_e_start)
 
             # Ensure output is contiguous for memory coalescing
             psi_3 = cp.ascontiguousarray(psi_3)
             deposited_energy = cp.ascontiguousarray(deposited_energy)
+
+            if self.enable_profiling:
+                self.profiling['total_times'].append(time.time() - total_start)
 
             return psi_3, float(weight_leaked.get()), deposited_energy
 

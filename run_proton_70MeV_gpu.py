@@ -277,6 +277,27 @@ def main():
     print(f"  Std deviation: {np.std(step_times)*1000:.2f} ms")
     print(f"  Throughput: {len(step_times)/total_time:.1f} steps/s")
 
+    # Phase P0: Show GPU profiling statistics
+    if use_gpu and hasattr(gpu_transport, 'get_profiling_stats'):
+        gpu_stats = gpu_transport.get_profiling_stats()
+        if gpu_stats:
+            print(f"\nGPU Operator Profiling (Phase P0):")
+            print("-" * 70)
+            print(f"{'Operator':<15} {'Mean [ms]':<12} {'Std [ms]':<12} {'Min [ms]':<12} {'Max [ms]':<12} {'Count':<8}")
+            print("-" * 70)
+            for op_name in ['a_theta', 'a_stream', 'a_e', 'total']:
+                stats = gpu_stats[op_name]
+                print(f"{op_name:<15} {stats['mean']:<12.4f} {stats['std']:<12.4f} {stats['min']:<12.4f} {stats['max']:<12.4f} {stats['count']:<8}")
+
+            # Compute percentage breakdown
+            total_mean = gpu_stats['total']['mean']
+            if total_mean > 0:
+                print(f"\nPercentage Breakdown:")
+                for op_name in ['a_theta', 'a_stream', 'a_e']:
+                    op_mean = gpu_stats[op_name]['mean']
+                    pct = (op_mean / total_mean) * 100
+                    print(f"  {op_name}: {pct:.1f}%")
+
     print(f"\nPhysics Statistics:")
     print(f"  Initial weight: {initial_weight:.6f}")
     print(f"  Final active weight: {state.total_weight():.6f}")
