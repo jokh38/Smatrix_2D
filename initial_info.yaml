@@ -55,7 +55,7 @@ grid:
   # Angular grid (scattering angle distribution)
   angular:
     center: 90.0         # degrees (beam direction)
-    half_range: 30.0     # degrees (±30° from beam direction)
+    half_range: 15.0     # degrees (FIXED: was 30°, reduced to minimize backward transport)
     delta: 2.0           # degrees
     unit: degrees
     description: "Angular scattering domain (θ = center ± half_range)"

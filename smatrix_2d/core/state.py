@@ -66,6 +66,15 @@ class TransportState:
         """Compute total active particle weight."""
         return np.sum(self.psi)
 
+    def mean_energy(self) -> float:
+        """Compute mean energy of active particles [MeV]."""
+        total_weight = self.total_weight()
+        if total_weight < 1e-12:
+            return 0.0
+        # Weighted average: sum(E * weight) / sum(weight)
+        energy_weighted = np.sum(self.psi * self.grid.E_centers[:, np.newaxis, np.newaxis, np.newaxis])
+        return energy_weighted / total_weight
+
     def total_dose(self) -> float:
         """Compute total deposited energy [MeV]."""
         return np.sum(self.deposited_energy)

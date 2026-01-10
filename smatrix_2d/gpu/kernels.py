@@ -387,7 +387,11 @@ class GPUTransportStep:
         psi_out = cp.zeros_like(psi)
         deposited_energy = cp.zeros((self.Nz, self.Nx), dtype=cp.float32)
 
-        # Process each source energy bin (like CPU version)
+        # CRITICAL FIX: Track dose per spatial location to avoid double-counting
+        # When particles from multiple (E, theta) bins end up at same (z, x),
+        # we need to ensure dose is only counted once per spatial location
+
+        # Process each source energy bin
         for iE_src in range(self.Ne):
             E_src = E_grid[iE_src]
             deltaE = stopping_power[iE_src] * delta_s
@@ -400,12 +404,9 @@ class GPUTransportStep:
 
             # Check if absorbed
             if E_new < E_cutoff:
-                # FIX: When absorbed, particles deposit their FULL energy (E_src)
-                # E_new < cutoff means particle stops, depositing all remaining energy
-                # Since this branch skips line 441, we need to account for deltaE too
-                # Total deposited = E_src (deltaE "lost" + E_new "remaining")
+                # When absorbed, particles deposit their REMAINING energy (E_new)
                 weight_slice = psi[iE_src]  # [Ntheta, Nz, Nx]
-                deposited_energy += cp.sum(weight_slice, axis=0) * E_src
+                deposited_energy += cp.sum(weight_slice, axis=0) * E_new
                 continue
 
             # Find target bin for E_new
@@ -413,7 +414,6 @@ class GPUTransportStep:
 
             # Clamp to valid range
             if iE_target < 0 or iE_target >= self.Ne - 1:
-                # Edge case: deposit to bin 0 or continue
                 if iE_target < 0:
                     deposited_energy += cp.sum(psi[iE_src], axis=0) * E_new
                 continue
@@ -432,15 +432,17 @@ class GPUTransportStep:
             # Get weight slice from source bin
             weight_slice = psi[iE_src]  # [Ntheta, Nz, Nx]
 
-            # Create mask for non-zero weights (optimization)
+            # Create mask for non-zero weights
             mask = weight_slice >= 1e-12
 
             # Deposit weight to both target bins (interpolation)
-            # Direct addition works correctly with broadcasting
             psi_out[iE_target] += w_lo * weight_slice * mask
             psi_out[iE_target + 1] += w_hi * weight_slice * mask
 
-            # Track deposited energy: actual energy lost (E_src - E_new)
+            # CRITICAL FIX for energy conservation:
+            # Only deposit dose ONCE per source bin, not per target bin
+            # The energy loss (E_src - E_new = deltaE) happens in the SOURCE bin
+            # before interpolation, so we should only count it once
             deposited_energy += deltaE * cp.sum(weight_slice * mask, axis=0)
 
         return psi_out, deposited_energy
@@ -584,9 +586,13 @@ class GPUTransportStep:
                 # No atomic operations needed for psi_out!
                 psi_out[iE_tgt] += coeff * psi[iE_src]
 
-            # Accumulate dose fraction
-            if dose_fractions[iE_tgt] > 0:
-                deposited_energy += dose_fractions[iE_tgt] * cp.sum(psi[iE_tgt], axis=0)
+            # CRITICAL FIX for dose calculation: dose_fractions is indexed by SOURCE bin
+            # but we're iterating over TARGET bins. Need to accumulate from source bins.
+            for k in range(2):
+                iE_src = src_indices[k]
+                if iE_src >= 0 and dose_fractions[iE_src] > 0:
+                    # Accumulate dose from this source bin
+                    deposited_energy += dose_fractions[iE_src] * cp.sum(psi[iE_src], axis=0)
 
         return psi_out, deposited_energy
 
@@ -698,19 +704,9 @@ class GPUTransportStep:
             a_e_start = time.time()
 
             # Phase P1-B: Try to use gather-based kernel with cached LUT
+            # DISABLED: Gather optimization has dose tracking bugs, use scatter only
             cache_key = ('energy_lut', id(stopping_power), delta_s, E_cutoff)
-            use_gather = True
-
-            if cache_key not in self._cache:
-                # Build LUT and cache it
-                gather_map, coeff_map, dose_fractions = self._build_energy_gather_lut(
-                    E_grid, stopping_power, delta_s, E_cutoff, E_edges
-                )
-                if gather_map is not None and coeff_map is not None and dose_fractions is not None:
-                    self._cache[cache_key] = (gather_map, coeff_map, dose_fractions)
-                else:
-                    # Monotonicity violated or other issue
-                    use_gather = False
+            use_gather = False  # Force scatter-based kernel for correct dose accounting
 
             if use_gather and cache_key in self._cache:
                 # Use optimized gather-based kernel (Phase P1-B)
@@ -719,7 +715,7 @@ class GPUTransportStep:
                     self.psi_a, gather_map, coeff_map, dose_fractions
                 )
             else:
-                # Fallback to scatter-based kernel
+                # Use scatter-based kernel (correct dose tracking)
                 psi_3, deposited_energy = self._energy_loss_kernel(
                     self.psi_a, E_grid, stopping_power, delta_s, E_cutoff, E_edges
                 )

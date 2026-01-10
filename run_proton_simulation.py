@@ -513,7 +513,20 @@ def main():
         E_edges_gpu = cp.asarray(E_edges, dtype=cp.float32)
         stopping_power_gpu = cp.asarray(stopping_power_grid, dtype=cp.float32)
 
-        sigma_theta = 0.5 * np.sqrt(delta_z / E_init)
+        # Use proper Highland formula for RMS scattering angle
+        # sigma_theta = (13.6 MeV / (beta * p * beta * c)) * sqrt(L / X0) * [1 + 0.038 * ln(L / X0)]
+        # where: p = momentum, beta = v/c, L = step size, X0 = radiation length
+        E_current_mean = state.mean_energy()
+
+        # Calculate relativistic parameters
+        gamma = (E_current_mean + constants.m_p) / constants.m_p
+        beta_sq = 1.0 - 1.0 / (gamma * gamma)
+        beta = np.sqrt(max(beta_sq, 1e-12))
+        p_momentum = beta * gamma * constants.m_p  # MeV/c
+
+        L_over_X0 = delta_s / material.X0
+        log_correction = 1.0 + 0.038 * np.log(max(L_over_X0, 1e-12))
+        sigma_theta = (13.6 / (p_momentum * beta)) * np.sqrt(L_over_X0) * max(log_correction, 0.0)
 
         psi_new_gpu, weight_leaked_gpu, deposited_energy_gpu = gpu_transport.apply_step(
             psi=psi_gpu,
