@@ -41,14 +41,14 @@ grid:
     x:
       min: 0.0           # mm
       max: 30.0          # mm
-      delta: 1.0          # mm
+      delta: 0.1          # mm (FIXED: was 1.0, too coarse for lateral spreading)
       unit: mm
       description: "Lateral domain (perpendicular to beam direction)"
 
     z:
       min: 0.0           # mm
       max: 50.0          # mm
-      delta: 1.0          # mm
+      delta: 0.1          # mm (FIXED: was 1.0, too coarse for accurate depth-dose)
       unit: mm
       description: "Depth domain (along beam direction)"
 

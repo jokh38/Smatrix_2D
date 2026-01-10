@@ -122,10 +122,17 @@ def create_initial_state(
     ))
 
     # Find nearest bins
-    ix = np.argmin(np.abs(grid.x_centers - x_init))
-    iz = np.argmin(np.abs(grid.z_centers - z_init))
+    # FIX: Use rounding instead of argmin to avoid tie-breaking issues
+    # For spatial bins, round to nearest bin index
+    ix = int(np.round(x_init / grid.delta_x))
+    iz = int(np.round(z_init / grid.delta_z))
+    # For angle and energy, still use argmin (non-uniform spacing)
     ith = np.argmin(np.abs(grid.th_centers - theta_init))
     iE = np.argmin(np.abs(grid.E_centers - E_init))
+
+    # Clamp indices to valid range
+    ix = max(0, min(ix, len(grid.x_centers) - 1))
+    iz = max(0, min(iz, len(grid.z_centers) - 1))
 
     psi[iE, ith, iz, ix] = initial_weight
 

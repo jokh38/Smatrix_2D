@@ -121,10 +121,21 @@ def extract_particle_data(state, grid, step, delta_s, deposited_this_step):
     if len(nonzero_indices[0]) == 0:
         return pd.DataFrame()
 
+    # FIX: Track which spatial bins we've already recorded dose for
+    # to avoid double-counting dose across multiple (theta, E) bins
+    spatial_bins_with_dose_recorded = set()
+
     # Extract data for each non-zero element
     for iE, ith, iz, ix in zip(*nonzero_indices):
         weight = psi[iE, ith, iz, ix]
-        dose = deposited_this_step[iz, ix]
+
+        # Only include dose value for the FIRST occurrence of each spatial bin
+        spatial_key = (iz, ix)
+        if spatial_key not in spatial_bins_with_dose_recorded:
+            dose = deposited_this_step[iz, ix]
+            spatial_bins_with_dose_recorded.add(spatial_key)
+        else:
+            dose = 0.0  # Don't double-count dose for same spatial bin
 
         # Calculate velocity components from theta
         theta_rad = th_centers[ith]

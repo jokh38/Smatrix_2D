@@ -400,9 +400,12 @@ class GPUTransportStep:
 
             # Check if absorbed
             if E_new < E_cutoff:
-                # Deposit all weight from this bin as deposited energy
+                # FIX: When absorbed, particles deposit their FULL energy (E_src)
+                # E_new < cutoff means particle stops, depositing all remaining energy
+                # Since this branch skips line 441, we need to account for deltaE too
+                # Total deposited = E_src (deltaE "lost" + E_new "remaining")
                 weight_slice = psi[iE_src]  # [Ntheta, Nz, Nx]
-                deposited_energy += cp.sum(weight_slice, axis=0) * max(0.0, E_new)
+                deposited_energy += cp.sum(weight_slice, axis=0) * E_src
                 continue
 
             # Find target bin for E_new
