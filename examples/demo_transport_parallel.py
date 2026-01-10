@@ -1,7 +1,6 @@
-"""Demo script for operator-factorized 2D transport.
+"""Demo script for parallel operator-factorized 2D transport.
 
-Demonstrates complete workflow: grid creation, operator setup,
-transport simulation, and visualization.
+Demonstrates parallel workflow with CPU multiprocessing.
 """
 
 import sys
@@ -15,22 +14,25 @@ from smatrix_2d.core.grid import GridSpecs2D, create_phase_space_grid, EnergyGri
 from smatrix_2d.core.state import create_initial_state
 from smatrix_2d.core.materials import create_water_material
 from smatrix_2d.core.constants import PhysicsConstants2D
-from smatrix_2d.operators import (
-    AngularScatteringOperator,
-    EnergyReferencePolicy,
-    SpatialStreamingOperator,
-    BackwardTransportMode,
-    EnergyLossOperator,
-)
+from smatrix_2d.operators.parallel_angular_scattering import ParallelAngularScatteringOperator, EnergyReferencePolicy
+from smatrix_2d.operators.parallel_spatial_streaming import ParallelSpatialStreamingOperator, BackwardTransportMode
+from smatrix_2d.operators.parallel_energy_loss import ParallelEnergyLossOperator
 from smatrix_2d.transport import (
     FirstOrderSplitting,
 )
 from smatrix_2d.utils import plot_dose_map, plot_depth_dose, plot_lateral_profile
+from smatrix_2d.transport.parallel_transport_step import ParallelFirstOrderSplitting
+
+
+# Module-level function for multiprocessing (must be picklable)
+def stopping_power(E_MeV):
+    """Stopping power function (MeV/mm)."""
+    return 2.0e-3  # Simplified: 2 MeV/cm = 2e-3 MeV/mm
 
 
 def main():
-    """Run demonstration simulation."""
-    print("Operator-Factorized 2D Transport Demo")
+    """Run parallel demonstration simulation."""
+    print("Parallel Operator-Factorized 2D Transport Demo")
     print("=" * 50)
 
     # 1. Create grid
@@ -61,49 +63,45 @@ def main():
     print(f"  Density: {material.rho} g/cm³")
     print(f"  Radiation length: {material.X0} mm")
 
-    # 3. Create operators
-    print("\n[3] Initializing operators...")
+    # 3. Create parallel operators
+    print("\n[3] Initializing parallel operators...")
     constants = PhysicsConstants2D()
 
-    A_theta = AngularScatteringOperator(
-        grid, material, constants, EnergyReferencePolicy.START_OF_STEP
+    A_theta = ParallelAngularScatteringOperator(
+        grid, material, constants, EnergyReferencePolicy.START_OF_STEP, n_workers=1
     )
 
-    A_stream = SpatialStreamingOperator(
-        grid, constants, BackwardTransportMode.SMALL_BACKWARD_ALLOWANCE
+    A_stream = ParallelSpatialStreamingOperator(
+        grid, constants, BackwardTransportMode.SMALL_BACKWARD_ALLOWANCE, n_workers=1
     )
 
-    A_E = EnergyLossOperator(grid)
+    A_E = ParallelEnergyLossOperator(grid, n_workers=1)
 
-    print("  A_theta: Angular scattering (Highland MCS)")
-    print("  A_stream: Spatial streaming (shift-and-deposit)")
-    print("  A_E: Energy loss (coordinate-based advection)")
+    print(f"  A_theta: Angular scattering (Highland MCS) - {A_theta.n_workers} workers")
+    print(f"  A_stream: Spatial streaming (shift-and-deposit) - {A_stream.n_workers} workers")
+    print(f"  A_E: Energy loss (coordinate-based advection) - {A_E.n_workers} workers")
 
     # 4. Create transport step
     print("\n[4] Creating transport step...")
-    transport = FirstOrderSplitting(A_theta, A_stream, A_E)
+    transport = ParallelFirstOrderSplitting(A_theta, A_stream, A_E)
     print("  Splitting: First-order (A_theta -> A_stream -> A_E)")
 
     # 5. Initialize state
     print("\n[5] Initializing particle state...")
     state = create_initial_state(
         grid=grid,
-        x_init=20.0,
+        x_init=40.0,
         z_init=0.0,
         theta_init=np.pi / 2.0,
         E_init=50.0,
         initial_weight=1.0,
     )
-    print(f"  Initial position: x={state.grid.x_centers[state.grid.x_centers.shape[0]//2]:.1f}, z=0.0 mm")
+    print(f"  Initial position: x=40.0, z=0.0 mm")
     print("  Initial angle: 90° (+z direction)")
     print("  Initial energy: 50.0 MeV")
     print(f"  Initial weight: {state.total_weight():.6f}")
 
-    # 6. Define stopping power function
-    def stopping_power(E_MeV):
-        return 2.0e-3  # Simplified: 2 MeV/cm = 2e-3 MeV/mm
-
-    print("\n[6] Running transport simulation...")
+    print("\n[6] Running parallel transport simulation...")
     initial_weight = state.total_weight()
 
     # Start timing the simulation loop
@@ -126,7 +124,7 @@ def main():
 
     print("\n[7] Simulation complete!")
     print(f"  Total simulation time: {total_sim_time:.4f} seconds")
-    print(f"  Average time per step: {total_sim_time/50:.4f} seconds")
+    print(f"  Average time per step: {total_sim_time/10:.4f} seconds")
     print(f"  Final active weight: {state.total_weight():.6e}")
     print(f"  Total dose deposited: {state.total_dose():.2f} MeV")
     print(f"  Weight leaked: {state.weight_leaked:.6e}")
@@ -162,14 +160,14 @@ def main():
         grid.x_centers,
         grid.z_centers,
         title='Dose Distribution [MeV]',
-        save_path='output/dose_map.png',
+        save_path='output/dose_map_parallel.png',
     )
 
     plot_depth_dose(
         dose_2d,
         grid.z_centers,
         title='Depth-Dose Curve',
-        save_path='output/depth_dose.png',
+        save_path='output/depth_dose_parallel.png',
     )
 
     # Find depth of maximum dose
@@ -182,12 +180,12 @@ def main():
         grid.z_centers,
         z_peak,
         title='Lateral Profile at Bragg Peak',
-        save_path='output/lateral_profile.png',
+        save_path='output/lateral_profile_parallel.png',
     )
 
     print("\n[10] Output saved to output/")
     print("=" * 50)
-    print("Demo complete!")
+    print("Parallel demo complete!")
 
 
 if __name__ == '__main__':

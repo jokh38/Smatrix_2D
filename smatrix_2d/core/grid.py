@@ -93,6 +93,7 @@ class PhaseSpaceGrid2D:
         th_centers: Angular centers [rad]
         E_edges: Energy boundaries [MeV]
         E_centers: Energy centers [MeV]
+        E_cutoff: Energy cutoff for particle absorption [MeV]
         delta_x: Spatial spacing [mm]
         delta_z: Spatial spacing [mm]
         delta_theta: Angular spacing [rad]
@@ -107,6 +108,7 @@ class PhaseSpaceGrid2D:
     th_centers: np.ndarray
     E_edges: np.ndarray
     E_centers: np.ndarray
+    E_cutoff: float
 
     delta_x: float
     delta_z: float
@@ -201,6 +203,7 @@ def create_phase_space_grid(specs: GridSpecs2D) -> PhaseSpaceGrid2D:
         th_centers=th_centers,
         E_edges=E_edges,
         E_centers=E_centers,
+        E_cutoff=specs.E_cutoff,
         delta_x=specs.delta_x,
         delta_z=specs.delta_z,
         delta_theta=delta_theta,

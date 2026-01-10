@@ -64,13 +64,6 @@ class EnergyLossOperator:
                 self._copy_weight_slice(psi, psi_out, iE_src)
                 continue
 
-            # Check E_cutoff
-            if E_new < E_cutoff:
-                self._deposit_cutoff_energy(
-                    psi, deposited_energy, iE_src, max(0.0, E_new)
-                )
-                continue
-
             # Find target bin for E_new
             iE_target = np.searchsorted(
                 self.grid.E_edges, E_new, side='left'
@@ -89,7 +82,9 @@ class EnergyLossOperator:
             if E_hi - E_lo < 1e-12:
                 continue
 
-            # Linear interpolation in energy coordinate (spec v7.2 eq)
+            # Standard linear interpolation in energy coordinate (spec v7.2 eq)
+            # w_i = (E_{i+1} - E_new) / (E_{i+1} - E_i)
+            # w_{i+1} = 1 - w_i
             w_lo = (E_hi - E_new) / (E_hi - E_lo)
             w_hi = 1.0 - w_lo
 

@@ -154,7 +154,7 @@ class TransportStep:
                     delta_s,
                     stopping_power_func,
                     state.grid.E_centers,
-                    state.grid.E_edges[0],
+                    state.grid.E_cutoff,
                 )
         elif self.splitting == SplittingType.STRANG:
             psi_out, deposited_energy, w_rejected_backward, w_leaked = \
@@ -163,7 +163,7 @@ class TransportStep:
                     delta_s,
                     stopping_power_func,
                     state.grid.E_centers,
-                    state.grid.E_edges[0],
+                    state.grid.E_cutoff,
                 )
         else:
             raise ValueError(f"Unknown splitting type: {self.splitting}")
