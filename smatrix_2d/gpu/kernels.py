@@ -395,6 +395,12 @@ class GPUTransportStep:
         for iE_src in range(self.Ne):
             E_src = E_grid[iE_src]
             deltaE = stopping_power[iE_src] * delta_s
+
+            # CRITICAL FIX: Clamp energy loss to prevent negative energy
+            # Particles cannot lose more energy than (E_src - E_cutoff)
+            max_deltaE = max(E_src - E_cutoff, 0.0)
+            deltaE = min(deltaE, max_deltaE)
+
             E_new = E_src - deltaE
 
             # Skip if no energy loss
@@ -403,10 +409,12 @@ class GPUTransportStep:
                 continue
 
             # Check if absorbed
-            if E_new < E_cutoff:
-                # When absorbed, particles deposit their REMAINING energy (E_new)
+            if E_new <= E_cutoff:
+                # When absorbed, particles deposit their REMAINING energy (E_src - E_cutoff)
                 weight_slice = psi[iE_src]  # [Ntheta, Nz, Nx]
-                deposited_energy += cp.sum(weight_slice, axis=0) * E_new
+                # CRITICAL FIX: Deposit (E_src - E_cutoff), not E_new, to ensure positive dose
+                energy_to_deposit = max(E_src - E_cutoff, 0.0)
+                deposited_energy += cp.sum(weight_slice, axis=0) * energy_to_deposit
                 continue
 
             # Find target bin for E_new
@@ -415,7 +423,9 @@ class GPUTransportStep:
             # Clamp to valid range
             if iE_target < 0 or iE_target >= self.Ne - 1:
                 if iE_target < 0:
-                    deposited_energy += cp.sum(psi[iE_src], axis=0) * E_new
+                    # Energy would go below grid minimum - absorb particle
+                    energy_to_deposit = max(E_src - E_cutoff, 0.0)
+                    deposited_energy += cp.sum(psi[iE_src], axis=0) * energy_to_deposit
                 continue
 
             # Get interpolation weights
@@ -493,7 +503,11 @@ class GPUTransportStep:
         dose_fractions = np.zeros(Ne, dtype=np.float32)
 
         # Compute E_new for all source energies
-        E_new = E_grid_np - stopping_power_np * delta_s
+        # CRITICAL FIX: Clamp energy loss to prevent negative energy
+        deltaE_raw = stopping_power_np * delta_s
+        max_deltaE = np.maximum(E_grid_np - E_cutoff, 0.0)
+        deltaE = np.minimum(deltaE_raw, max_deltaE)
+        E_new = E_grid_np - deltaE
 
         # Phase P1-B: Check monotonicity
         if not np.all(np.diff(E_new) < 0):
@@ -515,11 +529,10 @@ class GPUTransportStep:
 
             # Find all source bins that map to this target bin
             for iE_src in range(Ne):
-                if E_new[iE_src] < E_cutoff:
+                if E_new[iE_src] <= E_cutoff:
                     # Below cutoff: all energy deposited as dose
-                    # Track energy that goes to dose from each source
-                    deltaE = stopping_power_np[iE_src] * delta_s
-                    dose_fractions[iE_src] += deltaE
+                    # CRITICAL FIX: Use clamped deltaE, not raw stopping power
+                    dose_fractions[iE_src] += deltaE[iE_src]
                     continue
 
                 if E_tgt_lo <= E_new[iE_src] < E_tgt_hi:

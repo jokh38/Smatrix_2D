@@ -20,7 +20,7 @@ particle:
   # Initial spatial position
   position:
     x:
-      value: 15.0        # mm
+      value: 6.0         # mm (center of [0, 12] mm domain)
       unit: mm
       description: "Initial lateral position (center of x-domain)"
     z:
@@ -40,31 +40,31 @@ grid:
   spatial:
     x:
       min: 0.0           # mm
-      max: 30.0          # mm
-      delta: 0.1          # mm (FIXED: was 1.0, too coarse for lateral spreading)
+      max: 12.0          # mm (OPTIMIZED: reduced from 30mm for lower computational burden)
+      delta: 0.5         # mm (COARSER: 0.5mm instead of 0.1mm for 5x coarser spatial resolution)
       unit: mm
       description: "Lateral domain (perpendicular to beam direction)"
 
     z:
       min: 0.0           # mm
       max: 50.0          # mm
-      delta: 0.1          # mm (FIXED: was 1.0, too coarse for accurate depth-dose)
+      delta: 0.5         # mm (COARSER: 0.5mm instead of 0.1mm for 5x coarser spatial resolution)
       unit: mm
       description: "Depth domain (along beam direction)"
 
   # Angular grid (scattering angle distribution)
   angular:
     center: 90.0         # degrees (beam direction)
-    half_range: 15.0     # degrees (FIXED: was 30°, reduced to minimize backward transport)
-    delta: 2.0           # degrees
+    half_range: 20.0     # degrees (EXPANDED: [70,110]° range for better scattering capture)
+    delta: 0.5           # degrees (FINER: 0.5° instead of 1° for better angular resolution)
     unit: degrees
     description: "Angular scattering domain (θ = center ± half_range)"
 
   # Energy grid (energy loss straggling)
   energy:
-    min: 1.0             # MeV
+    min: 1.0             # MeV (FIXED: E=0 causes numerical instability in stopping power)
     max: 70.0            # MeV
-    delta: 2.0           # MeV
+    delta: 1.0           # MeV (FINER: 1 MeV instead of 2 MeV for better energy resolution)
     cutoff: 2.0          # MeV (particles below this energy are absorbed)
     unit: MeV
     description: "Energy loss domain (Bethe-Bloch formula)"
