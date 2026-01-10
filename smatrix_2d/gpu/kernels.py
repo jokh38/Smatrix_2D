@@ -97,6 +97,8 @@ class GPUTransportStep:
         delta_z: float = 1.0,
         early_exit_threshold: float = 1e-12,
         enable_profiling: bool = True,
+        theta_min: float = 0.0,
+        theta_max: float = 2.0 * np.pi,
     ):
         """Initialize GPU transport step.
 
@@ -110,6 +112,8 @@ class GPUTransportStep:
             delta_z: Depth grid spacing [mm]
             early_exit_threshold: Threshold for negligible weights (default: 1e-12)
             enable_profiling: Enable per-operator timing (default: True)
+            theta_min: Minimum angle [rad] (default: 0)
+            theta_max: Maximum angle [rad] (default: 2π)
         """
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy not available. Install: pip install cupy-cudaXX")
@@ -123,6 +127,8 @@ class GPUTransportStep:
         self.delta_z = delta_z
         self.early_exit_threshold = early_exit_threshold
         self.enable_profiling = enable_profiling
+        self.theta_min = theta_min
+        self.theta_max = theta_max
 
         # Memory shape: [Ne, Ntheta, Nz, Nx]
         self.shape = (Ne, Ntheta, Nz, Nx)
@@ -191,8 +197,11 @@ class GPUTransportStep:
             raise RuntimeError("CuPy not available")
 
         # Create Gaussian kernel once and broadcast
-        theta_centers = cp.arange(self.Ntheta) * (2 * np.pi / self.Ntheta)
-        kernel = cp.exp(-0.5 * ((theta_centers - theta_centers.mean()) / sigma_theta) ** 2)
+        # FIX: Use actual theta grid centers, not [0, 2π]!
+        delta_theta = (self.theta_max - self.theta_min) / self.Ntheta
+        theta_centers = self.theta_min + delta_theta/2 + cp.arange(self.Ntheta, dtype=cp.float32) * delta_theta
+        theta_center = (self.theta_min + self.theta_max) / 2.0  # Center of the angular range
+        kernel = cp.exp(-0.5 * ((theta_centers - theta_center) / sigma_theta) ** 2)
         kernel = kernel / kernel.sum()
 
         # Add batch dimensions to kernel for broadcasting: [1, Ntheta, 1, 1]
@@ -222,13 +231,13 @@ class GPUTransportStep:
         sigma_theta: float,
         theta_beam: float,
     ) -> cp.ndarray if GPU_AVAILABLE else None:
-        """Apply spatial streaming with vectorized shift-and-deposit.
+        """Apply spatial streaming with theta-dependent transport (FIXED for lateral spreading).
 
         Args:
             psi_in: Input state [Ne, Ntheta, Nz, Nx]
             delta_s: Step length [mm]
             sigma_theta: RMS scattering angle (unused in this kernel)
-            theta_beam: Beam angle [rad]
+            theta_beam: Beam angle [rad] - initial beam direction
 
         Returns:
             (psi_out, weight_leaked) tuple
@@ -237,9 +246,11 @@ class GPUTransportStep:
             raise RuntimeError("CuPy not available")
 
         # Create coordinate grids using delta_x and delta_z
+        # FIX: Use bin centers, not bin edges!
+        # Grid centers are at: delta/2, 3*delta/2, 5*delta/2, ...
         z_coords, x_coords = cp.meshgrid(
-            cp.arange(self.Nz, dtype=cp.float32) * self.delta_z,
-            cp.arange(self.Nx, dtype=cp.float32) * self.delta_x,
+            cp.arange(self.Nz, dtype=cp.float32) * self.delta_z + self.delta_z / 2.0,
+            cp.arange(self.Nx, dtype=cp.float32) * self.delta_x + self.delta_x / 2.0,
             indexing='ij'
         )
 
@@ -247,12 +258,21 @@ class GPUTransportStep:
         z_coords = z_coords.reshape(1, 1, self.Nz, self.Nx)
         x_coords = x_coords.reshape(1, 1, self.Nz, self.Nx)
 
-        # Compute velocity components
-        v_x = cp.cos(theta_beam)
-        v_z = cp.sin(theta_beam)
+        # CRITICAL FIX: Create theta bin centers for angular-dependent transport
+        # Use the actual theta bounds from the grid
+        delta_theta = (self.theta_max - self.theta_min) / self.Ntheta
+        theta_centers = self.theta_min + delta_theta/2 + cp.arange(self.Ntheta, dtype=cp.float32) * delta_theta
 
-        # Compute new positions for all elements
-        x_new = x_coords + delta_s * v_x
+        # Reshape theta for broadcasting: [1, Ntheta, 1, 1]
+        theta_centers = theta_centers.reshape(1, self.Ntheta, 1, 1)
+
+        # Compute velocity components based on THETA (FIXED: not theta_beam!)
+        # This is the key fix for lateral spreading
+        v_x = cp.cos(theta_centers)  # [1, Ntheta, 1, 1]
+        v_z = cp.sin(theta_centers)  # [1, Ntheta, 1, 1]
+
+        # Compute new positions for all elements (theta-dependent!)
+        x_new = x_coords + delta_s * v_x  # Broadcasting: [1,Ntheta,1,1] + [1,1,Nz,Nx]
         z_new = z_coords + delta_s * v_z
 
         # Compute target bin indices (integer grid indices)
@@ -284,9 +304,10 @@ class GPUTransportStep:
             iz_valid = (remainder % (self.Nz * self.Nx)) // self.Nx
             ix_valid = remainder % self.Nx
 
-            # Get target positions for valid elements
-            x_valid = x_new[iE_valid, ith_valid, iz_valid, ix_valid]
-            z_valid = z_new[iE_valid, ith_valid, iz_valid, ix_valid]
+            # Get target positions for valid elements (theta-dependent now!)
+            # FIX: x_new and z_new have shape [1, Ntheta, Nz, Nx], not [Ne, Ntheta, Nz, Nx]
+            x_valid = x_new[0, ith_valid, iz_valid, ix_valid]
+            z_valid = z_new[0, ith_valid, iz_valid, ix_valid]
 
             # Check boundaries using delta_x and delta_z
             out_of_bounds = (x_valid < 0) | (x_valid >= self.Nx * self.delta_x) | \
@@ -295,8 +316,7 @@ class GPUTransportStep:
             # Handle leaked weight
             if cp.any(out_of_bounds):
                 leaked_weight = cp.sum(valid_weights[out_of_bounds])
-                if self.accumulation_mode == AccumulationMode.FAST:
-                    cp.atomic.add(weight_leaked, leaked_weight)
+                weight_leaked[()] = leaked_weight  # Direct assignment for scalar
                 valid_weights = valid_weights[~out_of_bounds]
                 iE_valid = iE_valid[~out_of_bounds]
                 ith_valid = ith_valid[~out_of_bounds]
@@ -738,6 +758,8 @@ def create_gpu_transport_step(
     accumulation_mode: str = AccumulationMode.FAST,
     delta_x: float = 1.0,
     delta_z: float = 1.0,
+    theta_min: float = 0.0,
+    theta_max: float = 2.0 * np.pi,
 ) -> GPUTransportStep:
     """Create GPU transport step.
 
@@ -749,8 +771,11 @@ def create_gpu_transport_step(
         accumulation_mode: 'fast' or 'deterministic'
         delta_x: Lateral grid spacing [mm]
         delta_z: Depth grid spacing [mm]
+        theta_min: Minimum angle [rad] (default: 0)
+        theta_max: Maximum angle [rad] (default: 2π)
 
     Returns:
         GPUTransportStep instance
     """
-    return GPUTransportStep(Ne, Ntheta, Nz, Nx, accumulation_mode, delta_x, delta_z)
+    return GPUTransportStep(Ne, Ntheta, Nz, Nx, accumulation_mode, delta_x, delta_z,
+                          theta_min=theta_min, theta_max=theta_max)

@@ -65,11 +65,11 @@ def main():
     print("\n[1] Grid Configuration:")
     print("-" * 70)
 
-    # Spatial dimensions
+    # Spatial dimensions (HIGH RESOLUTION: 0.5 mm)
     x_min, x_max = 0.0, 30.0  # mm
     z_min, z_max = 0.0, 50.0  # mm
-    delta_x = 1.0  # mm
-    delta_z = 1.0  # mm
+    delta_x = 0.5  # mm (2x finer)
+    delta_z = 0.5  # mm (2x finer)
 
     Nx = int((x_max - x_min) / delta_x)
     Nz = int((z_max - z_min) / delta_z)
@@ -81,9 +81,9 @@ def main():
     delta_theta = 0.5  # degrees
     Ntheta = int(2 * theta_half_range / delta_theta)
 
-    # Energy dimensions
+    # Energy dimensions (HIGH RESOLUTION: 0.5 MeV)
     E_min, E_max = 1.0, 70.0  # MeV
-    delta_E = 1.0  # MeV
+    delta_E = 0.5  # MeV (2x finer)
     Ne = int((E_max - E_min) / delta_E) + 1
     E_cutoff = 2.0  # MeV
 
@@ -98,8 +98,6 @@ def main():
         E_max=E_max,
         E_cutoff=E_cutoff,
         energy_grid_type=EnergyGridType.UNIFORM,
-        theta_min=np.deg2rad(theta_center_deg - theta_half_range),  # 85° in radians
-        theta_max=np.deg2rad(theta_center_deg + theta_half_range),  # 95° in radians
     )
 
     grid = create_phase_space_grid(specs)
@@ -130,9 +128,7 @@ def main():
             Nx=Nx,
             accumulation_mode=AccumulationMode.FAST,
             delta_x=delta_x,
-            delta_z=delta_z,
-            theta_min=np.deg2rad(theta_center_deg - theta_half_range),
-            theta_max=np.deg2rad(theta_center_deg + theta_half_range),
+            delta_z=delta_z
         )
         print("  GPU transport initialized successfully")
         use_gpu = True
@@ -381,7 +377,7 @@ def main():
     ax.set_ylim(0, 110)
 
     plt.tight_layout()
-    output_pdd = '/workspaces/Smatrix_2D/proton_pdd_70MeV_gpu.png'
+    output_pdd = '/workspaces/Smatrix_2D/proton_pdd_70MeV_gpu_hires.png'
     plt.savefig(output_pdd, dpi=150, bbox_inches='tight')
     print(f"  Depth-dose plot saved: {output_pdd}")
     plt.close()
@@ -399,12 +395,12 @@ def main():
     ax2.set_xlabel('Depth z [mm]')
     ax2.set_ylabel('Lateral x [mm]')
     if use_gpu:
-        ax2.set_title(f'2D Dose Distribution - {E_init} MeV Proton in Water (GPU)')
+        ax2.set_title(f'2D Dose Distribution - {E_init} MeV Proton in Water (GPU High-Res)')
     else:
-        ax2.set_title(f'2D Dose Distribution - {E_init} MeV Proton in Water (CPU)')
+        ax2.set_title(f'2D Dose Distribution - {E_init} MeV Proton in Water (CPU High-Res)')
 
     plt.tight_layout()
-    output_dose = '/workspaces/Smatrix_2D/proton_dose_map_70MeV_gpu.png'
+    output_dose = '/workspaces/Smatrix_2D/proton_dose_map_70MeV_gpu_hires.png'
     plt.savefig(output_dose, dpi=150, bbox_inches='tight')
     print(f"  2D dose map saved: {output_dose}")
     plt.close()
