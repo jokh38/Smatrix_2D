@@ -64,7 +64,7 @@ grid:
   energy:
     min: 1.0             # MeV (FIXED: E=0 causes numerical instability in stopping power)
     max: 70.0            # MeV
-    delta: 1.0           # MeV (FINER: 1 MeV instead of 2 MeV for better energy resolution)
+    delta: 0.2           # MeV (TEST: Very fine energy resolution for best energy conservation)
     cutoff: 2.0          # MeV (particles below this energy are absorbed)
     unit: MeV
     description: "Energy loss domain (Bethe-Bloch formula)"
