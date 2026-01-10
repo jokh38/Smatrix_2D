@@ -201,26 +201,28 @@ class GPUTransportStep:
         delta_theta = (self.theta_max - self.theta_min) / self.Ntheta
         theta_centers = self.theta_min + delta_theta/2 + cp.arange(self.Ntheta, dtype=cp.float32) * delta_theta
         theta_center = (self.theta_min + self.theta_max) / 2.0  # Center of the angular range
-        kernel = cp.exp(-0.5 * ((theta_centers - theta_center) / sigma_theta) ** 2)
-        kernel = kernel / kernel.sum()
 
-        # Add batch dimensions to kernel for broadcasting: [1, Ntheta, 1, 1]
-        kernel = kernel.reshape(1, self.Ntheta, 1, 1)
+        # Create output array
+        psi_out = cp.zeros_like(psi_in)
 
-        # Use FFT-based circular convolution along theta axis
-        # Shift input to center the kernel
-        psi_shifted = cp.fft.fftshift(psi_in, axes=1)
+        # Direct convolution along theta axis (no FFT, no wraparound)
+        # For each output bin, compute weighted sum of input bins
+        for ith_out in range(self.Ntheta):
+            theta_out = theta_centers[ith_out]
 
-        # FFT along theta dimension
-        fft_psi = cp.fft.fft(psi_shifted, axis=1)
-        fft_kernel = cp.fft.fft(kernel, axis=1)
+            # Compute weights for all input bins
+            # Gaussian weight depends on distance between bins
+            theta_diff = theta_centers - theta_out  # [Ntheta]
+            weights = cp.exp(-0.5 * (theta_diff / sigma_theta) ** 2)  # [Ntheta]
+            weights = weights / weights.sum()  # Normalize
 
-        # Multiply in frequency domain
-        fft_result = fft_psi * fft_kernel
+            # Reshape weights for broadcasting: [1, Ntheta, 1, 1]
+            weights = weights.reshape(1, self.Ntheta, 1, 1)
 
-        # Inverse FFT and shift back
-        psi_out = cp.fft.ifft(fft_result, axis=1).real
-        psi_out = cp.fft.ifftshift(psi_out, axes=1)
+            # Compute weighted sum: psi_out[:, ith_out, :, :] = sum(psi_in * weights)
+            # Result of sum has shape [Ne, 1, Nz, Nx], we need [Ne, 1, Nz, Nx]
+            convolved = cp.sum(psi_in * weights, axis=1, keepdims=True)
+            psi_out[:, ith_out:ith_out+1, :, :] = convolved
 
         return psi_out
 
