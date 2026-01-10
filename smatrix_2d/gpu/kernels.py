@@ -43,6 +43,8 @@ class GPUTransportStep:
         Nz: int,
         Nx: int,
         accumulation_mode: str = AccumulationMode.FAST,
+        delta_x: float = 1.0,
+        delta_z: float = 1.0,
     ):
         """Initialize GPU transport step.
 
@@ -52,6 +54,8 @@ class GPUTransportStep:
             Nz: Number of depth bins
             Nx: Number of lateral bins
             accumulation_mode: 'fast' or 'deterministic'
+            delta_x: Lateral grid spacing [mm]
+            delta_z: Depth grid spacing [mm]
         """
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy not available. Install: pip install cupy-cudaXX")
@@ -61,6 +65,8 @@ class GPUTransportStep:
         self.Nz = Nz
         self.Nx = Nx
         self.accumulation_mode = accumulation_mode
+        self.delta_x = delta_x
+        self.delta_z = delta_z
 
         # Memory shape: [Ne, Ntheta, Nz, Nx]
         self.shape = (Ne, Ntheta, Nz, Nx)
@@ -128,10 +134,10 @@ class GPUTransportStep:
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy not available")
 
-        # Create coordinate grids
+        # Create coordinate grids using delta_x and delta_z
         z_coords, x_coords = cp.meshgrid(
-            cp.arange(self.Nz, dtype=cp.float32) * 2.0,
-            cp.arange(self.Nx, dtype=cp.float32) * 2.0,
+            cp.arange(self.Nz, dtype=cp.float32) * self.delta_z,
+            cp.arange(self.Nx, dtype=cp.float32) * self.delta_x,
             indexing='ij'
         )
 
@@ -148,8 +154,8 @@ class GPUTransportStep:
         z_new = z_coords + delta_s * v_z
 
         # Compute target bin indices (integer grid indices)
-        ix_target = (x_new / 2.0).astype(cp.int32)
-        iz_target = (z_new / 2.0).astype(cp.int32)
+        ix_target = (x_new / self.delta_x).astype(cp.int32)
+        iz_target = (z_new / self.delta_z).astype(cp.int32)
 
         # Create output arrays
         psi_out = cp.zeros_like(psi_in)
@@ -180,9 +186,9 @@ class GPUTransportStep:
             x_valid = x_new[iE_valid, ith_valid, iz_valid, ix_valid]
             z_valid = z_new[iE_valid, ith_valid, iz_valid, ix_valid]
 
-            # Check boundaries
-            out_of_bounds = (x_valid < 0) | (x_valid >= self.Nx * 2.0) | \
-                           (z_valid < 0) | (z_valid >= self.Nz * 2.0)
+            # Check boundaries using delta_x and delta_z
+            out_of_bounds = (x_valid < 0) | (x_valid >= self.Nx * self.delta_x) | \
+                           (z_valid < 0) | (z_valid >= self.Nz * self.delta_z)
 
             # Handle leaked weight
             if cp.any(out_of_bounds):
@@ -195,10 +201,10 @@ class GPUTransportStep:
                 iz_valid = iz_valid[~out_of_bounds]
                 ix_valid = ix_valid[~out_of_bounds]
 
-            # For remaining particles, update target positions
+            # For remaining particles, update target positions using delta_x and delta_z
             if len(valid_weights) > 0:
-                ix_target_valid = (x_valid[~out_of_bounds] / 2.0).astype(cp.int32)
-                iz_target_valid = (z_valid[~out_of_bounds] / 2.0).astype(cp.int32)
+                ix_target_valid = (x_valid[~out_of_bounds] / self.delta_x).astype(cp.int32)
+                iz_target_valid = (z_valid[~out_of_bounds] / self.delta_z).astype(cp.int32)
 
                 # Filter valid targets
                 valid_targets = (ix_target_valid >= 0) & (ix_target_valid < self.Nx) & \
@@ -214,9 +220,9 @@ class GPUTransportStep:
 
                     # Use advanced indexing for accumulation
                     if self.accumulation_mode == AccumulationMode.FAST:
-                        # Use scatter_add for atomic operations
+                        # Use scatter_add for atomic operations (no assignment!)
                         indices = (final_iE, final_ith, final_iz, final_ix)
-                        psi_out[indices] = cp.add.at(psi_out, indices, final_weights)
+                        cp.add.at(psi_out, indices, final_weights)
                     else:
                         # For deterministic mode, use direct assignment (no atomics)
                         indices = (final_iE, final_ith, final_iz, final_ix)
@@ -231,6 +237,7 @@ class GPUTransportStep:
         stopping_power,
         delta_s: float,
         E_cutoff: float,
+        E_edges=None,
     ) -> tuple[cp.ndarray if GPU_AVAILABLE else None, cp.ndarray if GPU_AVAILABLE else None]:
         """Apply energy loss with vectorized interpolation.
 
@@ -240,6 +247,7 @@ class GPUTransportStep:
             stopping_power: Stopping power [MeV/mm]
             delta_s: Step length [mm]
             E_cutoff: Cutoff energy [MeV]
+            E_edges: Energy bin edges [MeV] (optional)
 
         Returns:
             (psi_out, deposited_energy) tuple
@@ -247,107 +255,66 @@ class GPUTransportStep:
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy not available")
 
-        # Calculate energy loss for all energy bins
-        deltaE = stopping_power * delta_s
-        E_new = E_grid - deltaE
+        # Use E_edges for interpolation if provided, otherwise use E_grid
+        if E_edges is None:
+            E_edges = E_grid
 
         # Initialize output arrays
         psi_out = cp.zeros_like(psi)
         deposited_energy = cp.zeros((self.Nz, self.Nx), dtype=cp.float32)
 
-        # Create energy loss map: [Ne, Ntheta, Nz, Nx] with same E_new for all theta,z,x
-        E_new_expanded = cp.expand_dims(E_new, axis=(1, 2, 3))  # [Ne, 1, 1, 1]
+        # Process each source energy bin (like CPU version)
+        for iE_src in range(self.Ne):
+            E_src = E_grid[iE_src]
+            deltaE = stopping_power[iE_src] * delta_s
+            E_new = E_src - deltaE
 
-        # Identify absorbed particles (E_new < E_cutoff)
-        absorbed_mask = E_new < E_cutoff
+            # Skip if no energy loss
+            if abs(deltaE) < 1e-12:
+                psi_out[iE_src] = psi[iE_src]
+                continue
 
-        # Handle absorbed particles
-        if cp.any(absorbed_mask):
-            # Sum all weights for absorbed energy bins
-            absorbed_weights = cp.sum(psi[absorbed_mask], axis=(1, 2, 3))  # [absorbed_Ne]
-            absorbed_E = E_new[absorbed_mask]
-            residual_energy = cp.maximum(0.0, absorbed_E)
+            # Check if absorbed
+            if E_new < E_cutoff:
+                # Deposit all weight from this bin as deposited energy
+                weight_slice = psi[iE_src]  # [Ntheta, Nz, Nx]
+                deposited_energy += cp.sum(weight_slice, axis=0) * max(0.0, E_new)
+                continue
 
-            # Add deposited energy (sum over all spatial positions)
-            if len(absorbed_weights) > 0:
-                deposited_energy += cp.sum(absorbed_weights[:, None, None] * residual_energy[:, None, None], axis=0)
-
-        # Handle transmitted particles
-        transmitted_mask = ~absorbed_mask
-        if cp.any(transmitted_mask):
-            # For transmitted particles, find target bins and interpolate
-            E_transmitted = E_new[transmitted_mask]
-            psi_transmitted = psi[transmitted_mask]  # [transmitted_Ne, Ntheta, Nz, Nx]
-
-            # Find target energy bins for all transmitted particles
-            iE_targets = cp.searchsorted(E_grid, E_transmitted, side='right') - 1
+            # Find target bin for E_new
+            iE_target = cp.searchsorted(E_edges, E_new, side='left') - 1
 
             # Clamp to valid range
-            iE_targets = cp.clip(iE_targets, 0, self.Ne - 2)
+            if iE_target < 0 or iE_target >= self.Ne - 1:
+                # Edge case: deposit to bin 0 or continue
+                if iE_target < 0:
+                    deposited_energy += cp.sum(psi[iE_src], axis=0) * E_new
+                continue
 
-            # Calculate interpolation weights for all transmitted particles
-            E_lo = E_grid[iE_targets]
-            E_hi = E_grid[iE_targets + 1]
+            # Get interpolation weights
+            E_lo = E_edges[iE_target]
+            E_hi = E_edges[iE_target + 1]
 
-            w_lo = (E_hi - E_transmitted) / (E_hi - E_lo)
-            w_hi = (E_transmitted - E_lo) / (E_hi - E_lo)
+            if E_hi - E_lo < 1e-12:
+                continue
 
-            # Reshape weights for broadcasting: [transmitted_Ne, 1, 1, 1]
-            w_lo = w_lo.reshape(-1, 1, 1, 1)
-            w_hi = w_hi.reshape(-1, 1, 1, 1)
+            # Linear interpolation in energy coordinate
+            w_lo = (E_hi - E_new) / (E_hi - E_lo)
+            w_hi = 1.0 - w_lo
 
-            # Create output indices for accumulation
-            # Expand target indices to full dimensionality
-            iE_targets_expanded = cp.expand_dims(iE_targets, axis=(1, 2, 3))  # [transmitted_Ne, 1, 1, 1]
-            iE_targets_plus_1_expanded = iE_targets_expanded + 1
+            # Get weight slice from source bin
+            weight_slice = psi[iE_src]  # [Ntheta, Nz, Nx]
 
-            # Flatten arrays for vectorized accumulation
-            transmitted_flat = psi_transmitted.reshape(-1)  # [transmitted_Ne * Ntheta * Nz * Nx]
-            w_lo_flat = w_lo.reshape(-1)  # [transmitted_Ne * Ntheta * Nz * Nx]
-            w_hi_flat = w_hi.reshape(-1)  # [transmitted_Ne * Ntheta * Nz * Nx]
-            iE_flat = iE_targets_expanded.reshape(-1)  # [transmitted_Ne * Ntheta * Nz * Nx]
-            iE_plus_1_flat = iE_targets_plus_1_expanded.reshape(-1)  # [transmitted_Ne * Ntheta * Nz * Nx]
+            # Create mask for non-zero weights (optimization)
+            mask = weight_slice >= 1e-12
 
-            # Convert to 4D indices
-            total_transmitted = len(transmitted_flat)
-            if total_transmitted > 0:
-                # Create flat indices for all dimensions
-                flat_indices = cp.arange(total_transmitted, dtype=cp.int32)
-                ith_indices = flat_indices % (self.Nz * self.Nx)
-                remainder = flat_indices // (self.Nz * self.Nx)
-                iz_indices = remainder // self.Nx
-                ix_indices = remainder % self.Nx
+            # Deposit weight to both target bins (interpolation)
+            # Direct addition works correctly with broadcasting
+            psi_out[iE_target] += w_lo * weight_slice * mask
+            psi_out[iE_target + 1] += w_hi * weight_slice * mask
 
-                # Filter out near-zero weights
-                valid_transmitted_mask = transmitted_flat > 1e-12
-                if cp.any(valid_transmitted_mask):
-                    valid_flat = flat_indices[valid_transmitted_mask]
-                    valid_transmitted = transmitted_flat[valid_transmitted_mask]
-                    valid_w_lo = w_lo_flat[valid_transmitted_mask]
-                    valid_w_hi = w_hi_flat[valid_transmitted_mask]
-                    valid_iE = iE_flat[valid_transmitted_mask]
-                    valid_iE_plus_1 = iE_plus_1_flat[valid_transmitted_mask]
-                    valid_ith = ith_indices[valid_transmitted_mask]
-                    valid_iz = iz_indices[valid_transmitted_mask]
-                    valid_ix = ix_indices[valid_transmitted_mask]
-
-                    # Use advanced indexing for vectorized accumulation
-                    if self.accumulation_mode == AccumulationMode.FAST:
-                        # For fast mode, use scatter_add for atomic operations
-                        # Lower energy bin
-                        indices_lower = (valid_iE, valid_ith, valid_iz, valid_ix)
-                        psi_out[indices_lower] = cp.add.at(psi_out, indices_lower, valid_w_lo * valid_transmitted)
-                        # Higher energy bin
-                        indices_upper = (valid_iE_plus_1, valid_ith, valid_iz, valid_ix)
-                        psi_out[indices_upper] = cp.add.at(psi_out, indices_upper, valid_w_hi * valid_transmitted)
-                    else:
-                        # For deterministic mode, use direct indexing
-                        # Lower energy bin
-                        indices_lower = (valid_iE, valid_ith, valid_iz, valid_ix)
-                        psi_out[indices_lower] += valid_w_lo * valid_transmitted
-                        # Higher energy bin
-                        indices_upper = (valid_iE_plus_1, valid_ith, valid_iz, valid_ix)
-                        psi_out[indices_upper] += valid_w_hi * valid_transmitted
+            # Track deposited energy: actual energy lost (E_src - E_new)
+            deposited_energy += deltaE * cp.sum(weight_slice * mask, axis=0)
 
         return psi_out, deposited_energy
 
@@ -360,17 +327,19 @@ class GPUTransportStep:
         delta_s: float,
         stopping_power,
         E_cutoff: float,
+        E_edges=None,
     ) -> tuple[cp.ndarray if GPU_AVAILABLE else None, float, cp.ndarray if GPU_AVAILABLE else None]:
         """Apply full transport step on GPU with error handling and CPU fallback.
 
         Args:
             psi: Input state [Ne, Ntheta, Nz, Nx]
-            E_grid: Energy grid [MeV]
+            E_grid: Energy bin centers [MeV]
             sigma_theta: RMS scattering angle
             theta_beam: Beam angle [rad]
             delta_s: Step length [mm]
             stopping_power: Stopping power [MeV/mm]
             E_cutoff: Cutoff energy [MeV]
+            E_edges: Energy bin edges [MeV] (optional, for interpolation)
 
         Returns:
             (psi_out, weight_leaked, deposited_energy) tuple
@@ -396,7 +365,7 @@ class GPUTransportStep:
 
             # Step 3: Energy loss (vectorized interpolation)
             psi_3, deposited_energy = self._energy_loss_kernel(
-                psi_2, E_grid, stopping_power, delta_s, E_cutoff
+                psi_2, E_grid, stopping_power, delta_s, E_cutoff, E_edges
             )
 
             # Ensure output is contiguous for memory coalescing
@@ -406,28 +375,22 @@ class GPUTransportStep:
             return psi_3, float(weight_leaked.get()), deposited_energy
 
         except Exception as e:
-            # Log error and fallback to CPU implementation if available
-            error_msg = f"GPU kernel failed: {str(e)}"
+            # Provide helpful error message for common issues
+            error_msg = str(e)
 
-            # Try to convert inputs to numpy and raise for CPU fallback
-            if isinstance(psi, cp.ndarray):
-                psi_cpu = psi.get()
-                E_grid_cpu = E_grid.get() if isinstance(E_grid, cp.ndarray) else E_grid
-
-                # Import CPU implementation (assuming it exists)
-                try:
-                    from smatrix_2d.cpu.kernels import create_cpu_transport_step
-                    cpu_transport = create_cpu_transport_step(
-                        self.Ne, self.Ntheta, self.Nz, self.Nx, self.accumulation_mode
-                    )
-                    return cpu_transport.apply_step(
-                        psi_cpu, E_grid_cpu, sigma_theta, theta_beam,
-                        delta_s, stopping_power, E_cutoff
-                    )
-                except ImportError:
-                    raise RuntimeError(f"GPU failed and CPU fallback not available: {error_msg}")
+            if "libcufft" in error_msg:
+                raise RuntimeError(
+                    f"GPU FFT library not available: {error_msg}\n\n"
+                    f"This is a CUDA runtime configuration issue. To fix:\n"
+                    f"1. Install matching CUDA runtime: sudo apt-get install libcufft11\n"
+                    f"2. Or reinstall CuPy with matching CUDA version:\n"
+                    f"   pip uninstall cupy\n"
+                    f"   pip install cupy-cuda12x  # For CUDA 12.x\n"
+                    f"   # OR\n"
+                    f"   pip install cupy-cuda118  # For CUDA 11.8\n"
+                )
             else:
-                raise RuntimeError(f"GPU failed with invalid input: {error_msg}")
+                raise RuntimeError(f"GPU kernel failed: {error_msg}")
 
 
 def create_gpu_transport_step(
@@ -436,6 +399,8 @@ def create_gpu_transport_step(
     Nz: int,
     Nx: int,
     accumulation_mode: str = AccumulationMode.FAST,
+    delta_x: float = 1.0,
+    delta_z: float = 1.0,
 ) -> GPUTransportStep:
     """Create GPU transport step.
 
@@ -445,8 +410,10 @@ def create_gpu_transport_step(
         Nz: Number of depth bins
         Nx: Number of lateral bins
         accumulation_mode: 'fast' or 'deterministic'
+        delta_x: Lateral grid spacing [mm]
+        delta_z: Depth grid spacing [mm]
 
     Returns:
         GPUTransportStep instance
     """
-    return GPUTransportStep(Ne, Ntheta, Nz, Nx, accumulation_mode)
+    return GPUTransportStep(Ne, Ntheta, Nz, Nx, accumulation_mode, delta_x, delta_z)

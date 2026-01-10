@@ -77,14 +77,14 @@ def main():
     print("Proton PDD Simulation - Smatrix_2D (Optimized)")
     print("=" * 60)
 
-    # Grid configuration - optimized for speed
+    # Grid configuration - reduced for quick test but usable
     specs = GridSpecs2D(
-        Nx=40,             # Lateral bins
-        Nz=150,            # Depth bins
-        Ntheta=36,         # Angular bins (reduced for speed)
-        Ne=60,             # Energy bins
-        delta_x=1.0,       # 1 mm lateral spacing
-        delta_z=0.5,       # 0.5 mm depth spacing
+        Nx=15,             # Lateral bins
+        Nz=40,             # Depth bins
+        Ntheta=18,         # Angular bins (20° resolution)
+        Ne=20,             # Energy bins
+        delta_x=3.0,       # 3 mm lateral spacing
+        delta_z=2.0,       # 2 mm depth spacing
         E_min=0.1,         # Minimum energy [MeV]
         E_max=200.0,       # Maximum energy [MeV]
         E_cutoff=0.5,      # Energy cutoff [MeV]
@@ -112,7 +112,7 @@ def main():
 
     # Create operators
     A_theta = AngularScatteringOperator(grid, material, constants)
-    A_stream = SpatialStreamingOperator(grid, constants, BackwardTransportMode.HARD_REJECT)
+    A_stream = SpatialStreamingOperator(grid, constants, BackwardTransportMode.SMALL_BACKWARD_ALLOWANCE)
     A_E = EnergyLossOperator(grid)
 
     # Create transport step
@@ -148,7 +148,7 @@ def main():
     step_times = []
 
     # Max steps
-    max_steps = 500
+    max_steps = 200  # Need more steps for full range
 
     for step in range(max_steps):
         step_start = time.time()
