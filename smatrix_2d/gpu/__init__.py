@@ -19,11 +19,25 @@ try:
 except ImportError:
     pass
 
+try:
+    from smatrix_2d.gpu.reductions import (
+        gpu_total_weight,
+        gpu_mean_energy,
+        gpu_total_dose,
+        gpu_weight_statistics,
+    )
+except ImportError:
+    pass
+
 __all__ = [
     'GPUMemoryLayout',
     'create_gpu_memory_layout',
     'GPUTransportStep',
     'AccumulationMode',
     'create_gpu_transport_step',
+    'gpu_total_weight',
+    'gpu_mean_energy',
+    'gpu_total_dose',
+    'gpu_weight_statistics',
     'GPU_AVAILABLE',
 ]
