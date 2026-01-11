@@ -8,7 +8,14 @@ from __future__ import annotations
 
 import numpy as np
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
+
+try:
+    import cupy as cp
+    GPU_AVAILABLE = True
+except ImportError:
+    GPU_AVAILABLE = False
+    cp = None
 
 if TYPE_CHECKING:
     from smatrix_2d.core.grid import PhaseSpaceGrid2D
@@ -149,3 +156,132 @@ def create_initial_state(
         psi=psi,
         grid=grid,
     )
+
+
+@dataclass
+class GPUTransportState:
+    """GPU-resident 4D phase space particle distribution.
+
+    Mirrors TransportState but uses CuPy arrays for GPU residency.
+    Eliminates CPU-GPU synchronization for reductions and operations.
+
+    Attributes:
+        psi: Particle weights [Ne, Ntheta, Nz, Nx] as CuPy array
+        grid: Associated PhaseSpaceGrid2D
+        weight_leaked: Total weight lost through spatial boundaries
+        weight_absorbed_cutoff: Total weight absorbed at energy cutoff
+        weight_rejected_backward: Total weight rejected in backward modes
+        deposited_energy: Energy deposition map [Nz, Nx] as CuPy array
+        E_centers_gpu: GPU array of energy centers
+        E_edges_gpu: GPU array of energy edges
+        device_id: GPU device ID
+    """
+
+    psi: cp.ndarray
+    grid: 'PhaseSpaceGrid2D'
+    device_id: int = 0
+
+    weight_leaked: float = 0.0
+    weight_absorbed_cutoff: float = 0.0
+    weight_rejected_backward: float = 0.0
+    deposited_energy: Optional[cp.ndarray] = None
+    E_centers_gpu: Optional[cp.ndarray] = None
+    E_edges_gpu: Optional[cp.ndarray] = None
+
+    def __post_init__(self):
+        """Initialize GPU arrays and validate."""
+        if not GPU_AVAILABLE:
+            raise ImportError("CuPy not available for GPU operations")
+
+        # Move to specified device
+        cp.cuda.Device(self.device_id).use()
+
+        # Validate psi shape
+        expected_shape = (
+            len(self.grid.E_centers),
+            len(self.grid.th_centers),
+            len(self.grid.z_centers),
+            len(self.grid.x_centers),
+        )
+
+        if self.psi.shape != expected_shape:
+            raise ValueError(
+                f"psi shape {self.psi.shape} does not match grid "
+                f"expected {expected_shape}"
+            )
+
+        # Initialize deposited_energy if not provided
+        if self.deposited_energy is None:
+            self.deposited_energy = cp.zeros(
+                (len(self.grid.z_centers), len(self.grid.x_centers)),
+                dtype=cp.float32
+            )
+
+        # Precompute grid arrays on GPU
+        self.E_centers_gpu = cp.array(self.grid.E_centers, dtype=cp.float32)
+        self.E_edges_gpu = cp.array(self.grid.E_edges, dtype=cp.float32)
+
+    def total_weight(self) -> float:
+        """Compute total active particle weight using GPU reduction."""
+        return float(cp.sum(self.psi))
+
+    def mean_energy(self) -> float:
+        """Compute mean energy of active particles [MeV] using GPU reduction."""
+        total_weight = cp.sum(self.psi)
+        if total_weight < 1e-12:
+            return 0.0
+
+        # Weighted average: sum(E * weight) / sum(weight)
+        energy_weighted = cp.sum(self.psi * self.E_centers_gpu[:, cp.newaxis, cp.newaxis, cp.newaxis])
+        return float(energy_weighted / total_weight)
+
+    def total_dose(self) -> float:
+        """Compute total deposited energy [MeV] using GPU reduction."""
+        return float(cp.sum(self.deposited_energy))
+
+    def weight_statistics(self) -> Dict[str, Any]:
+        """Compute weight statistics using GPU reductions."""
+        from smatrix_2d.gpu.reductions import gpu_weight_statistics
+
+        # Create grid_centers for theta dimension
+        th_centers_gpu = cp.array(self.grid.th_centers, dtype=cp.float32)
+
+        return gpu_weight_statistics(self.psi, th_centers_gpu)
+
+    def to_cpu(self) -> TransportState:
+        """Convert to CPU TransportState."""
+        # Move arrays back to CPU
+        psi_cpu = cp.asnumpy(self.psi)
+        deposited_energy_cpu = cp.asnumpy(self.deposited_energy)
+
+        return TransportState(
+            psi=psi_cpu,
+            grid=self.grid,
+            weight_leaked=self.weight_leaked,
+            weight_absorbed_cutoff=self.weight_absorbed_cutoff,
+            weight_rejected_backward=self.weight_rejected_backward,
+            deposited_energy=deposited_energy_cpu,
+        )
+
+    @classmethod
+    def from_cpu(cls, cpu_state: TransportState, device_id: int = 0) -> 'GPUTransportState':
+        """Create GPU state from CPU state."""
+        if not GPU_AVAILABLE:
+            raise ImportError("CuPy not available for GPU operations")
+
+        # Move to specified device
+        cp.cuda.Device(device_id).use()
+
+        # Convert arrays to GPU
+        psi_gpu = cp.array(cpu_state.psi, dtype=cp.float32)
+        deposited_energy_gpu = cp.array(cpu_state.deposited_energy, dtype=cp.float32)
+
+        return cls(
+            psi=psi_gpu,
+            grid=cpu_state.grid,
+            device_id=device_id,
+            deposited_energy=deposited_energy_gpu,
+            weight_leaked=cpu_state.weight_leaked,
+            weight_absorbed_cutoff=cpu_state.weight_absorbed_cutoff,
+            weight_rejected_backward=cpu_state.weight_rejected_backward,
+        )

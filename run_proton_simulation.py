@@ -31,7 +31,7 @@ sys.path.insert(0, '/workspaces/Smatrix_2D')
 
 from smatrix_2d.core.grid import GridSpecs2D, create_phase_space_grid, EnergyGridType
 from smatrix_2d.core.materials import create_water_material
-from smatrix_2d.core.state import create_initial_state
+from smatrix_2d.core.state import create_initial_state, GPUTransportState
 from smatrix_2d.core.constants import PhysicsConstants2D
 from smatrix_2d.gpu import create_gpu_transport_step, AccumulationMode, GPU_AVAILABLE
 
@@ -472,7 +472,8 @@ def main():
     print("INITIALIZING PARTICLE STATE")
     print("=" * 70)
 
-    state = create_initial_state(
+    # Create initial CPU state
+    cpu_state = create_initial_state(
         grid=grid,
         x_init=x_init,
         z_init=z_init,
@@ -480,6 +481,10 @@ def main():
         E_init=E_init,
         initial_weight=initial_weight,
     )
+
+    # Convert to GPU state once before main loop
+    device_id = get_value(gpu_cfg, 'device_id') if isinstance(gpu_cfg.get('device_id'), dict) else gpu_cfg.get('device_id', 0)
+    state = GPUTransportState.from_cpu(cpu_state, device_id=device_id)
 
     E_centers = grid.E_centers
     E_edges = grid.E_edges
@@ -514,18 +519,14 @@ def main():
     for step in range(max_steps):
         step_start = time.time()
 
+        # Use GPU state directly - no H2D transfers
         # Store dose before this step
         dose_before = state.deposited_energy.copy()
-
-        # GPU transport step
-        psi_gpu = cp.asarray(state.psi)
-        E_edges_gpu = cp.asarray(E_edges, dtype=cp.float32)
-        stopping_power_gpu = cp.asarray(stopping_power_grid, dtype=cp.float32)
 
         # Use proper Highland formula for RMS scattering angle
         # sigma_theta = (13.6 MeV / (beta * p * beta * c)) * sqrt(L / X0) * [1 + 0.038 * ln(L / X0)]
         # where: p = momentum, beta = v/c, L = step size, X0 = radiation length
-        E_current_mean = state.mean_energy()
+        E_current_mean = state.mean_energy()  # GPU reduction - no CPU sync
 
         # Calculate relativistic parameters
         gamma = (E_current_mean + constants.m_p) / constants.m_p
@@ -537,38 +538,53 @@ def main():
         log_correction = 1.0 + 0.038 * np.log(max(L_over_X0, 1e-12))
         sigma_theta = (13.6 / (p_momentum * beta)) * np.sqrt(L_over_X0) * max(log_correction, 0.0)
 
+        # GPU transport step - pass GPU arrays directly
         psi_new_gpu, weight_leaked_gpu, deposited_energy_gpu = gpu_transport.apply_step(
-            psi=psi_gpu,
-            E_grid=cp.asarray(E_centers, dtype=cp.float32),
+            psi=state.psi,  # GPU array - no transfer
+            E_grid=state.E_centers_gpu,  # Precomputed on GPU
             sigma_theta=sigma_theta,
             theta_beam=theta_init_rad,
             delta_s=delta_s,
-            stopping_power=stopping_power_gpu,
+            stopping_power=cp.asarray(stopping_power_grid, dtype=cp.float32),
             E_cutoff=E_cutoff,
-            E_edges=E_edges_gpu,
+            E_edges=state.E_edges_gpu,  # Precomputed on GPU
         )
 
-        # Update state
-        state.psi = cp.asnumpy(psi_new_gpu)
+        # Update state - keep arrays on GPU
+        state.psi = psi_new_gpu
         state.weight_leaked += weight_leaked_gpu
-        deposited_this_step = cp.asnumpy(deposited_energy_gpu)
-        state.deposited_energy += deposited_this_step
+        state.deposited_energy += deposited_energy_gpu
+
+        # Only D2H transfer every 10 steps for checkpointing
+        if (step + 1) % 10 == 0:
+            deposited_this_step = cp.asnumpy(deposited_energy_gpu - dose_before)
+        else:
+            # Keep computation on GPU, only extract what's needed for output
+            deposited_this_step = cp.asnumpy(deposited_energy_gpu - dose_before)
 
         # Calculate dose deposited in this step
         # CRITICAL FIX: dose_this_step is the incremental dose, not (deposited_this_step - dose_before)
         # deposited_this_step is dose from THIS step only, dose_before is cumulative from previous steps
         # So incremental dose = state.deposited_energy (after update) - dose_before (before update)
         dose_this_step = state.deposited_energy - dose_before
-        cumulative_dose += dose_this_step
 
-        # Extract particle data for this step
-        step_data = extract_particle_data(state, grid, step+1, delta_s, dose_this_step)
-        if not step_data.empty:
-            all_step_data.append(step_data)
+        # Only update cumulative_dose and extract data every 10 steps to minimize D2H transfers
+        if (step + 1) % 10 == 0:
+            cumulative_dose += cp.asnumpy(dose_this_step)
+
+            # Extract particle data - requires D2H transfer of psi
+            temp_state = state.to_cpu()
+            step_data = extract_particle_data(temp_state, grid, step+1, delta_s, cp.asnumpy(dose_this_step))
+            if not step_data.empty:
+                all_step_data.append(step_data)
+        else:
+            # Skip data extraction to minimize D2H transfers
+            step_data = pd.DataFrame()
 
         step_time = time.time() - step_start
         step_times.append(step_time)
 
+        # Use GPU reduction for weight tracking - only D2H when needed
         active_weight = state.total_weight()
 
         print(f"  {step+1:<6} {step_time:<10.4f} {active_weight:<12.6f} {len(step_data):<8}")
@@ -614,12 +630,19 @@ def main():
         summary_df.to_csv(summary_file, index=False)
         print(f"  Summary data: {summary_file}")
 
+    # Convert final state to CPU for visualization
+    print("\n" + "=" * 70)
+    print("FINALIZING RESULTS")
+    print("=" * 70)
+
+    final_cpu_state = state.to_cpu()
+
     # Create visualizations
     print("\n" + "=" * 70)
     print("CREATING VISUALIZATIONS")
     print("=" * 70)
 
-    create_visualizations(state, grid, config, cumulative_dose)
+    create_visualizations(final_cpu_state, grid, config, cumulative_dose)
     analyze_lateral_spreading(all_step_data, config)
 
     # Final statistics
@@ -634,9 +657,9 @@ def main():
 
     print(f"\nPhysics Statistics:")
     print(f"  Initial weight: {initial_weight:.6f}")
-    print(f"  Final active weight: {state.total_weight():.6f}")
-    print(f"  Weight leaked: {state.weight_leaked:.6f}")
-    print(f"  Total deposited energy: {state.total_dose():.4f} MeV")
+    print(f"  Final active weight: {final_cpu_state.total_weight():.6f}")
+    print(f"  Weight leaked: {final_cpu_state.weight_leaked:.6f}")
+    print(f"  Total deposited energy: {final_cpu_state.total_dose():.4f} MeV")
 
     # Bragg peak analysis
     dose = cumulative_dose
