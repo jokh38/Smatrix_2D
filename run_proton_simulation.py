@@ -493,6 +493,9 @@ def main():
         dtype=np.float32
     )
 
+    # CRITICAL FIX: Precompute stopping_power on GPU once to eliminate per-step H2D transfers
+    stopping_power_gpu = cp.asarray(stopping_power_grid, dtype=cp.float32)
+
     print(f"  Initial energy: {E_init} {particle['energy']['unit']}")
     print(f"  Initial position: (x, z) = ({x_init:.1f}, {z_init:.1f}) "
           f"{grid_cfg['spatial']['x']['unit']}")
@@ -545,7 +548,7 @@ def main():
             sigma_theta=sigma_theta,
             theta_beam=theta_init_rad,
             delta_s=delta_s,
-            stopping_power=cp.asarray(stopping_power_grid, dtype=cp.float32),
+            stopping_power=stopping_power_gpu,  # CRITICAL FIX: Use precomputed GPU array - no H2D transfer
             E_cutoff=E_cutoff,
             E_edges=state.E_edges_gpu,  # Precomputed on GPU
         )
@@ -555,22 +558,15 @@ def main():
         state.weight_leaked += weight_leaked_gpu
         state.deposited_energy += deposited_energy_gpu
 
-        # Only D2H transfer every 10 steps for checkpointing
-        if (step + 1) % 10 == 0:
-            deposited_this_step = cp.asnumpy(deposited_energy_gpu - dose_before)
-        else:
-            # Keep computation on GPU, only extract what's needed for output
-            deposited_this_step = cp.asnumpy(deposited_energy_gpu - dose_before)
-
-        # Calculate dose deposited in this step
-        # CRITICAL FIX: dose_this_step is the incremental dose, not (deposited_this_step - dose_before)
-        # deposited_this_step is dose from THIS step only, dose_before is cumulative from previous steps
-        # So incremental dose = state.deposited_energy (after update) - dose_before (before update)
+        # CRITICAL FIX: Keep dose calculation on GPU - no D2H transfer
+        # dose_this_step is the incremental dose for this step only
         dose_this_step = state.deposited_energy - dose_before
 
-        # Only update cumulative_dose and extract data every 10 steps to minimize D2H transfers
+        # Only D2H transfer every 10 steps for checkpointing and data extraction
         if (step + 1) % 10 == 0:
-            cumulative_dose += cp.asnumpy(dose_this_step)
+            # Transfer dose to CPU for CSV output
+            deposited_this_step_cpu = cp.asnumpy(dose_this_step)
+            cumulative_dose += deposited_this_step_cpu
 
             # Extract particle data - requires D2H transfer of psi
             temp_state = state.to_cpu()
