@@ -170,6 +170,109 @@ def extract_particle_data(state, grid, step, delta_s, deposited_this_step):
     return pd.DataFrame(data_rows)
 
 
+def extract_particle_data_gpu(gpu_state, grid, step, delta_s, deposited_this_step_gpu):
+    """Extract particle distribution data from GPU state with minimal D2H transfer.
+
+    GPU-based optimization that:
+    1. Finds non-zero particles on GPU using CuPy
+    2. Transfers only non-zero data (~2-5 MB vs 253.4 MB full array)
+    3. Uses vectorized NumPy operations instead of Python loops
+
+    Args:
+        gpu_state: GPUTransportState with CuPy arrays
+        grid: Phase space grid (CPU-based)
+        step: Transport step number
+        delta_s: Step size [mm]
+        deposited_this_step_gpu: Energy deposited this step [MeV] as CuPy array
+
+    Returns:
+        DataFrame with particle distribution data
+    """
+    import cupy as cp
+
+    # GPU: Find non-zero particles (avoiding full D2H transfer)
+    psi = gpu_state.psi
+    mask = psi > 1e-6
+
+    # GPU: Extract indices of non-zero particles
+    nonzero_indices = cp.where(mask)
+
+    # Get count of non-zero particles
+    n_nonzero = nonzero_indices[0].size
+
+    if n_nonzero == 0:
+        return pd.DataFrame()
+
+    # Transfer ONLY non-zero indices and weights to CPU (tiny data)
+    # Each index array: n_nonzero × 4 bytes (int32)
+    # Weight array: n_nonzero × 4 bytes (float32)
+    # Total transfer: ~5 × n_nonzero bytes vs 253.4 MB full array
+    iE_cpu = cp.asnumpy(nonzero_indices[0])
+    ith_cpu = cp.asnumpy(nonzero_indices[1])
+    iz_cpu = cp.asnumpy(nonzero_indices[2])
+    ix_cpu = cp.asnumpy(nonzero_indices[3])
+    weights_cpu = cp.asnumpy(psi[mask])
+
+    # Transfer dose array (small: only 100 × 24 = 2400 elements)
+    deposited_cpu = cp.asnumpy(deposited_this_step_gpu)
+
+    # Get grid center arrays (already on CPU)
+    z_centers = grid.z_centers
+    x_centers = grid.x_centers
+    th_centers = grid.th_centers
+    E_centers = grid.E_centers
+
+    # Vectorized extraction: compute all values at once (no Python loops)
+    n_particles = len(iE_cpu)
+
+    # Extract coordinate values using NumPy indexing
+    z_values = z_centers[iz_cpu]
+    x_values = x_centers[ix_cpu]
+    th_rad_values = th_centers[ith_cpu]
+    E_values = E_centers[iE_cpu]
+
+    # Calculate velocity components vectorized
+    v_z_values = np.sin(th_rad_values)
+    v_x_values = np.cos(th_rad_values)
+
+    # Handle dose values: avoid double-counting for same spatial bin
+    # Use unique indices to find first occurrence of each (iz, ix) pair
+    spatial_bins = np.stack([iz_cpu, ix_cpu], axis=1)
+    # Use structured array for unique operation
+    dtype = np.dtype([('iz', iz_cpu.dtype), ('ix', ix_cpu.dtype)])
+    structured_bins = np.empty(n_particles, dtype=dtype)
+    structured_bins['iz'] = iz_cpu
+    structured_bins['ix'] = ix_cpu
+
+    # Find unique spatial bins and their first indices
+    unique_bins, first_indices = np.unique(structured_bins, return_index=True)
+
+    # Create dose array (default 0.0)
+    dose_values = np.zeros(n_particles, dtype=np.float64)
+
+    # Assign dose values only for first occurrence of each spatial bin
+    dose_values[first_indices] = deposited_cpu[iz_cpu[first_indices], ix_cpu[first_indices]]
+
+    # Create DataFrame using vectorized operations (no Python loops)
+    data = {
+        'step': np.full(n_particles, step, dtype=np.int32),
+        'z_mm': z_values,
+        'x_mm': x_values,
+        'theta_deg': th_rad_values * 180 / np.pi,
+        'E_MeV': E_values,
+        'weight': weights_cpu,
+        'dose_MeV': dose_values,
+        'v_z': v_z_values,
+        'v_x': v_x_values,
+        'iz': iz_cpu,
+        'ix': ix_cpu,
+        'ith': ith_cpu,
+        'iE': iE_cpu,
+    }
+
+    return pd.DataFrame(data)
+
+
 def create_visualizations(state, grid, config, cumulative_dose):
     """Create all visualization figures.
 
@@ -576,14 +679,13 @@ def main():
         dose_this_step = state.deposited_energy - dose_before
 
         # Save data EVERY step for complete analysis
-        # (Note: D2H transfer adds overhead but provides complete data)
-        # Transfer dose to CPU for CSV output
+        # OPTIMIZATION: Use GPU-based extraction to minimize D2H transfer
+        # Transfers only non-zero particle data (~2-5 MB) instead of full psi array (253.4 MB)
         deposited_this_step_cpu = cp.asnumpy(dose_this_step)
         cumulative_dose += deposited_this_step_cpu
 
-        # Extract particle data - requires D2H transfer of psi
-        temp_state = state.to_cpu()
-        step_data = extract_particle_data(temp_state, grid, step+1, delta_s, cp.asnumpy(dose_this_step))
+        # Extract particle data using GPU-based extraction (minimal D2H transfer)
+        step_data = extract_particle_data_gpu(state, grid, step+1, delta_s, dose_this_step)
         if not step_data.empty:
             all_step_data.append(step_data)
 
