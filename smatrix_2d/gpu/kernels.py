@@ -26,6 +26,9 @@ except ImportError:
 if TYPE_CHECKING:
     import cupy as cp
 
+# Import GPUMemoryLayout for centralized layout management
+from smatrix_2d.gpu.memory_layout import GPUMemoryLayout
+
 
 class AccumulationMode:
     """GPU accumulation mode."""
@@ -100,6 +103,7 @@ class GPUTransportStep:
         theta_min: float = 0.0,
         theta_max: float = 2.0 * np.pi,
         use_gather_kernels: bool = True,
+        max_threads_per_block: int = 1024,
     ):
         """Initialize GPU transport step.
 
@@ -116,10 +120,15 @@ class GPUTransportStep:
             theta_min: Minimum angle [rad] (default: 0)
             theta_max: Maximum angle [rad] (default: 2π)
             use_gather_kernels: Use gather-based kernels (Phase P1 optimization, default: True)
+            max_threads_per_block: Max threads per CUDA block (default: 1024)
         """
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy not available. Install: pip install cupy-cudaXX")
 
+        # Create GPUMemoryLayout instance for centralized layout management
+        self.layout = GPUMemoryLayout(Ne=Ne, Ntheta=Ntheta, Nz=Nz, Nx=Nx)
+
+        # Convenience aliases for backward compatibility
         self.Ne = Ne
         self.Ntheta = Ntheta
         self.Nz = Nz
@@ -132,9 +141,13 @@ class GPUTransportStep:
         self.theta_min = theta_min
         self.theta_max = theta_max
         self.use_gather_kernels = use_gather_kernels
+        self.max_threads_per_block = max_threads_per_block
 
-        # Memory shape: [Ne, Ntheta, Nz, Nx]
-        self.shape = (Ne, Ntheta, Nz, Nx)
+        # Memory shape from layout: [Ne, Ntheta, Nz, Nx]
+        self.shape = self.layout.shape
+
+        # Memory strides from layout for indexing calculations
+        self.strides = self.layout.strides  # (stride_E, stride_theta, stride_z, stride_x)
 
         # Phase P0: Configure memory pool (only once globally)
         if not hasattr(configure_memory_pool, '_configured'):
@@ -148,6 +161,9 @@ class GPUTransportStep:
 
         # Phase P0: Cache for mapping tables
         self._cache = {}
+
+        # Get suggested block configuration from layout
+        self._block_config = self.layout.compute_suggested_block_config(max_threads_per_block)
 
         # Profiling data
         self.profiling = {
@@ -495,9 +511,9 @@ class GPUTransportStep:
         x_offset = self.delta_x / 2.0
 
         # Launch CUDA kernel
-        # Block size: 16x16 threads (256 threads per block)
-        # Grid size: covers all (z, x, theta) combinations
-        block_size = (16, 16, 1)
+        # Use layout-suggested block configuration for optimal performance
+        # Block size from GPUMemoryLayout: (block_x, block_z, block_theta)
+        block_size = self._block_config  # (block_x, block_z, block_theta) from layout
         grid_size = (
             (self.Nx + block_size[0] - 1) // block_size[0],  # x dimension
             (self.Nz + block_size[1] - 1) // block_size[1],  # z dimension
@@ -1006,6 +1022,7 @@ def create_gpu_transport_step(
     theta_min: float = 0.0,
     theta_max: float = 2.0 * np.pi,
     use_gather_kernels: bool = True,
+    max_threads_per_block: int = 1024,
 ) -> GPUTransportStep:
     """Create GPU transport step.
 
@@ -1020,10 +1037,12 @@ def create_gpu_transport_step(
         theta_min: Minimum angle [rad] (default: 0)
         theta_max: Maximum angle [rad] (default: 2π)
         use_gather_kernels: Use gather-based kernels (Phase P1 optimization, default: True)
+        max_threads_per_block: Max threads per CUDA block (default: 1024)
 
     Returns:
         GPUTransportStep instance
     """
     return GPUTransportStep(Ne, Ntheta, Nz, Nx, accumulation_mode, delta_x, delta_z,
                           theta_min=theta_min, theta_max=theta_max,
-                          use_gather_kernels=use_gather_kernels)
+                          use_gather_kernels=use_gather_kernels,
+                          max_threads_per_block=max_threads_per_block)

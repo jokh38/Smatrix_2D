@@ -19,7 +19,7 @@ try:
 except ImportError:
     pass
 
-from smatrix_2d.gpu.kernels import GPUTransportStep, AccumulationMode
+from smatrix_2d.gpu.kernels import GPUTransportStep, AccumulationMode, create_gpu_transport_step
 
 
 @pytest.mark.skipif(not gpu_available, reason="CuPy not available")
@@ -381,6 +381,152 @@ class TestGatherKernels:
         # We use a relaxed tolerance since performance can vary
         assert speedup >= 0.8, \
             f"Gather kernel significantly slower than scatter: speedup={speedup:.2f}x"
+
+    def test_gpu_memory_layout_integration(self, small_grid, test_grid_params):
+        """Test that GPUTransportStep correctly integrates GPUMemoryLayout."""
+        from smatrix_2d.gpu.memory_layout import GPUMemoryLayout
+
+        Ne, Ntheta, Nz, Nx = small_grid
+
+        # Create transport step
+        transport = GPUTransportStep(
+            Ne, Ntheta, Nz, Nx,
+            accumulation_mode=AccumulationMode.FAST,
+            use_gather_kernels=True,
+            enable_profiling=False,
+            **test_grid_params
+        )
+
+        # Test 1: Layout instance is created
+        assert hasattr(transport, 'layout'), "GPUTransportStep should have layout attribute"
+        assert isinstance(transport.layout, GPUMemoryLayout), \
+            "layout should be GPUMemoryLayout instance"
+
+        # Test 2: Shape comes from layout
+        assert transport.shape == transport.layout.shape, \
+            "shape should match layout.shape"
+        assert transport.shape == (Ne, Ntheta, Nz, Nx), \
+            f"shape should be ({Ne}, {Ntheta}, {Nz}, {Nx})"
+
+        # Test 3: Strides are accessible
+        assert hasattr(transport, 'strides'), "GPUTransportStep should have strides attribute"
+        assert transport.strides == transport.layout.strides, \
+            "strides should match layout.strides"
+
+        # Verify stride calculation
+        expected_stride_x = 1
+        expected_stride_z = Nx
+        expected_stride_theta = Nz * Nx
+        expected_stride_E = Ntheta * Nz * Nx
+        expected_strides = (expected_stride_E, expected_stride_theta, expected_stride_z, expected_stride_x)
+        assert transport.strides == expected_strides, \
+            f"strides should be {expected_strides}, got {transport.strides}"
+
+        # Test 4: Block config is computed from layout
+        assert hasattr(transport, '_block_config'), "GPUTransportStep should have _block_config attribute"
+        assert isinstance(transport._block_config, tuple), "_block_config should be a tuple"
+        assert len(transport._block_config) == 3, "_block_config should have 3 elements (x, z, theta)"
+
+        block_x, block_z, block_theta = transport._block_config
+        assert block_x > 0 and block_x <= 1024, "block_x should be positive and <= 1024"
+        assert block_z > 0 and block_z <= 1024, "block_z should be positive and <= 1024"
+        assert block_theta > 0 and block_theta <= 1024, "block_theta should be positive and <= 1024"
+
+        # Verify total threads doesn't exceed max
+        total_threads = block_x * block_z * block_theta
+        assert total_threads <= 1024, \
+            f"Total threads ({total_threads}) should not exceed max_threads_per_block (1024)"
+
+        # Test 5: Backward compatibility - convenience aliases still work
+        assert transport.Ne == Ne, "Ne alias should work"
+        assert transport.Ntheta == Ntheta, "Ntheta alias should work"
+        assert transport.Nz == Nz, "Nz alias should work"
+        assert transport.Nx == Nx, "Nx alias should work"
+
+        # Test 6: Layout provides useful metadata
+        assert hasattr(transport.layout, 'get_byte_size'), "layout should have get_byte_size method"
+        byte_size = transport.layout.get_byte_size()
+        expected_size = Ne * Ntheta * Nz * Nx * 4  # float32 = 4 bytes
+        assert byte_size == expected_size, \
+            f"Byte size should be {expected_size}, got {byte_size}"
+
+    def test_gpu_memory_layout_custom_block_size(self, small_grid, test_grid_params):
+        """Test that custom max_threads_per_block parameter works correctly."""
+        from smatrix_2d.gpu.memory_layout import GPUMemoryLayout
+
+        Ne, Ntheta, Nz, Nx = small_grid
+
+        # Create transport step with custom max threads
+        custom_max_threads = 512
+        transport = GPUTransportStep(
+            Ne, Ntheta, Nz, Nx,
+            accumulation_mode=AccumulationMode.FAST,
+            use_gather_kernels=True,
+            enable_profiling=False,
+            max_threads_per_block=custom_max_threads,
+            **test_grid_params
+        )
+
+        # Verify block config respects custom limit
+        block_x, block_z, block_theta = transport._block_config
+        total_threads = block_x * block_z * block_theta
+        assert total_threads <= custom_max_threads, \
+            f"Total threads ({total_threads}) should not exceed custom max ({custom_max_threads})"
+
+    def test_gpu_memory_layout_byte_size_estimation(self, small_grid):
+        """Test that GPUMemoryLayout correctly estimates memory sizes."""
+        from smatrix_2d.gpu.memory_layout import GPUMemoryLayout
+
+        Ne, Ntheta, Nz, Nx = small_grid
+
+        # Create layout
+        layout = GPUMemoryLayout(Ne=Ne, Ntheta=Ntheta, Nz=Nz, Nx=Nx)
+
+        # Test byte size calculation
+        byte_size_f32 = layout.get_byte_size(dtype=np.float32)
+        expected_size_f32 = Ne * Ntheta * Nz * Nx * 4  # 4 bytes per float32
+        assert byte_size_f32 == expected_size_f32, \
+            f"Float32 size should be {expected_size_f32}, got {byte_size_f32}"
+
+        byte_size_f64 = layout.get_byte_size(dtype=np.float64)
+        expected_size_f64 = Ne * Ntheta * Nz * Nx * 8  # 8 bytes per float64
+        assert byte_size_f64 == expected_size_f64, \
+            f"Float64 size should be {expected_size_f64}, got {byte_size_f64}"
+
+    def test_gpu_memory_layout_tile_size_estimation(self, small_grid):
+        """Test that GPUMemoryLayout correctly estimates tile sizes."""
+        from smatrix_2d.gpu.memory_layout import GPUMemoryLayout
+
+        Ne, Ntheta, Nz, Nx = small_grid
+
+        # Create layout
+        layout = GPUMemoryLayout(Ne=Ne, Ntheta=Ntheta, Nz=Nz, Nx=Nx)
+
+        # Test tile size estimation
+        tile_size = layout.estimate_tile_size(tile_theta=8, tile_z=8, tile_x=32)
+        expected_size = 8 * 8 * 32 * 4  # 4 bytes per float32
+        assert tile_size == expected_size, \
+            f"Tile size should be {expected_size}, got {tile_size}"
+
+    def test_create_gpu_transport_step_with_custom_block_size(self, small_grid, test_grid_params):
+        """Test that factory function correctly passes max_threads_per_block parameter."""
+        Ne, Ntheta, Nz, Nx = small_grid
+
+        # Create transport step via factory with custom max threads
+        custom_max_threads = 512
+        transport = create_gpu_transport_step(
+            Ne=Ne, Ntheta=Ntheta, Nz=Nz, Nx=Nx,
+            accumulation_mode=AccumulationMode.FAST,
+            use_gather_kernels=True,
+            max_threads_per_block=custom_max_threads,
+            **test_grid_params
+        )
+
+        # Verify custom max threads is respected
+        block_x, block_z, block_theta = transport._block_config
+        total_threads = block_x * block_z * block_theta
+        assert total_threads <= custom_max_threads, \
+            f"Factory function should respect max_threads_per_block parameter"
 
 
 if __name__ == '__main__':

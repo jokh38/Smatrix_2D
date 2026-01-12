@@ -110,7 +110,9 @@ class GPUMemoryLayout:
         block_z = min(max_threads_per_block // block_x, self.Nz)
 
         # A_theta needs theta dimension
-        block_theta = min(32, self.Ntheta)
+        # Ensure total threads (block_x * block_z * block_theta) doesn't exceed max
+        remaining_threads = max_threads_per_block // (block_x * block_z)
+        block_theta = min(remaining_threads, self.Ntheta, 32)
 
         return (block_x, block_z, block_theta)
 
