@@ -526,37 +526,50 @@ def main():
         # Store dose before this step
         dose_before = state.deposited_energy.copy()
 
-        # Use proper Highland formula for RMS scattering angle
-        # sigma_theta = (13.6 MeV / (beta * p * beta * c)) * sqrt(L / X0) * [1 + 0.038 * ln(L / X0)]
-        # where: p = momentum, beta = v/c, L = step size, X0 = radiation length
-        E_current_mean = state.mean_energy()  # GPU reduction - no CPU sync
+        # ====================================================================
+        # SUB-CYCLING FIX: Use multiple small steps to eliminate zig-zag pattern
+        # ====================================================================
+        # Problem: delta_s = 1.0mm, delta_z = 0.5mm → particles move 2 bins per step
+        #         → always land in even-numbered bins → zig-zag pattern
+        # Solution: Use 2 sub-steps of 0.5mm each → particles move 1 bin at a time
+        #          → visit ALL bins → smooth dose distribution
+        # IMPORTANT: Calculate sigma once using TOTAL step size to preserve physics
 
-        # Calculate relativistic parameters
+        # Calculate Highland sigma ONCE per total step (not per sub-step)
+        # This preserves the total scattering while smoothing spatial distribution
+        E_current_mean = state.mean_energy()  # GPU reduction - no CPU sync
         gamma = (E_current_mean + constants.m_p) / constants.m_p
         beta_sq = 1.0 - 1.0 / (gamma * gamma)
         beta = np.sqrt(max(beta_sq, 1e-12))
         p_momentum = beta * gamma * constants.m_p  # MeV/c
-
-        L_over_X0 = delta_s / material.X0
+        L_over_X0 = delta_s / material.X0  # Use TOTAL step size for sigma
         log_correction = 1.0 + 0.038 * np.log(max(L_over_X0, 1e-12))
         sigma_theta = (13.6 / (p_momentum * beta)) * np.sqrt(L_over_X0) * max(log_correction, 0.0)
 
-        # GPU transport step - pass GPU arrays directly
-        psi_new_gpu, weight_leaked_gpu, deposited_energy_gpu = gpu_transport.apply_step(
-            psi=state.psi,  # GPU array - no transfer
-            E_grid=state.E_centers_gpu,  # Precomputed on GPU
-            sigma_theta=sigma_theta,
-            theta_beam=theta_init_rad,
-            delta_s=delta_s,
-            stopping_power=stopping_power_gpu,  # CRITICAL FIX: Use precomputed GPU array - no H2D transfer
-            E_cutoff=E_cutoff,
-            E_edges=state.E_edges_gpu,  # Precomputed on GPU
-        )
+        sub_steps = 2
+        delta_s_sub = delta_s / sub_steps
 
-        # Update state - keep arrays on GPU
-        state.psi = psi_new_gpu
-        state.weight_leaked += weight_leaked_gpu
-        state.deposited_energy += deposited_energy_gpu
+        for sub_step in range(sub_steps):
+            # GPU transport step - pass GPU arrays directly
+            # Use SAME sigma_theta for both sub-steps to preserve total scattering
+            psi_new_gpu, weight_leaked_gpu, deposited_energy_gpu = gpu_transport.apply_step(
+                psi=state.psi,  # GPU array - no transfer
+                E_grid=state.E_centers_gpu,  # Precomputed on GPU
+                sigma_theta=sigma_theta,  # Same sigma for both sub-steps
+                theta_beam=theta_init_rad,
+                delta_s=delta_s_sub,  # Use sub-step size for transport
+                stopping_power=stopping_power_gpu,  # CRITICAL FIX: Use precomputed GPU array - no H2D transfer
+                E_cutoff=E_cutoff,
+                E_edges=state.E_edges_gpu,  # Precomputed on GPU
+            )
+
+            # Update state - keep arrays on GPU
+            state.psi = psi_new_gpu
+            state.weight_leaked += weight_leaked_gpu
+            state.deposited_energy += deposited_energy_gpu
+        # ====================================================================
+        # END SUB-CYCLING
+        # ====================================================================
 
         # CRITICAL FIX: Keep dose calculation on GPU - no D2H transfer
         # dose_this_step is the incremental dose for this step only
