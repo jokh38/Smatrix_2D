@@ -562,20 +562,17 @@ def main():
         # dose_this_step is the incremental dose for this step only
         dose_this_step = state.deposited_energy - dose_before
 
-        # Only D2H transfer every 10 steps for checkpointing and data extraction
-        if (step + 1) % 10 == 0:
-            # Transfer dose to CPU for CSV output
-            deposited_this_step_cpu = cp.asnumpy(dose_this_step)
-            cumulative_dose += deposited_this_step_cpu
+        # Save data EVERY step for complete analysis
+        # (Note: D2H transfer adds overhead but provides complete data)
+        # Transfer dose to CPU for CSV output
+        deposited_this_step_cpu = cp.asnumpy(dose_this_step)
+        cumulative_dose += deposited_this_step_cpu
 
-            # Extract particle data - requires D2H transfer of psi
-            temp_state = state.to_cpu()
-            step_data = extract_particle_data(temp_state, grid, step+1, delta_s, cp.asnumpy(dose_this_step))
-            if not step_data.empty:
-                all_step_data.append(step_data)
-        else:
-            # Skip data extraction to minimize D2H transfers
-            step_data = pd.DataFrame()
+        # Extract particle data - requires D2H transfer of psi
+        temp_state = state.to_cpu()
+        step_data = extract_particle_data(temp_state, grid, step+1, delta_s, cp.asnumpy(dose_this_step))
+        if not step_data.empty:
+            all_step_data.append(step_data)
 
         step_time = time.time() - step_start
         step_times.append(step_time)
