@@ -1,7 +1,8 @@
 """Core data structures for operator-factorized 2D transport.
 
 This module contains fundamental data structures for grid definitions,
-material properties, physics constants, and phase-space state management.
+material properties, physics constants, phase-space state management,
+and configuration resolution.
 """
 
 from smatrix_2d.core.grid import GridSpecs2D, PhaseSpaceGrid2D
@@ -14,6 +15,15 @@ except ImportError:
 
 from smatrix_2d.core.materials import MaterialProperties2D
 from smatrix_2d.core.constants import PhysicsConstants2D
+from smatrix_2d.core.config_resolver import (
+    ResolutionConfig,
+    ResolutionResolver,
+    NumericalConfig,
+    NumericalResolver,
+    GPUKernelConfig,
+    GPUKernelResolver,
+    print_resolution_summary,
+)
 
 __all__ = [
     'GridSpecs2D',
@@ -23,4 +33,11 @@ __all__ = [
     'create_initial_state',
     'MaterialProperties2D',
     'PhysicsConstants2D',
+    'ResolutionConfig',
+    'ResolutionResolver',
+    'NumericalConfig',
+    'NumericalResolver',
+    'GPUKernelConfig',
+    'GPUKernelResolver',
+    'print_resolution_summary',
 ]

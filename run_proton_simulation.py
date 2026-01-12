@@ -33,6 +33,9 @@ from smatrix_2d.core.grid import GridSpecs2D, create_phase_space_grid, EnergyGri
 from smatrix_2d.core.materials import create_water_material
 from smatrix_2d.core.state import create_initial_state, GPUTransportState
 from smatrix_2d.core.constants import PhysicsConstants2D
+from smatrix_2d.core.config_resolver import (
+    ResolutionResolver, NumericalResolver, print_resolution_summary
+)
 from smatrix_2d.gpu import create_gpu_transport_step, AccumulationMode, GPU_AVAILABLE
 
 # Import CuPy if available
@@ -64,13 +67,14 @@ def load_config(config_file='initial_info.yaml'):
     return config
 
 
-def bethe_stopping_power_water(E_MeV, material, constants):
+def bethe_stopping_power_water(E_MeV, material, constants, num_config):
     """Compute stopping power using Bethe formula for protons in water.
 
     Args:
         E_MeV: Proton energy [MeV]
         material: Material properties
         constants: Physical constants
+        num_config: Numerical configuration (includes calibration factor)
 
     Returns:
         Stopping power [MeV/mm]
@@ -81,16 +85,17 @@ def bethe_stopping_power_water(E_MeV, material, constants):
     gamma = (E_MeV + constants.m_p) / constants.m_p
     beta_sq = 1.0 - 1.0 / (gamma * gamma)
 
-    if beta_sq < 1e-6:
+    if beta_sq < num_config.beta_sq_minimum:
         return 0.0
 
     beta = np.sqrt(beta_sq)
+    # Use configurable calibration factor from numerical config
     # CRITICAL FIX: Recalibrated for ΔE = 0.2 MeV to match both energy AND range
     # With K = 86.6 and ΔE = 0.2 MeV: energy conservation good (1.4% error) but range too short (26.3 mm vs 40.8 mm)
     # To fix range: need to reduce stopping power by factor of 26.3/40.8 = 0.645
     # New K = 86.6 * 0.645 = 55.9
     # This gives predicted range of 40.8 mm and dose of ~45.7 MeV
-    K_mm = constants.K * 55.9
+    K_mm = constants.K * num_config.bethe_bloch_calibration
     Z_over_A = material.Z / material.A
     I = material.I_excitation
     # Bethe-Bloch formula for protons:
@@ -170,7 +175,7 @@ def extract_particle_data(state, grid, step, delta_s, deposited_this_step):
     return pd.DataFrame(data_rows)
 
 
-def extract_particle_data_gpu(gpu_state, grid, step, delta_s, deposited_this_step_gpu):
+def extract_particle_data_gpu(gpu_state, grid, step, delta_s, deposited_this_step_gpu, num_config=None):
     """Extract particle distribution data from GPU state with minimal D2H transfer.
 
     GPU-based optimization that:
@@ -184,15 +189,19 @@ def extract_particle_data_gpu(gpu_state, grid, step, delta_s, deposited_this_ste
         step: Transport step number
         delta_s: Step size [mm]
         deposited_this_step_gpu: Energy deposited this step [MeV] as CuPy array
+        num_config: Numerical configuration (for thresholds)
 
     Returns:
         DataFrame with particle distribution data
     """
     import cupy as cp
 
+    # Use configurable threshold if provided, otherwise use default
+    weight_threshold = num_config.weight_threshold if num_config else 1e-6
+
     # GPU: Find non-zero particles (avoiding full D2H transfer)
     psi = gpu_state.psi
-    mask = psi > 1e-6
+    mask = psi > weight_threshold
 
     # GPU: Extract indices of non-zero particles
     nonzero_indices = cp.where(mask)
@@ -472,6 +481,13 @@ def main():
         print(f"ERROR loading configuration: {e}")
         sys.exit(1)
 
+    # Resolve configuration parameters (ensures consistency)
+    res_config = ResolutionResolver.resolve_from_config(config)
+    num_config = NumericalResolver.resolve_from_config(config)
+
+    # Print resolved configuration summary
+    print_resolution_summary(res_config, num_config)
+
     # Extract configuration parameters
     particle = config['particle']
     grid_cfg = config['grid']
@@ -592,7 +608,7 @@ def main():
     E_centers = grid.E_centers
     E_edges = grid.E_edges
     stopping_power_grid = np.array(
-        [bethe_stopping_power_water(E, material, constants) for E in E_centers],
+        [bethe_stopping_power_water(E, material, constants, num_config) for E in E_centers],
         dtype=np.float32
     )
 
@@ -617,7 +633,10 @@ def main():
     step_times = []
 
     max_steps = int((z_max - z_min) / delta_z) + 20
-    delta_s = get_value(sim_cfg['step_size'], 'value')
+    # Use resolved delta_s from configuration (auto-derived from spatial resolution)
+    delta_s = res_config.delta_s
+    sub_steps = res_config.sub_steps  # Auto-derived to prevent bin-skipping
+    delta_s_sub = res_config.delta_s_sub
     min_weight = get_value(sim_cfg['convergence'], 'min_weight')
 
     start_time = time.time()
@@ -632,10 +651,8 @@ def main():
         # ====================================================================
         # SUB-CYCLING FIX: Use multiple small steps to eliminate zig-zag pattern
         # ====================================================================
-        # Problem: delta_s = 1.0mm, delta_z = 0.5mm → particles move 2 bins per step
-        #         → always land in even-numbered bins → zig-zag pattern
-        # Solution: Use 2 sub-steps of 0.5mm each → particles move 1 bin at a time
-        #          → visit ALL bins → smooth dose distribution
+        # Problem: delta_s > min(delta_x, delta_z) → particles skip bins
+        # Solution: Auto-derived sub_steps ensures particles visit all bins
         # IMPORTANT: Calculate sigma once using TOTAL step size to preserve physics
 
         # Calculate Highland sigma ONCE per total step (not per sub-step)
@@ -643,14 +660,12 @@ def main():
         E_current_mean = state.mean_energy()  # GPU reduction - no CPU sync
         gamma = (E_current_mean + constants.m_p) / constants.m_p
         beta_sq = 1.0 - 1.0 / (gamma * gamma)
-        beta = np.sqrt(max(beta_sq, 1e-12))
+        beta = np.sqrt(max(beta_sq, num_config.beta_sq_minimum))
         p_momentum = beta * gamma * constants.m_p  # MeV/c
         L_over_X0 = delta_s / material.X0  # Use TOTAL step size for sigma
-        log_correction = 1.0 + 0.038 * np.log(max(L_over_X0, 1e-12))
-        sigma_theta = (13.6 / (p_momentum * beta)) * np.sqrt(L_over_X0) * max(log_correction, 0.0)
-
-        sub_steps = 2
-        delta_s_sub = delta_s / sub_steps
+        # Use configurable Highland log coefficient from numerical config
+        log_correction = 1.0 + num_config.highland_log_coefficient * np.log(max(L_over_X0, num_config.log_argument_minimum))
+        sigma_theta = (constants.HIGHLAND_CONSTANT / (p_momentum * beta)) * np.sqrt(L_over_X0) * max(log_correction, 0.0)
 
         for sub_step in range(sub_steps):
             # GPU transport step - pass GPU arrays directly
@@ -685,7 +700,7 @@ def main():
         cumulative_dose += deposited_this_step_cpu
 
         # Extract particle data using GPU-based extraction (minimal D2H transfer)
-        step_data = extract_particle_data_gpu(state, grid, step+1, delta_s, dose_this_step)
+        step_data = extract_particle_data_gpu(state, grid, step+1, delta_s, dose_this_step, num_config)
         if not step_data.empty:
             all_step_data.append(step_data)
 
