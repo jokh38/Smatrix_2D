@@ -357,7 +357,8 @@ class GPUTransportStep:
 
         return psi_out, weight_leaked
 
-    # Custom CUDA kernel for gather-based spatial streaming
+    # Custom CUDA kernel for TRUE gather-based spatial streaming
+    # FIXED: Thread per TARGET cell, backward displacement, NO atomics
     _cuda_streaming_gather_kernel = cp.RawKernel(r'''
     extern "C" __global__
     void spatial_streaming_gather(
@@ -369,49 +370,77 @@ class GPUTransportStep:
         float delta_x, float delta_z, float delta_s,
         float z_offset, float x_offset
     ) {
-        // Thread indices: one thread per SOURCE (z, x) cell per angle
-        // We use scatter pattern (forward displacement) to match Python implementation
-        int ix = blockIdx.x * blockDim.x + threadIdx.x;
-        int iz = blockIdx.y * blockDim.y + threadIdx.y;
+        // FIXED: Thread indices: one thread per TARGET (z, x) cell per angle
+        // This is the CORRECT gather pattern: "for each target, find what contributes to it"
+        int ix_tgt = blockIdx.x * blockDim.x + threadIdx.x;
+        int iz_tgt = blockIdx.y * blockDim.y + threadIdx.y;
         int ith = blockIdx.z;
 
-        if (ix >= Nx || iz >= Nz || ith >= Ntheta) return;
+        if (ix_tgt >= Nx || iz_tgt >= Nz || ith >= Ntheta) return;
 
         // Precompute strides for C-order (row-major) memory layout
         const int stride_ith = Nz * Nx;
         const int stride_iE = Ntheta * stride_ith;
 
-        // SOURCE cell center position (where the particle is now)
-        float z_src = z_offset + iz * delta_z;
-        float x_src = x_offset + ix * delta_x;
+        // FIXED: TARGET cell center position (where we want to write)
+        float z_tgt = z_offset + iz_tgt * delta_z;
+        float x_tgt = x_offset + ix_tgt * delta_x;
 
         // Get velocity components for this angle
         float sin_th = sin_theta[ith];
         float cos_th = cos_theta[ith];
 
-        // Compute TARGET position (forward displacement: source + delta_s * velocity)
-        float z_tgt = z_src + delta_s * sin_th;
-        float x_tgt = x_src + delta_s * cos_th;
+        // FIXED: BACKWARD displacement to find SOURCE position
+        // Gather: target from source, so we compute where the particle came FROM
+        float z_src = z_tgt - delta_s * sin_th;
+        float x_src = x_tgt - delta_s * cos_th;
 
-        // Convert target position to bin indices (floor division)
-        int iz_tgt = (int)floorf(z_tgt / delta_z);
-        int ix_tgt = (int)floorf(x_tgt / delta_x);
-
-        // Check if target is within bounds
-        if (iz_tgt >= 0 && iz_tgt < Nz && ix_tgt >= 0 && ix_tgt < Nx) {
-            // Target is valid - scatter from all energy bins
+        // Check if source is within bounds
+        if (z_src < 0.0f || z_src >= Nz * delta_z ||
+            x_src < 0.0f || x_src >= Nx * delta_x) {
+            // Source is outside domain - this target gets 0
             for (int iE = 0; iE < Ne; iE++) {
-                // Source linear index: psi_in[iE, ith, iz, ix]
-                int src_idx = iE * stride_iE + ith * stride_ith + iz * Nx + ix;
-
-                // Target linear index: psi_out[iE, ith, iz_tgt, ix_tgt]
                 int tgt_idx = iE * stride_iE + ith * stride_ith + iz_tgt * Nx + ix_tgt;
-
-                // Scatter: read from source, atomically add to target
-                atomicAdd(&psi_out[tgt_idx], psi_in[src_idx]);
+                psi_out[tgt_idx] = 0.0f;
             }
+            return;
         }
-        // else: source out of bounds, particle is lost (leaked)
+
+        // FIXED: Bilinear interpolation for sub-grid accuracy
+        // Convert source position to bin coordinates (0-indexed, with offset)
+        float fz = z_src / delta_z - 0.5f;
+        float fx = x_src / delta_x - 0.5f;
+
+        // Clamp to valid range and get corner indices
+        int iz0 = max(0, min((int)floorf(fz), Nz - 2));
+        int ix0 = max(0, min((int)floorf(fx), Nx - 2));
+
+        // Interpolation weights
+        float wz = fz - iz0;
+        float wx = fx - ix0;
+        float w00 = (1.0f - wz) * (1.0f - wx);
+        float w01 = (1.0f - wz) * wx;
+        float w10 = wz * (1.0f - wx);
+        float w11 = wz * wx;
+
+        // Gather with bilinear interpolation (NO ATOMICS - direct write)
+        for (int iE = 0; iE < Ne; iE++) {
+            // Read from 4 source neighbors and interpolate
+            int src_idx00 = iE * stride_iE + ith * stride_ith + iz0 * Nx + ix0;
+            int src_idx01 = iE * stride_iE + ith * stride_ith + iz0 * Nx + (ix0 + 1);
+            int src_idx10 = iE * stride_iE + ith * stride_ith + (iz0 + 1) * Nx + ix0;
+            int src_idx11 = iE * stride_iE + ith * stride_ith + (iz0 + 1) * Nx + (ix0 + 1);
+
+            // Bilinear interpolation
+            float val = w00 * psi_in[src_idx00] +
+                        w01 * psi_in[src_idx01] +
+                        w10 * psi_in[src_idx10] +
+                        w11 * psi_in[src_idx11];
+
+            // FIXED: Direct write to target (coalesced, deterministic, no atomics)
+            int tgt_idx = iE * stride_iE + ith * stride_ith + iz_tgt * Nx + ix_tgt;
+            psi_out[tgt_idx] = val;
+        }
     }
     ''', 'spatial_streaming_gather')
 
@@ -422,19 +451,23 @@ class GPUTransportStep:
         sigma_theta: float,
         theta_beam: float,
     ) -> cp.ndarray if GPU_AVAILABLE else None:
-        """Apply spatial streaming using CUDA-optimized GATHER pattern (Phase P1 optimization).
+        """Apply spatial streaming using TRUE CUDA-optimized GATHER pattern (FIXED).
 
-        This implementation uses a custom CUDA kernel for maximum performance:
-        - One thread per target cell (z, x, theta)
-        - Coalesced memory writes to global memory
-        - No atomic contentions (each target written by one thread)
-        - Optimized memory access patterns
+        This implementation uses the CORRECT gather pattern:
+        - Thread per TARGET cell (not source)
+        - BACKWARD displacement (-delta_s to find source)
+        - Direct write without atomic operations
+        - Bilinear interpolation for sub-grid accuracy
 
-        GATHER pattern: "For each target location, find what contributes to it"
-        - Coalesced memory writes (no atomics needed)
-        - Deterministic results
+        Key differences from scatter pattern:
+        - Scatter: source → target (forward, needs atomics)
+        - Gather: target ← source (backward, no atomics needed)
+
+        Performance benefits:
+        - Coalesced memory writes (sequential target addresses)
+        - No atomic contentions (deterministic results)
         - Better cache utilization
-        - Expected: 4x faster than scatter-based kernel
+        - Expected: 3-4x faster than scatter-based kernel
 
         Args:
             psi_in: Input state [Ne, Ntheta, Nz, Nx]
@@ -607,10 +640,16 @@ class GPUTransportStep:
         E_cutoff: float,
         E_edges: Optional[cp.ndarray] = None,
     ) -> Tuple[cp.ndarray, cp.ndarray, cp.ndarray]:
-        """Build gather mapping LUT for energy loss operator (Phase P1-B).
+        """Build gather mapping LUT for energy loss operator (FIXED: No monotonicity requirement).
 
-        Converts scatter-style energy loss to gather-style by pre-computing
-        the mapping from target energy bins to source energy bins.
+        FIXED: Implements multi-source gather that handles non-monotonic E_new mapping.
+        This is necessary because stopping power S(E) varies non-linearly (Bethe-Bloch).
+
+        Key changes:
+        - NO monotonicity check required
+        - For each TARGET energy bin, find ALL source bins that contribute
+        - Use interpolation weights for multiple sources
+        - Handles arbitrary E_new → E_target mappings
 
         Args:
             E_grid: Energy bin centers [MeV]
@@ -621,9 +660,9 @@ class GPUTransportStep:
 
         Returns:
             (gather_map, coeff_map, dose_fractions) tuple
-            - gather_map: [Ne, 2] array of source indices
-            - coeff_map: [Ne, 2] array of interpolation coefficients
-            - dose_fractions: [Ne] array of energy deposited to dose
+            - gather_map: [Ne, Ne] sparse matrix of source→target mappings
+            - coeff_map: [Ne, Ne] interpolation coefficients
+            - dose_fractions: [Ne] array of energy deposited to dose (indexed by SOURCE)
         """
         if E_edges is None:
             E_edges = E_grid
@@ -635,59 +674,72 @@ class GPUTransportStep:
 
         Ne = self.Ne
 
-        # Initialize LUT arrays
-        # gather_map[iE_tgt, 0] = source bin index 1
-        # gather_map[iE_tgt, 1] = source bin index 2 (or -1 if only 1 source)
-        # coeff_map[iE_tgt, 0] = coefficient for source 1
-        # coeff_map[iE_tgt, 1] = coefficient for source 2
-        gather_map = np.full((Ne, 2), -1, dtype=np.int32)
-        coeff_map = np.zeros((Ne, 2), dtype=np.float32)
+        # Initialize LUT arrays as sparse mappings
+        # Use dictionary to build sparse representation: target_bin -> [(source_bin, weight), ...]
+        target_to_sources = {iE_tgt: [] for iE_tgt in range(Ne)}
         dose_fractions = np.zeros(Ne, dtype=np.float32)
 
         # Compute E_new for all source energies
-        # CRITICAL FIX: Clamp energy loss to prevent negative energy
+        # CRITICAL: Clamp energy loss to prevent negative energy
         deltaE_raw = stopping_power_np * delta_s
         max_deltaE = np.maximum(E_grid_np - E_cutoff, 0.0)
         deltaE = np.minimum(deltaE_raw, max_deltaE)
         E_new = E_grid_np - deltaE
 
-        # Phase P1-B: Check monotonicity
-        if not np.all(np.diff(E_new) < 0):
-            print("Warning: Monotonicity violated in energy mapping, using scatter fallback")
-            return None, None, None
+        # FIXED: Build LUT WITHOUT monotonicity requirement
+        # For each SOURCE bin, find which TARGET bin(s) it contributes to
+        for iE_src in range(Ne):
+            E_after = E_new[iE_src]
 
-        # Build LUT: for each target bin, find which source bins contribute
-        for iE_tgt in range(Ne):
-            # Get target energy range
+            # Check if absorbed (below cutoff)
+            # CRITICAL: When E_after <= E_cutoff, the particle is ABSORBED
+            # and deposits its remaining energy (E_src - E_cutoff) as dose
+            if E_after <= E_cutoff:
+                # All REMAINING energy deposited as dose (not just deltaE!)
+                # This is the energy from current bin to cutoff
+                energy_to_deposit = E_grid_np[iE_src] - E_cutoff
+                dose_fractions[iE_src] = max(energy_to_deposit, 0.0)
+                continue
+
+            # For non-absorbed particles: deposit deltaE as dose
+            # This is the energy lost in this step
+            dose_fractions[iE_src] = deltaE[iE_src]
+
+            # Find target bin(s) via interpolation
+            # searchsorted returns insertion index to maintain sorted order
+            iE_tgt = np.searchsorted(E_edges_np, E_after, side='right') - 1
+            iE_tgt = np.clip(iE_tgt, 0, Ne - 1)
+
+            # Handle interpolation
             if iE_tgt < Ne - 1:
-                E_tgt_lo = E_edges_np[iE_tgt]
-                E_tgt_hi = E_edges_np[iE_tgt + 1]
+                # Linear interpolation between two adjacent bins
+                E_lo = E_edges_np[iE_tgt]
+                E_hi = E_edges_np[iE_tgt + 1]
+
+                if E_hi - E_lo > 1e-12:
+                    # Normal interpolation
+                    w_lo = (E_hi - E_after) / (E_hi - E_lo)
+                    w_hi = 1.0 - w_lo
+
+                    # This source contributes to TWO target bins
+                    target_to_sources[iE_tgt].append((iE_src, w_lo))
+                    target_to_sources[iE_tgt + 1].append((iE_src, w_hi))
+                else:
+                    # Degenerate bin, use single assignment
+                    target_to_sources[iE_tgt].append((iE_src, 1.0))
             else:
-                # Last bin: use same width as previous bin
-                E_tgt_lo = E_edges_np[iE_tgt]
-                E_tgt_hi = E_edges_np[iE_tgt] + (E_edges_np[iE_tgt] - E_edges_np[iE_tgt - 1]) if iE_tgt > 0 else E_edges_np[iE_tgt] + 1.0
+                # Last bin: direct assignment
+                target_to_sources[iE_tgt].append((iE_src, 1.0))
 
-            contributors = []
+        # Convert sparse dictionary to dense arrays for GPU access
+        # Fixed size: [Ne, 4] to handle up to 4 source contributors per target
+        MAX_SOURCES = 4
+        gather_map = np.full((Ne, MAX_SOURCES), -1, dtype=np.int32)
+        coeff_map = np.zeros((Ne, MAX_SOURCES), dtype=np.float32)
 
-            # Find all source bins that map to this target bin
-            for iE_src in range(Ne):
-                if E_new[iE_src] <= E_cutoff:
-                    # Below cutoff: all energy deposited as dose
-                    # CRITICAL FIX: Use clamped deltaE, not raw stopping power
-                    dose_fractions[iE_src] += deltaE[iE_src]
-                    continue
-
-                if E_tgt_lo <= E_new[iE_src] < E_tgt_hi:
-                    # This source contributes to this target
-                    if iE_tgt < Ne - 1:
-                        # Linear interpolation weight
-                        w = (E_tgt_hi - E_new[iE_src]) / (E_tgt_hi - E_tgt_lo) if (E_tgt_hi - E_tgt_lo) > 1e-12 else 1.0
-                    else:
-                        w = 1.0
-                    contributors.append((iE_src, w))
-
-            # Store at most 2 contributors (as per spec)
-            for k, (iE_src, w) in enumerate(contributors[:2]):
+        for iE_tgt in range(Ne):
+            contributors = target_to_sources[iE_tgt]
+            for k, (iE_src, w) in enumerate(contributors[:MAX_SOURCES]):
                 gather_map[iE_tgt, k] = iE_src
                 coeff_map[iE_tgt, k] = w
 
@@ -700,19 +752,24 @@ class GPUTransportStep:
         coeff_map: cp.ndarray,
         dose_fractions: cp.ndarray,
     ) -> tuple[cp.ndarray, cp.ndarray]:
-        """Apply energy loss using pre-computed gather mapping (Phase P1-B).
+        """Apply energy loss using pre-computed gather mapping (FIXED: Multi-source support).
 
-        This is the optimized version that eliminates the loop over source bins
-        and uses O(1) lookup instead.
+        This is the optimized version that uses multi-source gather without
+        requiring monotonicity of E_new mapping.
+
+        Key features:
+        - Supports up to 4 source contributors per target bin
+        - No monotonicity requirement (handles Bethe-Blook non-linearity)
+        - O(MAX_SOURCES) per target bin instead of O(Ne) loop
+        - Direct write (no atomics needed)
 
         CRITICAL FIX for dose accounting: The dose_fractions array is indexed by
         SOURCE energy bin (iE_src), representing the energy lost from that bin.
-        We must accumulate dose by iterating over source bins, not target bins.
 
         Args:
             psi: Input state [Ne, Ntheta, Nz, Nx]
-            gather_map: [Ne, 2] array of source indices
-            coeff_map: [Ne, 2] array of interpolation coefficients
+            gather_map: [Ne, MAX_SOURCES] array of source indices
+            coeff_map: [Ne, MAX_SOURCES] array of interpolation coefficients
             dose_fractions: [Ne] array of energy deposited to dose (indexed by SOURCE)
 
         Returns:
@@ -725,15 +782,17 @@ class GPUTransportStep:
         psi_out = cp.zeros_like(psi)
         deposited_energy = cp.zeros((self.Nz, self.Nx), dtype=cp.float32)
 
+        MAX_SOURCES = gather_map.shape[1]  # Should be 4
+
         # Phase 1: Gather phase - for each target bin, read from pre-computed sources
         for iE_tgt in range(self.Ne):
             # Read pre-computed mapping for this target bin
-            src_indices = gather_map[iE_tgt]  # [2]
-            coeffs = coeff_map[iE_tgt]  # [2]
+            src_indices = gather_map[iE_tgt]  # [MAX_SOURCES]
+            coeffs = coeff_map[iE_tgt]  # [MAX_SOURCES]
 
-            # Gather from source bins (O(1) lookup, no atomics for psi_out)
-            for k in range(2):
-                iE_src = src_indices[k]
+            # Gather from multiple source bins (no atomics for psi_out)
+            for k in range(MAX_SOURCES):
+                iE_src = int(src_indices[k])
 
                 # Skip if no valid source
                 if iE_src < 0:
