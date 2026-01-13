@@ -69,9 +69,9 @@ class StoppingPowerLUT:
         """
         if energy_grid is None or stopping_power is None:
             # Use default NIST PSTAR data
-            # NIST data is in MeV cm²/mg, convert to MeV/mm
-            # Conversion: S[MeV/mm] = S[MeV cm²/mg] × ρ[g/cm³] / 10[mm/cm]
-            # For water with ρ=1.0 g/cm³: S[MeV/mm] = S[MeV cm²/mg] / 10
+            # NIST data is in MeV cm²/g, convert to MeV/mm
+            # Conversion: S[MeV/mm] = S[MeV cm²/g] × ρ[g/cm³] / 10[mm/cm]
+            # For water with ρ=1.0 g/cm³: S[MeV/mm] = S[MeV cm²/g] / 10
             self.energy_grid = self._NIST_ENERGY_GRID.copy()
             self.stopping_power = self._NIST_STOPPING_POWER.copy() / 10.0  # Convert to MeV/mm
         else:

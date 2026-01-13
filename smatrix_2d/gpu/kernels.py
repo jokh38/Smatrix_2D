@@ -137,6 +137,7 @@ extern "C" __global__
 void angular_scattering_kernel(
     const float* __restrict__ psi_in,
     float* __restrict__ psi_out,
+    float* __restrict__ theta_boundary_escape,  // Output: mass lost at angular boundaries
     const int* __restrict__ bucket_idx_map,  // [Ne, Nz] bucket indices
     const float* __restrict__ kernel_lut,    // [n_buckets, max_kernel_size]
     const int* __restrict__ kernel_offsets,  // [n_buckets] half_width per bucket
@@ -146,25 +147,62 @@ void angular_scattering_kernel(
     float theta_cutoff,  // Escape angle threshold
     int theta_boundary   // Boundary angle index
 ) {
-    // Simplified: 1D thread layout, direct copy (no scattering)
+    // Thread layout: one thread per (iE, ith, iz, ix) output element
+    // Gather formulation: each output thread sums contributions from input neighbors
     const int tid = blockIdx.x * blockDim.x + threadIdx.x;
     const int total_threads = gridDim.x * blockDim.x;
 
     const int theta_stride = Nz * Nx;
     const int E_stride = Ntheta * theta_stride;
 
-    // Process all (iE, ith, iz, ix) in this thread
+    // Local escape accumulator for this thread
+    float local_escape = 0.0f;
+
+    // Process all output elements
     for (int idx = tid; idx < Ne * Ntheta * Nz * Nx; idx += total_threads) {
         int iE = idx / (Ntheta * Nz * Nx);
         int rem = idx % (Ntheta * Nz * Nx);
-        int ith = rem / (Nz * Nx);
+        int ith_new = rem / (Nz * Nx);
         rem = rem % (Nz * Nx);
         int iz = rem / Nx;
         int ix = rem % Nx;
 
-        // Read input and write to output (no scattering)
-        int src_idx = iE * E_stride + ith * theta_stride + iz * Nx + ix;
-        psi_out[src_idx] = psi_in[src_idx];
+        // Get bucket for this (iE, iz) combination
+        int bucket_idx = bucket_idx_map[iE * Nz + iz];
+        int half_width = kernel_offsets[bucket_idx];
+        int kernel_size = kernel_sizes[bucket_idx];
+        const float* kernel = &kernel_lut[bucket_idx * max_kernel_size];
+
+        // Gather formulation: sum contributions from all ith_old
+        float psi_scattered = 0.0f;
+        float kernel_sum_valid = 0.0f;  // Track sum of valid kernel weights
+
+        for (int k = 0; k < kernel_size; k++) {
+            int delta_ith = k - half_width;
+            int ith_old = ith_new - delta_ith;
+
+            // Check if ith_old is within valid range
+            if (ith_old >= 0 && ith_old < Ntheta) {
+                int src_idx = iE * E_stride + ith_old * theta_stride + iz * Nx + ix;
+                float kernel_value = kernel[k];
+                psi_scattered += psi_in[src_idx] * kernel_value;
+                kernel_sum_valid += kernel_value;
+            } else {
+                // ith_old is out of bounds - this contributes to escape
+                // We need to account for the "missing" weight
+                // For simplicity, we track this as boundary escape
+                local_escape += kernel[k] * psi_in[iE * E_stride + ith_new * theta_stride + iz * Nx + ix];
+            }
+        }
+
+        // Write scattered output (direct write, no atomics needed with gather pattern)
+        int tgt_idx = iE * E_stride + ith_new * theta_stride + iz * Nx + ix;
+        psi_out[tgt_idx] = psi_scattered;
+    }
+
+    // Accumulate escapes (atomic add)
+    if (local_escape > 0.0f) {
+        atomicAdd(&theta_boundary_escape[0], local_escape);
     }
 }
 '''
@@ -181,13 +219,14 @@ void energy_loss_kernel(
     float* __restrict__ deposited_dose,
     float* __restrict__ energy_escaped,  // Scalar: weight of stopped particles
     const float* __restrict__ stopping_power_lut,
-    const float* __restrict__ E_grid_lut,
+    const float* __restrict__ E_lut_grid,     // LUT energy grid for stopping power
+    const float* __restrict__ E_phase_grid,   // Phase space energy grid for particles
     float delta_s,
     float E_cutoff,
     int Ne, int Ntheta, int Nz, int Nx,
     int lut_size
 ) {
-    // Simplified indexing: 1D thread layout
+    // Thread layout: 1D thread layout for energy bin redistribution
     const int tid = blockIdx.x * blockDim.x + threadIdx.x;
     const int total_threads = gridDim.x * blockDim.x;
 
@@ -196,7 +235,7 @@ void energy_loss_kernel(
 
     // Process all (iE, ith, iz, ix) in this thread
     for (int idx = tid; idx < Ne * Ntheta * Nz * Nx; idx += total_threads) {
-        int iE = idx / (Ntheta * Nz * Nx);
+        int iE_in = idx / (Ntheta * Nz * Nx);
         int rem = idx % (Ntheta * Nz * Nx);
         int ith = rem / (Nz * Nx);
         rem = rem % (Nz * Nx);
@@ -204,50 +243,93 @@ void energy_loss_kernel(
         int ix = rem % Nx;
 
         // Read input
-        int src_idx = iE * E_stride + ith * theta_stride + iz * Nx + ix;
+        int src_idx = iE_in * E_stride + ith * theta_stride + iz * Nx + ix;
         float weight = psi_in[src_idx];
 
         if (weight < 1e-12f) {
-            psi_out[src_idx] = 0.0f;
             continue;
         }
 
-        // Get energy
-        float E = E_grid_lut[iE];
+        // Get energy from PHASE SPACE grid
+        float E = E_phase_grid[iE_in];
 
-        // Get stopping power (simple: nearest neighbor)
+        // Linear interpolation for stopping power (find bracket in LUT grid)
         int lut_idx = 0;
-        float min_diff = fabsf(E - E_grid_lut[0]);
-        for (int i = 1; i < lut_size; i++) {
-            float diff = fabsf(E - E_grid_lut[i]);
-            if (diff < min_diff) {
-                min_diff = diff;
+        for (int i = 1; i < lut_size - 1; i++) {
+            if (E < E_lut_grid[i + 1]) {
                 lut_idx = i;
+                break;
             }
         }
-        float S = stopping_power_lut[lut_idx];
+
+        // Interpolate stopping power from LUT
+        float E0 = E_lut_grid[lut_idx];
+        float E1 = E_lut_grid[min(lut_idx + 1, lut_size - 1)];
+        float S0 = stopping_power_lut[lut_idx];
+        float S1 = stopping_power_lut[min(lut_idx + 1, lut_size - 1)];
+        float dE_lut = max(E1 - E0, 1e-12f);
+        float frac = (E - E0) / dE_lut;
+        float S = S0 + frac * (S1 - S0);
 
         // Energy loss
         float deltaE = S * delta_s;
-        float max_deltaE = fmaxf(E - E_cutoff, 0.0f);
-        deltaE = fminf(deltaE, max_deltaE);
-
         float E_new = E - deltaE;
 
-        // Simplified: Keep same energy bin (no redistribution)
-        // This avoids atomic add race conditions
-        psi_out[src_idx] = weight;
-
-        // Track dose and escaped weight
+        // Case 2: Below cutoff - deposit all energy and remove from transport
         if (E_new <= E_cutoff) {
-            // Absorbed: deposit remaining energy and track escaped weight
-            atomicAdd(&deposited_dose[iz * Nx + ix], weight * (E - E_cutoff));
+            // Particle is absorbed at cutoff
+            // All its energy (E) is deposited to the medium
+            atomicAdd(&deposited_dose[iz * Nx + ix], weight * E);
             atomicAdd(&energy_escaped[0], weight);  // Track WEIGHT, not energy
-            psi_out[src_idx] = 0.0f;
-        } else {
-            // Still alive: deposit energy lost this step
-            atomicAdd(&deposited_dose[iz * Nx + ix], weight * deltaE);
+            // Particle is removed (not added to psi_out)
+            continue;
         }
+
+        // Case 3: Normal energy loss - conservative bin splitting
+        // Find target bracket in PHASE SPACE grid
+        int iE_out = 0;
+        while (iE_out < Ne - 1 && E_phase_grid[iE_out + 1] <= E_new) {
+            iE_out++;
+        }
+
+        // Clamp to valid range
+        if (iE_out < 0) {
+            // Below grid - deposit all energy
+            atomicAdd(&deposited_dose[iz * Nx + ix], weight * E_new);
+            atomicAdd(&energy_escaped[0], weight);
+            continue;
+        }
+
+        if (iE_out >= Ne - 1) {
+            // At or above top bin - put in top bin
+            int tgt_idx = (Ne - 1) * E_stride + ith * theta_stride + iz * Nx + ix;
+            atomicAdd(&psi_out[tgt_idx], weight);
+            atomicAdd(&deposited_dose[iz * Nx + ix], weight * deltaE);
+            continue;
+        }
+
+        // Conservative bin splitting: interpolate between adjacent bin centers in PHASE SPACE grid
+        float E_lo = E_phase_grid[iE_out];
+        float E_hi = E_phase_grid[iE_out + 1];
+        float dE_bin = max(E_hi - E_lo, 1e-12f);
+
+        // Linear interpolation weights in energy coordinate
+        float w_lo = (E_hi - E_new) / dE_bin;
+        float w_hi = 1.0f - w_lo;
+
+        // Sanity clamp (should be [0, 1] if implementation is correct)
+        w_lo = fmaxf(0.0f, fminf(1.0f, w_lo));
+        w_hi = fmaxf(0.0f, fminf(1.0f, w_hi));
+
+        // Scatter with conservative bin splitting using atomics
+        int tgt_lo = iE_out * E_stride + ith * theta_stride + iz * Nx + ix;
+        int tgt_hi = (iE_out + 1) * E_stride + ith * theta_stride + iz * Nx + ix;
+
+        atomicAdd(&psi_out[tgt_lo], weight * w_lo);
+        atomicAdd(&psi_out[tgt_hi], weight * w_hi);
+
+        // Energy accounting: track energy LOST to medium
+        atomicAdd(&deposited_dose[iz * Nx + ix], weight * deltaE);
     }
 }
 '''
@@ -577,6 +659,9 @@ class GPUTransportStepV2:
         """
         psi_out = cp.zeros_like(psi_in)
 
+        # Allocate escape tracking array
+        theta_boundary_escape = cp.zeros(1, dtype=cp.float32)
+
         # Determine cutoff/boundary indices
         if theta_cutoff_idx is None:
             theta_cutoff_idx = self.Ntheta - 1  # No cutoff by default
@@ -598,6 +683,7 @@ class GPUTransportStepV2:
             (
                 psi_in,
                 psi_out,
+                theta_boundary_escape,
                 self.bucket_idx_map_gpu,
                 self.kernel_lut_gpu,
                 self.kernel_offsets_gpu,
@@ -610,8 +696,10 @@ class GPUTransportStepV2:
             )
         )
 
-        # Compute escapes (placeholder - no scattering in simplified version)
-        escapes = cp.zeros(2, dtype=cp.float32)  # [cutoff, boundary]
+        # Return escapes (cutoff=0 for now, boundary from kernel)
+        escapes = cp.zeros(2, dtype=cp.float32)
+        escapes[0] = 0.0  # theta_cutoff (not implemented yet)
+        escapes[1] = theta_boundary_escape[0]  # theta_boundary
 
         return psi_out, escapes
 
@@ -663,7 +751,8 @@ class GPUTransportStepV2:
                 dose,
                 energy_escaped,
                 self.stopping_power_gpu,
-                self.E_grid_gpu,
+                self.E_grid_lut_gpu,    # LUT energy grid for stopping power interpolation
+                self.E_grid_gpu,        # Phase space energy grid for particles
                 np.float32(self.delta_s),
                 np.float32(self.E_cutoff),
                 self.Ne, self.Ntheta, self.Nz, self.Nx,

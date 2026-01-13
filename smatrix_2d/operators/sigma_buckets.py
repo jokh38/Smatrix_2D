@@ -216,17 +216,19 @@ class SigmaBuckets:
         6. Precompute kernels kernel_lut[bucket_id, delta_ith]
 
         Kernel properties (SPEC v2.1 Section 4.3-4.4):
-        - Sparse support: half_width_bins = ceil(k_cutoff * sigma_b / delta_theta)
-        - Gaussian: K(delta_ith) = exp(-0.5 * (delta_ith * delta_theta / sigma_b)²)
+        - Sparse support: half_width_bins = ceil(k_cutoff * sigma_b / delta_theta_rad)
+        - Gaussian: K(delta_ith) = exp(-0.5 * (delta_ith * delta_theta_rad / sigma_b)²)
+        - Normalized to sum to 1 for mass conservation
         - Stored symmetric from -half_width to +half_width
         """
-        delta_theta = self.grid.delta_theta
+        # Use radians (not degrees) for consistency with sigma
+        delta_theta_rad = self.grid.delta_theta_rad
 
         for bucket in self.buckets:
             sigma_b = bucket.sigma
 
-            # Compute half-width in bins
-            half_width_bins = int(np.ceil(self.k_cutoff * sigma_b / delta_theta))
+            # Compute half-width in bins (sigma and delta_theta must have same units)
+            half_width_bins = int(np.ceil(self.k_cutoff * sigma_b / delta_theta_rad))
 
             # Ensure at least 1 bin
             half_width_bins = max(1, half_width_bins)
@@ -239,13 +241,22 @@ class SigmaBuckets:
             # kernel[i] corresponds to delta_ith = i - half_width_bins
             for i in range(kernel_size):
                 delta_ith = i - half_width_bins
-                delta_theta_rad = delta_ith * delta_theta
+                delta_theta = delta_ith * delta_theta_rad  # Convert bin index to radians
 
                 # Gaussian kernel
-                kernel[i] = np.exp(-0.5 * (delta_theta_rad / sigma_b) ** 2)
+                kernel[i] = np.exp(-0.5 * (delta_theta / sigma_b) ** 2)
 
-            # Store kernel sum for escape accounting
+            # Normalize kernel to sum to 1 for mass conservation
             kernel_sum = np.sum(kernel)
+            if kernel_sum > 0:
+                kernel = kernel / kernel_sum
+                # Store normalized sum (should be 1.0)
+                kernel_sum = 1.0
+            else:
+                # Fallback: identity kernel
+                kernel = np.zeros(kernel_size)
+                kernel[half_width_bins] = 1.0
+                kernel_sum = 1.0
 
             # Update bucket info
             bucket.half_width_bins = half_width_bins
