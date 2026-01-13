@@ -209,7 +209,7 @@ class TransportSimulationV2:
         n_buckets: int = 32,
         k_cutoff: float = 5.0,
         stopping_power_lut: Optional[StoppingPowerLUT] = None,
-        use_gpu: bool = False,
+        use_gpu: bool = True,
     ):
         """Initialize transport simulation.
 
@@ -221,7 +221,7 @@ class TransportSimulationV2:
             n_buckets: Number of sigma buckets for angular scattering
             k_cutoff: Kernel cutoff for angular scattering
             stopping_power_lut: Stopping power lookup table
-            use_gpu: Use GPU acceleration if available (default: False)
+            use_gpu: Use GPU acceleration if available (default: True)
         """
         self.grid = grid
         self.material = material
@@ -529,7 +529,7 @@ def create_transport_simulation(
     max_steps: int = 100,
     material: Optional[MaterialProperties2D] = None,
     stopping_power_lut: Optional[StoppingPowerLUT] = None,
-    use_gpu: bool = False,
+    use_gpu: bool = True,
 ) -> TransportSimulationV2:
     """Create a complete transport simulation with default grid.
 
@@ -544,13 +544,13 @@ def create_transport_simulation(
         max_steps: Maximum number of steps (default: 100)
         material: Material properties (default: water)
         stopping_power_lut: Stopping power LUT (default: water)
-        use_gpu: Use GPU acceleration if available (default: False)
+        use_gpu: Use GPU acceleration if available (default: True)
 
     Returns:
         TransportSimulationV2 ready for use
 
     Example:
-        >>> sim = create_transport_simulation(use_gpu=True)
+        >>> sim = create_transport_simulation()  # GPU enabled by default
         >>> sim.initialize_beam(x0=0.0, z0=-40.0, theta0=0.0, E0=100.0)
         >>> sim.run(n_steps=50)
         >>> sim.print_conservation_summary()
