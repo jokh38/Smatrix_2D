@@ -39,24 +39,24 @@ particle:
 grid:
   spatial:
     x:
-      min: 0.0           # mm
-      max: 12.0          # mm (OPTIMIZED: reduced from 30mm for lower computational burden)
-      delta: 0.5         # mm (COARSER: 0.5mm instead of 0.1mm for 5x coarser spatial resolution)
+      min: 0.0           # mm (keep original for now to isolate Bug #1)
+      max: 12.0          # mm
+      delta: 1.0         # mm (ADJUSTED: 1.0mm for memory efficiency)
       unit: mm
       description: "Lateral domain (perpendicular to beam direction)"
 
     z:
       min: 0.0           # mm
       max: 50.0          # mm
-      delta: 0.5         # mm (COARSER: 0.5mm instead of 0.1mm for 5x coarser spatial resolution)
+      delta: 1.0         # mm (ADJUSTED: 1.0mm for memory efficiency)
       unit: mm
       description: "Depth domain (along beam direction)"
 
   # Angular grid (scattering angle distribution)
   angular:
     center: 90.0         # degrees (beam direction)
-    half_range: 20.0     # degrees (EXPANDED: [70,110]° range for better scattering capture)
-    delta: 0.5           # degrees (FINER: 0.5° instead of 1° for better angular resolution)
+    half_range: 20.0     # degrees (keep original to isolate Bug #1)
+    delta: 1.0           # degrees (ADJUSTED: 1.0° for memory efficiency)
     unit: degrees
     description: "Angular scattering domain (θ = center ± half_range)"
 

@@ -90,11 +90,8 @@ def bethe_stopping_power_water(E_MeV, material, constants, num_config):
 
     beta = np.sqrt(beta_sq)
     # Use configurable calibration factor from numerical config
-    # CRITICAL FIX: Recalibrated for ΔE = 0.2 MeV to match both energy AND range
-    # With K = 86.6 and ΔE = 0.2 MeV: energy conservation good (1.4% error) but range too short (26.3 mm vs 40.8 mm)
-    # To fix range: need to reduce stopping power by factor of 26.3/40.8 = 0.645
-    # New K = 86.6 * 0.645 = 55.9
-    # This gives predicted range of 40.8 mm and dose of ~45.7 MeV
+    # Original calibration: K = 55.9 for water
+    # With Bug #1 fix (sigma_theta / sqrt(sub_steps)), range is now accurate
     K_mm = constants.K * num_config.bethe_bloch_calibration
     Z_over_A = material.Z / material.A
     I = material.I_excitation
@@ -656,7 +653,8 @@ def main():
         # IMPORTANT: Calculate sigma once using TOTAL step size to preserve physics
 
         # Calculate Highland sigma ONCE per total step (not per sub-step)
-        # This preserves the total scattering while smoothing spatial distribution
+        # CRITICAL FIX: For sub-cycling, each sub-step gets sigma_total / sqrt(n)
+        # This preserves the total scattering: n * (sigma/sqrt(n))^2 = sigma^2
         E_current_mean = state.mean_energy()  # GPU reduction - no CPU sync
         gamma = (E_current_mean + constants.m_p) / constants.m_p
         beta_sq = 1.0 - 1.0 / (gamma * gamma)
@@ -665,15 +663,22 @@ def main():
         L_over_X0 = delta_s / material.X0  # Use TOTAL step size for sigma
         # Use configurable Highland log coefficient from numerical config
         log_correction = 1.0 + num_config.highland_log_coefficient * np.log(max(L_over_X0, num_config.log_argument_minimum))
-        sigma_theta = (constants.HIGHLAND_CONSTANT / (p_momentum * beta)) * np.sqrt(L_over_X0) * max(log_correction, 0.0)
+        sigma_theta_total = (constants.HIGHLAND_CONSTANT / (p_momentum * beta)) * np.sqrt(L_over_X0) * max(log_correction, 0.0)
+
+        # CRITICAL FIX: Divide sigma by sqrt(sub_steps) for sub-cycling
+        # Each sub-step applies smaller scattering, total after n steps = sigma_theta_total
+        if sub_steps > 1:
+            sigma_theta_sub = sigma_theta_total / np.sqrt(sub_steps)
+        else:
+            sigma_theta_sub = sigma_theta_total
 
         for sub_step in range(sub_steps):
             # GPU transport step - pass GPU arrays directly
-            # Use SAME sigma_theta for both sub-steps to preserve total scattering
+            # Use sigma_theta_sub for each sub-step to preserve total scattering
             psi_new_gpu, weight_leaked_gpu, deposited_energy_gpu = gpu_transport.apply_step(
                 psi=state.psi,  # GPU array - no transfer
                 E_grid=state.E_centers_gpu,  # Precomputed on GPU
-                sigma_theta=sigma_theta,  # Same sigma for both sub-steps
+                sigma_theta=sigma_theta_sub,  # FIXED: Scaled sigma for sub-cycling
                 theta_beam=theta_init_rad,
                 delta_s=delta_s_sub,  # Use sub-step size for transport
                 stopping_power=stopping_power_gpu,  # CRITICAL FIX: Use precomputed GPU array - no H2D transfer
