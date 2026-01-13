@@ -121,22 +121,23 @@ class EnergyLossV2:
                 # Deposit all initial energy to medium
                 deposited_energy += total_weight * E_in
 
-                # Track diagnostic: total energy of stopped particles
-                escape_energy_stopped += np.sum(total_weight * E_in)
+                # Track diagnostic: total WEIGHT of stopped particles (not energy!)
+                escape_energy_stopped += np.sum(total_weight)
 
                 # Particles are removed (not added to psi_out)
                 continue
 
             # Case 3: Normal energy loss - conservative bin splitting
-            # Find target bracket: find i such that E_edges[i] <= E_new < E_edges[i+1]
-            iE_out = np.searchsorted(self.grid.E_edges, E_new, side='left') - 1
+            # Find target bracket: find i such that E_centers[i] <= E_new < E_centers[i+1]
+            # Use E_centers instead of E_edges for correct interpolation
+            iE_out = np.searchsorted(self.grid.E_centers, E_new, side='left') - 1
 
             # Clamp to valid range
             if iE_out < 0:
                 # Below grid - deposit all energy
                 total_weight = np.sum(weight_slice, axis=0)
                 deposited_energy += total_weight * E_new
-                escape_energy_stopped += np.sum(total_weight * E_in)
+                escape_energy_stopped += np.sum(total_weight)  # Track WEIGHT, not energy
                 continue
 
             if iE_out >= Ne - 1:
@@ -144,9 +145,9 @@ class EnergyLossV2:
                 psi_out[Ne - 1] += weight_slice
                 continue
 
-            # Conservative bin splitting: interpolate between adjacent bins
-            E_lo = self.grid.E_edges[iE_out]
-            E_hi = self.grid.E_edges[iE_out + 1]
+            # Conservative bin splitting: interpolate between adjacent bin centers
+            E_lo = self.grid.E_centers[iE_out]
+            E_hi = self.grid.E_centers[iE_out + 1]
 
             # Handle edge case of degenerate bin
             if E_hi - E_lo < 1e-12:
