@@ -127,11 +127,17 @@ class TransportStepV2:
         # Initialize operator 3: Spatial streaming A_s (Phase 7)
         self.spatial_streaming = SpatialStreamingV2(grid=grid)
 
-    def apply(self, psi: np.ndarray) -> Tuple[np.ndarray, EscapeAccounting]:
+    def apply(
+        self,
+        psi: np.ndarray,
+        deposited_energy: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, EscapeAccounting]:
         """Apply full transport step: psi_new = A_s(A_E(A_theta(psi_old))).
 
         Args:
             psi: Input phase space [Ne, Ntheta, Nz, Nx]
+            deposited_energy: Optional pre-allocated dose array [Nz, Nx] to track
+                energy deposition during this step. If None, dose is not tracked.
 
         Returns:
             (psi_out, escapes) tuple where:
@@ -158,7 +164,7 @@ class TransportStepV2:
         psi_after_E, energy_escape = self.energy_loss.apply(
             psi_after_theta,
             self.delta_s,
-            deposited_energy=None,  # Track but don't return dose
+            deposited_energy=deposited_energy,  # Pass dose array for tracking
         )
 
         # Step 3: Spatial streaming A_s
@@ -203,6 +209,7 @@ class TransportSimulationV2:
         n_buckets: int = 32,
         k_cutoff: float = 5.0,
         stopping_power_lut: Optional[StoppingPowerLUT] = None,
+        use_gpu: bool = False,
     ):
         """Initialize transport simulation.
 
@@ -214,21 +221,50 @@ class TransportSimulationV2:
             n_buckets: Number of sigma buckets for angular scattering
             k_cutoff: Kernel cutoff for angular scattering
             stopping_power_lut: Stopping power lookup table
+            use_gpu: Use GPU acceleration if available (default: False)
         """
         self.grid = grid
         self.material = material
         self.delta_s = delta_s
         self.max_steps = max_steps
+        self.use_gpu = use_gpu
+
+        # Check GPU availability
+        if use_gpu:
+            try:
+                import cupy as cp
+                self._has_gpu = True
+            except ImportError:
+                print("Warning: CuPy not available, falling back to CPU")
+                self._has_gpu = False
+        else:
+            self._has_gpu = False
 
         # Initialize transport step operator
-        self.transport_step = TransportStepV2(
-            grid=grid,
-            material=material,
-            delta_s=delta_s,
-            n_buckets=n_buckets,
-            k_cutoff=k_cutoff,
-            stopping_power_lut=stopping_power_lut,
-        )
+        if self._has_gpu:
+            from smatrix_2d.gpu.kernels import GPUTransportStepV2, create_gpu_transport_step_v2
+            self.transport_step = create_gpu_transport_step_v2(
+                grid=grid,
+                sigma_buckets=SigmaBuckets(
+                    grid=grid,
+                    material=material,
+                    constants=PhysicsConstants2D(),
+                    n_buckets=n_buckets,
+                    k_cutoff=k_cutoff,
+                    delta_s=delta_s,
+                ),
+                stopping_power_lut=stopping_power_lut if stopping_power_lut else StoppingPowerLUT(),
+                delta_s=delta_s,
+            )
+        else:
+            self.transport_step = TransportStepV2(
+                grid=grid,
+                material=material,
+                delta_s=delta_s,
+                n_buckets=n_buckets,
+                k_cutoff=k_cutoff,
+                stopping_power_lut=stopping_power_lut,
+            )
 
         # State variables
         self.psi: Optional[np.ndarray] = None
@@ -289,6 +325,14 @@ class TransportSimulationV2:
         self.psi = psi
         self.current_step = 0
         self.deposited_energy = np.zeros((self.grid.Nz, self.grid.Nx), dtype=np.float32)
+
+        # For GPU: allocate deposited_energy on GPU
+        if self._has_gpu:
+            import cupy as cp
+            self.deposited_energy_gpu = cp.zeros((self.grid.Nz, self.grid.Nx), dtype=cp.float32)
+        else:
+            self.deposited_energy_gpu = None
+
         self.conservation_history = []
 
         return psi
@@ -315,8 +359,22 @@ class TransportSimulationV2:
         # Track mass before step
         mass_in = np.sum(self.psi)
 
-        # Apply transport step
-        psi_new, escapes = self.transport_step.apply(self.psi)
+        # Apply transport step with dose tracking
+        if self._has_gpu:
+            # GPU: pass GPU dose array
+            psi_new, escapes = self.transport_step.apply(
+                self.psi,
+                deposited_energy_gpu=self.deposited_energy_gpu
+            )
+            # Sync dose back to CPU
+            import cupy as cp
+            self.deposited_energy = cp.asnumpy(self.deposited_energy_gpu)
+        else:
+            # CPU: pass CPU dose array
+            psi_new, escapes = self.transport_step.apply(
+                self.psi,
+                deposited_energy=self.deposited_energy
+            )
 
         # Track mass after step
         mass_out = np.sum(psi_new)
@@ -471,6 +529,7 @@ def create_transport_simulation(
     max_steps: int = 100,
     material: Optional[MaterialProperties2D] = None,
     stopping_power_lut: Optional[StoppingPowerLUT] = None,
+    use_gpu: bool = False,
 ) -> TransportSimulationV2:
     """Create a complete transport simulation with default grid.
 
@@ -485,12 +544,13 @@ def create_transport_simulation(
         max_steps: Maximum number of steps (default: 100)
         material: Material properties (default: water)
         stopping_power_lut: Stopping power LUT (default: water)
+        use_gpu: Use GPU acceleration if available (default: False)
 
     Returns:
         TransportSimulationV2 ready for use
 
     Example:
-        >>> sim = create_transport_simulation()
+        >>> sim = create_transport_simulation(use_gpu=True)
         >>> sim.initialize_beam(x0=0.0, z0=-40.0, theta0=0.0, E0=100.0)
         >>> sim.run(n_steps=50)
         >>> sim.print_conservation_summary()
@@ -527,6 +587,7 @@ def create_transport_simulation(
         delta_s=delta_s,
         max_steps=max_steps,
         stopping_power_lut=stopping_power_lut,
+        use_gpu=use_gpu,
     )
 
     return sim

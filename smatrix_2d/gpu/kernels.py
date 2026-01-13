@@ -583,19 +583,19 @@ class GPUTransportStepV2:
         self.angular_scattering_kernel = cp.RawKernel(
             _angular_scattering_kernel_src,
             'angular_scattering_kernel',
-            options=('-O3', '--use_fast_math')
+            options=('--use_fast_math',)
         )
 
         self.energy_loss_kernel = cp.RawKernel(
             _energy_loss_kernel_src,
             'energy_loss_kernel',
-            options=('-O3', '--use_fast_math')
+            options=('--use_fast_math',)
         )
 
         self.spatial_streaming_kernel = cp.RawKernel(
             _spatial_streaming_kernel_src,
             'spatial_streaming_kernel',
-            options=('-O3', '--use_fast_math')
+            options=('--use_fast_math',)
         )
 
     def _prepare_luts(self):
@@ -754,11 +754,14 @@ class GPUTransportStepV2:
     def apply_energy_loss(
         self,
         psi_in: cp.ndarray,
+        deposited_energy_gpu: Optional[cp.ndarray] = None,
     ) -> Tuple[cp.ndarray, cp.ndarray]:
         """Apply energy loss operator A_E.
 
         Args:
             psi_in: Input phase space [Ne, Ntheta, Nz, Nx]
+            deposited_energy_gpu: Optional GPU dose array [Nz, Nx] to accumulate
+                energy deposition. If None, creates new array.
 
         Returns:
             (psi_out, dose) tuple
@@ -766,7 +769,14 @@ class GPUTransportStepV2:
             - dose: Energy deposited [Nz, Nx]
         """
         psi_out = cp.zeros_like(psi_in)
-        dose = cp.zeros((self.Nz, self.Nx), dtype=cp.float32)
+
+        # Use provided dose array or create new one
+        if deposited_energy_gpu is None:
+            dose = cp.zeros((self.Nz, self.Nx), dtype=cp.float32)
+        else:
+            dose = deposited_energy_gpu
+            # Clear existing dose for this step
+            dose.fill(0)
 
         # Block configuration: (ix, iz, ith)
         # Threads process energy dimension
@@ -847,6 +857,7 @@ class GPUTransportStepV2:
     def apply(
         self,
         psi: np.ndarray,
+        deposited_energy_gpu: Optional[cp.ndarray] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Apply full transport step on GPU.
 
@@ -854,6 +865,9 @@ class GPUTransportStepV2:
 
         Args:
             psi: Input phase space [Ne, Ntheta, Nz, Nx] (numpy array)
+            deposited_energy_gpu: Optional GPU dose array [Nz, Nx] to track
+                energy deposition. If None, dose is tracked internally but
+                returned separately.
 
         Returns:
             (psi_out, escapes) tuple
@@ -863,11 +877,15 @@ class GPUTransportStepV2:
         # Upload to GPU
         psi_gpu = cp.asarray(psi, dtype=cp.float32)
 
+        # Allocate dose array on GPU if not provided
+        if deposited_energy_gpu is None:
+            deposited_energy_gpu = cp.zeros((self.Nz, self.Nx), dtype=cp.float32)
+
         # Step 1: Angular scattering
         psi_gpu, theta_escapes = self.apply_angular_scattering(psi_gpu)
 
-        # Step 2: Energy loss
-        psi_gpu, dose_gpu = self.apply_energy_loss(psi_gpu)
+        # Step 2: Energy loss (dose is accumulated in deposited_energy_gpu)
+        psi_gpu, dose_gpu = self.apply_energy_loss(psi_gpu, deposited_energy_gpu)
 
         # Step 3: Spatial streaming
         psi_gpu, leaked_gpu = self.apply_spatial_streaming(psi_gpu)
@@ -883,7 +901,7 @@ class GPUTransportStepV2:
         escapes.add(EscapeChannel.THETA_CUTOFF, float(cp.asnumpy(theta_escapes[0])))
         escapes.add(EscapeChannel.THETA_BOUNDARY, float(cp.asnumpy(theta_escapes[1])))
         escapes.add(EscapeChannel.ENERGY_STOPPED, np.sum(dose))
-        escapes.add(EscapeChannel.SPATIAL_LEAKED, float(leaked))
+        escapes.add(EscapeChannel.SPATIAL_LEAKED, float(leaked.item()))
 
         return psi_out, escapes
 
