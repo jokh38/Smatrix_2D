@@ -203,7 +203,8 @@ class SpatialStreamingV2:
 
         # For gather formulation, leakage is the weight that leaves the domain
         # This is computed as: sum(psi_in) - sum(psi_out)
-        leaked = np.sum(psi_in) - np.sum(psi_out)
+        # Clamp to non-negative to handle floating-point errors
+        leaked = max(0.0, np.sum(psi_in) - np.sum(psi_out))
 
         return psi_out, leaked
 

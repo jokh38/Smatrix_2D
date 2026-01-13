@@ -1,6 +1,7 @@
 """GPU acceleration package."""
 
 from smatrix_2d.gpu.memory_layout import GPUMemoryLayout, create_gpu_memory_layout
+from smatrix_2d.gpu.tiling import TileManager, TileSpec, TileInfo, create_tile_manager
 
 GPU_AVAILABLE = False
 
@@ -32,6 +33,10 @@ except ImportError:
 __all__ = [
     'GPUMemoryLayout',
     'create_gpu_memory_layout',
+    'TileManager',
+    'TileSpec',
+    'TileInfo',
+    'create_tile_manager',
     'GPUTransportStep',
     'AccumulationMode',
     'create_gpu_transport_step',
