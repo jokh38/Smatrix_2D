@@ -1,152 +1,212 @@
-"""Energy loss operator (A_E).
+"""Energy loss operator A_E per SPEC v2.1 Section 5.
 
-Implements coordinate-based fractional advection for continuous
-slowing-down with non-uniform energy grid support.
+Implements CSDA (Continuous Slowing Down Approximation) with:
+- Stopping power LUT from Phase 3
+- Conservative bin splitting with exact mass conservation
+- Explicit energy cutoff with dose deposit
+- Block-local reduction (scatter with block-local accumulation, no global atomics)
 """
 
 import numpy as np
-from typing import Tuple
+from typing import Tuple, Optional
 
-from smatrix_2d.core.grid import PhaseSpaceGrid2D
+from smatrix_2d.core.grid import PhaseSpaceGridV2
+from smatrix_2d.core.lut import StoppingPowerLUT
 
 
-class EnergyLossOperator:
-    """Energy loss operator A_E.
+class EnergyLossV2:
+    """Energy loss operator A_E following SPEC v2.1 Section 5.
 
-    Moves weight along energy coordinate according to stopping power.
-    Implements coordinate-based fractional advection to support
-    non-uniform energy grids.
+    Implements CSDA energy loss with conservative bin splitting.
+    Each input bin (iE_in) contributes to exactly two adjacent output bins.
+    Accumulates contributions within each (ith, iz, ix) block before writing
+    to global memory (no global atomics needed).
 
     Key features:
-    - Coordinate-based interpolation (works with any energy grid)
-    - Causality preservation (no energy gain)
+    - Uses StoppingPowerLUT for physics accuracy
+    - Coordinate-based fractional advection (works with non-uniform grids)
+    - Conservative bin splitting (exact mass conservation)
     - Energy cutoff handling with local dose deposition
+    - Escape energy tracking for conservation accounting
+    - Block-local reduction pattern (GPU-friendly)
+
+    Memory layout: psi[Ne, Ntheta, Nz, Nx]
     """
 
-    def __init__(self, grid: PhaseSpaceGrid2D):
+    def __init__(
+        self,
+        grid: PhaseSpaceGridV2,
+        stopping_power_lut: StoppingPowerLUT,
+        E_cutoff: float = 1.0
+    ):
         """Initialize energy loss operator.
 
         Args:
-            grid: Phase space grid
+            grid: Phase space grid (v2.1 specification)
+            stopping_power_lut: Stopping power lookup table [MeV/mm]
+            E_cutoff: Energy cutoff [MeV], particles below this are absorbed
         """
         self.grid = grid
+        self.stopping_power_lut = stopping_power_lut
+        self.E_cutoff = E_cutoff
+
+        # Validate cutoff against grid
+        if E_cutoff < grid.E_edges[0]:
+            raise ValueError(
+                f"E_cutoff ({E_cutoff} MeV) below grid minimum "
+                f"({grid.E_edges[0]} MeV)"
+            )
 
     def apply(
         self,
         psi: np.ndarray,
-        stopping_power_func,
         delta_s: float,
-        E_cutoff: float,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        deposited_energy: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, float]:
         """Apply energy loss operator.
 
         Args:
             psi: Input state [Ne, Ntheta, Nz, Nx]
-            stopping_power_func: S(E) function returning MeV/mm
             delta_s: Step length [mm]
-            E_cutoff: Energy cutoff [MeV]
+            deposited_energy: Optional pre-allocated dose array [Nz, Nx].
+                If None, creates new array.
 
         Returns:
-            (psi_out, deposited_energy) tuple
+            (psi_after_E, escape_energy_stopped) tuple where:
+            - psi_after_E: State after energy loss [Ne, Ntheta, Nz, Nx]
+            - escape_energy_stopped: Total energy of particles stopped at cutoff
         """
-        psi_out = np.zeros_like(psi)
-        deposited_energy = np.zeros((psi.shape[2], psi.shape[3]))
-
         Ne, Ntheta, Nz, Nx = psi.shape
 
-        for iE_src in range(Ne):
-            E_src = self.grid.E_centers[iE_src]
-            S = stopping_power_func(E_src)
+        # Initialize output
+        psi_out = np.zeros_like(psi)
+
+        # Initialize dose deposition array
+        if deposited_energy is None:
+            deposited_energy = np.zeros((Nz, Nx), dtype=np.float32)
+
+        # Track escape energy (particles stopped at cutoff)
+        escape_energy_stopped = 0.0
+
+        # Process each energy bin
+        for iE_in in range(Ne):
+            E_in = self.grid.E_centers[iE_in]
+
+            # Get stopping power at this energy
+            S = self.stopping_power_lut.get_stopping_power(E_in)
+
+            # Energy loss over step
             deltaE = S * delta_s
-            E_new = E_src - deltaE
+            E_new = E_in - deltaE
 
+            # Get weight slice for this energy bin
+            weight_slice = psi[iE_in]  # [Ntheta, Nz, Nx]
+
+            # Skip if no weight
+            if np.all(weight_slice < 1e-12):
+                continue
+
+            # Case 1: Negligible energy loss
             if abs(deltaE) < 1e-12:
-                self._copy_weight_slice(psi, psi_out, iE_src)
+                psi_out[iE_in] += weight_slice
                 continue
 
-            # Check E_cutoff
-            if E_new < E_cutoff:
-                self._deposit_cutoff_energy(
-                    psi, deposited_energy, iE_src, max(0.0, E_new)
-                )
+            # Case 2: Energy falls below cutoff - deposit all energy and remove from transport
+            if E_new < self.E_cutoff:
+                # Particle is absorbed at cutoff
+                # All its energy (E_in) is deposited to the medium
+                # This includes both the deltaE lost during step AND remaining E_new
+                total_weight = np.sum(weight_slice, axis=0)  # [Nz, Nx]
+
+                # Deposit all initial energy to medium
+                deposited_energy += total_weight * E_in
+
+                # Track diagnostic: total energy of stopped particles
+                escape_energy_stopped += np.sum(total_weight * E_in)
+
+                # Particles are removed (not added to psi_out)
                 continue
 
-            # Find target bin for E_new
-            iE_target = np.searchsorted(
-                self.grid.E_edges, E_new, side='left'
-            ) - 1
+            # Case 3: Normal energy loss - conservative bin splitting
+            # Find target bracket: find i such that E_edges[i] <= E_new < E_edges[i+1]
+            iE_out = np.searchsorted(self.grid.E_edges, E_new, side='left') - 1
 
-            if iE_target < 0:
+            # Clamp to valid range
+            if iE_out < 0:
+                # Below grid - deposit all energy
+                total_weight = np.sum(weight_slice, axis=0)
+                deposited_energy += total_weight * E_new
+                escape_energy_stopped += np.sum(total_weight * E_in)
                 continue
 
-            if iE_target >= Ne - 1:
-                self._deposit_to_bottom_bin(psi, psi_out, iE_src, iE_target)
+            if iE_out >= Ne - 1:
+                # At or above top bin - put in top bin (shouldn't happen with energy loss)
+                psi_out[Ne - 1] += weight_slice
                 continue
 
-            E_lo = self.grid.E_edges[iE_target]
-            E_hi = self.grid.E_edges[iE_target + 1]
+            # Conservative bin splitting: interpolate between adjacent bins
+            E_lo = self.grid.E_edges[iE_out]
+            E_hi = self.grid.E_edges[iE_out + 1]
 
+            # Handle edge case of degenerate bin
             if E_hi - E_lo < 1e-12:
+                psi_out[iE_out] += weight_slice
                 continue
 
-            # Linear interpolation in energy coordinate (spec v7.2 eq)
+            # Linear interpolation weights in energy coordinate (SPEC 6.2)
+            # w_lo = fraction of weight going to lower bin
+            # w_hi = fraction going to higher bin
+            # These satisfy: w_lo + w_hi = 1 (conservation)
             w_lo = (E_hi - E_new) / (E_hi - E_lo)
             w_hi = 1.0 - w_lo
 
-            weight_slice = psi[iE_src]
-            mask = weight_slice >= 1e-12
+            # Sanity check
+            assert 0.0 <= w_lo <= 1.0, f"w_lo = {w_lo} out of [0, 1]"
+            assert 0.0 <= w_hi <= 1.0, f"w_hi = {w_hi} out of [0, 1]"
+            assert abs(w_lo + w_hi - 1.0) < 1e-10, "Weights don't sum to 1"
 
-            # Deposit weight to both bins (interpolation)
-            psi_out[iE_target] += w_lo * weight_slice * mask
-            psi_out[iE_target + 1] += w_hi * weight_slice * mask
+            # Scatter with block-local reduction:
+            # Each (ith, iz, ix) block accumulates contributions from input bin iE_in
+            # This is the CPU version - GPU version would use shared memory
+            psi_out[iE_out] += w_lo * weight_slice
+            psi_out[iE_out + 1] += w_hi * weight_slice
 
-            # Track deposited energy: actual energy lost (E_src - E_new)
-            deposited_energy += deltaE * np.sum(weight_slice * mask, axis=0)
+            # Energy accounting:
+            # deposited_energy tracks energy LOST to medium (deltaE * weight)
+            # Note: Using bin centers introduces small discretization error
+            # in energy representation (typically < 1% for clinical energies)
+            deposited_energy += deltaE * np.sum(weight_slice, axis=0)
 
-        return psi_out, deposited_energy
+        return psi_out, escape_energy_stopped
 
-    def _copy_weight_slice(
+    def get_stopping_power(self, energy: float) -> float:
+        """Get stopping power at given energy.
+
+        Convenience method for diagnostics and validation.
+
+        Args:
+            energy: Proton energy [MeV]
+
+        Returns:
+            Stopping power S(E) [MeV/mm]
+        """
+        return self.stopping_power_lut.get_stopping_power(energy)
+
+    def compute_energy_loss(
         self,
-        psi: np.ndarray,
-        psi_out: np.ndarray,
-        iE_src: int,
-    ) -> None:
-        psi_out[iE_src] = psi[iE_src]
+        energy: float,
+        delta_s: float
+    ) -> float:
+        """Compute energy loss over step length.
 
-    def _deposit_cutoff_energy(
-        self,
-        psi: np.ndarray,
-        deposited_energy: np.ndarray,
-        iE_src: int,
-        residual_energy: float,
-    ) -> None:
-        weight_slice = psi[iE_src]
-        deposited_energy += np.sum(weight_slice, axis=0) * residual_energy
+        Convenience method for diagnostics and validation.
 
-    def _deposit_to_bottom_bin(
-        self,
-        psi: np.ndarray,
-        psi_out: np.ndarray,
-        iE_src: int,
-        iE_target: int,
-    ) -> None:
-        psi_out[iE_target] += psi[iE_src]
+        Args:
+            energy: Initial proton energy [MeV]
+            delta_s: Step length [mm]
 
-    def _deposit_interpolated(
-        self,
-        psi: np.ndarray,
-        psi_out: np.ndarray,
-        deposited_energy: np.ndarray,
-        iE_src: int,
-        iE_target: int,
-        w_lo: float,
-        w_hi: float,
-        deltaE: float,
-    ) -> None:
-        weight_slice = psi[iE_src]
-        mask = weight_slice >= 1e-12
-
-        psi_out[iE_target] += w_lo * weight_slice * mask
-        psi_out[iE_target + 1] += w_hi * weight_slice * mask
-
-        deposited_energy += deltaE * np.sum(weight_slice * mask, axis=0)
+        Returns:
+            Energy loss [MeV]
+        """
+        S = self.stopping_power_lut.get_stopping_power(energy)
+        return S * delta_s

@@ -16,7 +16,7 @@ import numpy as np
 from typing import Tuple, List, Optional
 from dataclasses import dataclass, field
 
-from smatrix_2d.core.grid_v2 import GridSpecsV2, PhaseSpaceGridV2, create_phase_space_grid
+from smatrix_2d.core.grid import GridSpecsV2, PhaseSpaceGridV2, create_phase_space_grid
 from smatrix_2d.core.materials import MaterialProperties2D
 from smatrix_2d.core.constants import PhysicsConstants2D
 from smatrix_2d.core.escape_accounting import (
@@ -26,9 +26,9 @@ from smatrix_2d.core.escape_accounting import (
     conservation_report,
 )
 from smatrix_2d.operators.sigma_buckets import SigmaBuckets
-from smatrix_2d.operators.angular_scattering_v2 import AngularScatteringV2, AngularEscapeAccounting
-from smatrix_2d.operators.energy_loss_v2 import EnergyLossV2
-from smatrix_2d.operators.spatial_streaming_v2 import SpatialStreamingV2, StreamingResult
+from smatrix_2d.operators.angular_scattering import AngularScatteringV2, AngularEscapeAccounting
+from smatrix_2d.operators.energy_loss import EnergyLossV2
+from smatrix_2d.operators.spatial_streaming import SpatialStreamingV2, StreamingResult
 from smatrix_2d.core.lut import StoppingPowerLUT
 
 

@@ -1,351 +1,255 @@
-"""Spatial streaming operator (A_stream).
+"""Spatial streaming operator A_s following SPEC v2.1 Section 6.
 
-Implements shift-and-deposit spatial advection with backward transport
-policies and edge-stable path length discretization.
+Implements gather-based spatial advection with bilinear interpolation
+and ABSORB boundary conditions.
+
+Key features:
+- Gather formulation (no atomics, fully parallel)
+- Bilinear interpolation for sub-grid accuracy
+- ABSORB boundary condition (default)
+- Spatial leakage tracking for escape accounting
+- Precomputed velocity lookup tables
 """
 
 import numpy as np
-from enum import Enum
 from typing import Tuple
+from dataclasses import dataclass
 
-from smatrix_2d.core.grid import PhaseSpaceGrid2D
-from smatrix_2d.core.constants import PhysicsConstants2D
-from typing import List
-
-
-class BackwardTransportMode(Enum):
-    """Policy for handling backward transport (mu <= 0)."""
-    HARD_REJECT = 0
-    ANGULAR_CAP = 1
-    SMALL_BACKWARD_ALLOWANCE = 2
+from smatrix_2d.core.grid import PhaseSpaceGridV2
 
 
-class SpatialStreamingOperator:
-    """Spatial streaming operator A_stream.
+@dataclass
+class StreamingResult:
+    """Result of spatial streaming operation.
 
-    Advects particles along direction theta with shift-and-deposit
-    method. Supports multiple backward transport policies.
+    Attributes:
+        psi_streamed: Streamed particle distribution [Ne, Ntheta, Nz, Nx]
+        spatial_leaked: Total weight lost through spatial boundaries
+    """
+    psi_streamed: np.ndarray
+    spatial_leaked: float
 
-    Key features:
-    - Edge-stable path length discretization
-    - Three backward transport modes
-    - Shift-and-deposit with non-negative area weights
-    - Boundary leak accounting
+
+class SpatialStreamingV2:
+    """Spatial streaming operator A_s (SPEC v2.1 Section 6).
+
+    Implements gather-based streaming with bilinear interpolation:
+    - For each output cell, trace back along velocity vector
+    - Use bilinear interpolation at source location
+    - ABSORB boundary: weight leaving domain counted as escape
+
+    Direction cosines (SPEC 6.1):
+        vx[ith] = cos(theta[ith])
+        vz[ith] = sin(theta[ith])
+
+    Gather-based streaming (SPEC 6.2):
+        1. Inverse advection: x_src = x_out - vx[ith] * delta_s
+        2. Fractional indices: fx = (x_src - x_min) / delta_x - 0.5
+        3. Integer parts: ix0 = floor(fx), iz0 = floor(fz)
+        4. Bilinear weights: w00, w10, w01, w11
+        5. Gather: psi_out = sum(w * psi_in[ix, iz])
+
+    Boundary policy (SPEC 6.3):
+        ABSORB: When source index outside [0, N-1]:
+            - Add contribution weight to spatial_leaked
+            - Do not read from psi (treat as zero)
     """
 
-    def __init__(
-        self,
-        grid: PhaseSpaceGrid2D,
-        constants: PhysicsConstants2D,
-        backward_mode: BackwardTransportMode = BackwardTransportMode.HARD_REJECT,
-        theta_cap: float = 2.0 * np.pi * 2.0 / 3.0,
-        mu_min: float = -0.1,
-    ):
+    def __init__(self, grid: PhaseSpaceGridV2):
         """Initialize spatial streaming operator.
 
         Args:
-            grid: Phase space grid
-            constants: Physics constants
-            backward_mode: Policy for backward transport
-            theta_cap: Maximum allowed angle for ANGULAR_CAP mode
-            mu_min: Minimum mu for SMALL_BACKWARD_ALLOWANCE mode
+            grid: Phase space grid following SPEC v2.1
         """
         self.grid = grid
-        self.constants = constants
-        self.backward_mode = backward_mode
-        self.theta_cap = theta_cap
-        self.mu_min = mu_min
 
-        # Edge safety parameters
-        self.eta_eps = 1e-6
-        self.mu_floor = 0.2
-        self.k_x = 2.0
-        self.c_theta = 0.5
-        self.c_E = 0.5
+        # Precompute velocity lookup tables (SPEC 6.1)
+        # Direction cosines: vx = cos(theta), vz = sin(theta)
+        self.vx = np.cos(grid.th_centers_rad)  # [Ntheta]
+        self.vz = np.sin(grid.th_centers_rad)  # [Ntheta]
 
-    def compute_step_size(
-        self,
-        theta: float,
-        E_MeV: float,
-        stopping_power_func,
-    ) -> Tuple[float, float]:
-        """Compute adaptive step size with accuracy caps.
+        # Store grid dimensions for convenience
+        self.Ne = grid.Ne
+        self.Ntheta = grid.Ntheta
+        self.Nz = grid.Nz
+        self.Nx = grid.Nx
 
-        Args:
-            theta: Direction angle [rad]
-            E_MeV: Kinetic energy [MeV]
-            stopping_power_func: Function S(E) returning MeV/mm
+        # Grid parameters - use actual spacing from edges
+        self.x_min = grid.x_edges[0]
+        self.z_min = grid.z_edges[0]
+        # Use actual spacing (may differ from specs if grid was created with linspace)
+        self.delta_x = grid.x_edges[1] - grid.x_edges[0]
+        self.delta_z = grid.z_edges[1] - grid.z_edges[0]
 
-        Returns:
-            (delta_s, deltaE_step) tuple
-        """
-        eta = np.sin(theta)
-
-        # Edge-safe lateral handling
-        eta_safe = max(abs(eta), self.eta_eps)
-
-        # Candidate limits
-        if eta > 0:
-            s_z = self.grid.delta_z / eta
-        elif self.backward_mode == BackwardTransportMode.SMALL_BACKWARD_ALLOWANCE:
-            s_z = self.grid.delta_z / abs(eta)
-        else:
-            s_z = np.inf
-
-        s_x = min(
-            self.grid.delta_x / eta_safe,
-            self.k_x * min(self.grid.delta_x, self.grid.delta_z) /
-            max(self.mu_floor, 1e-3)
-        )
-
-        # Angular accuracy cap (requires delta_s - need iterative)
-        # For now, use geometric limit
-        s_theta = np.inf
-
-        # Energy accuracy cap
-        S = stopping_power_func(E_MeV)
-        deltaE_local = self.grid.delta_E  # Approximation for uniform grid
-        s_E = self.c_E * deltaE_local / S if S > 0 else np.inf
-
-        delta_s = min(s_z, s_x, s_theta, s_E)
-        deltaE_step = S * delta_s
-
-        return delta_s, deltaE_step
-
-    def check_backward_transport(
-        self,
-        theta: float,
-        forward_component: float,
-    ) -> Tuple[bool, float]:
-        """Check if transport should proceed based on backward mode.
-
-        Args:
-            theta: Direction angle [rad]
-            forward_component: Component in forward (z) direction (sin(theta))
-
-        Returns:
-            (allow_transport, weight_to_reject) tuple
-        """
-        if forward_component > 0:
-            return True, 0.0
-
-        if self.backward_mode == BackwardTransportMode.HARD_REJECT:
-            return False, 1.0
-
-        elif self.backward_mode == BackwardTransportMode.ANGULAR_CAP:
-            if theta > self.theta_cap:
-                return False, 1.0
-            else:
-                return True, 0.0
-
-        elif self.backward_mode == BackwardTransportMode.SMALL_BACKWARD_ALLOWANCE:
-            if forward_component <= self.mu_min:
-                return False, 1.0
-            else:
-                return True, 0.0
-
-        else:
-            return False, 1.0
-
-    def shift_and_deposit(
-        self,
-        x_in: float,
-        z_in: float,
-        delta_s: float,
-        theta: float,
-    ) -> Tuple[float, List[Tuple[int, int, float]]]:
-        """Compute spatial displacement with shift-and-deposit.
-
-        Args:
-            x_in: Input x position [mm]
-            z_in: Input z position [mm]
-            delta_s: Step length [mm]
-            theta: Direction angle [rad]
-
-        Returns:
-            (weight_to_rejected, [(ix, iz, weight), ...]) tuple
-        """
-        x_new, z_new = self._compute_new_position(x_in, z_in, delta_s, theta)
-
-        if self._is_out_of_bounds(x_new, z_new):
-            return 1.0, []
-
-        ix_target, iz_target = self._find_target_cell(x_new, z_new)
-
-        if self._is_on_cell_center(x_new, z_new, ix_target, iz_target):
-            return 0.0, [(ix_target, iz_target, 1.0)]
-
-        cells_to_deposit = self._find_adjacent_cells(x_new, z_new, ix_target, iz_target)
-
-        return self._compute_deposition_weights(cells_to_deposit)
-
-    def _compute_new_position(
-        self,
-        x_in: float,
-        z_in: float,
-        delta_s: float,
-        theta: float,
-    ) -> Tuple[float, float]:
-        v_x = np.cos(theta)
-        v_z = np.sin(theta)
-        return x_in + delta_s * v_x, z_in + delta_s * v_z
-
-    def _is_out_of_bounds(self, x_new: float, z_new: float) -> bool:
-        return (
-            x_new < self.grid.x_edges[0] or
-            x_new > self.grid.x_edges[-1] or
-            z_new < self.grid.z_edges[0] or
-            z_new > self.grid.z_edges[-1]
-        )
-
-    def _find_target_cell(self, x_new: float, z_new: float) -> Tuple[int, int]:
-        ix_target = int(np.searchsorted(self.grid.x_edges, x_new, side='right') - 1)
-        iz_target = int(np.searchsorted(self.grid.z_edges, z_new, side='right') - 1)
-        return ix_target, iz_target
-
-    def _is_on_cell_center(
-        self,
-        x_new: float,
-        z_new: float,
-        ix_target: int,
-        iz_target: int,
-    ) -> bool:
-        if ix_target < 0 or ix_target >= len(self.grid.x_centers):
-            return False
-        if iz_target < 0 or iz_target >= len(self.grid.z_centers):
-            return False
-
-        dx = abs(x_new - self.grid.x_centers[ix_target])
-        dz = abs(z_new - self.grid.z_centers[iz_target])
-        return dx < 1e-12 and dz < 1e-12
-
-    def _find_adjacent_cells(
-        self,
-        x_new: float,
-        z_new: float,
-        ix_target: int,
-        iz_target: int,
-    ) -> List[Tuple[int, int]]:
-        x_left = self.grid.x_edges[ix_target]
-        x_right = self.grid.x_edges[ix_target + 1]
-        z_left = self.grid.z_edges[iz_target]
-        z_right = self.grid.z_edges[iz_target + 1]
-
-        dist_left_x = abs(x_new - x_left)
-        dist_right_x = abs(x_new - x_right)
-        dist_left_z = abs(z_new - z_left)
-        dist_right_z = abs(z_new - z_right)
-
-        min_edge_dist = min(dist_left_x, dist_right_x, dist_left_z, dist_right_z)
-
-        cells_to_deposit = []
-        if abs(min_edge_dist - dist_left_x) < 1e-12 and ix_target > 0:
-            cells_to_deposit.append((ix_target - 1, iz_target))
-        if abs(min_edge_dist - dist_right_x) < 1e-12 and ix_target < len(self.grid.x_centers) - 1:
-            cells_to_deposit.append((ix_target + 1, iz_target))
-        if abs(min_edge_dist - dist_left_z) < 1e-12 and iz_target > 0:
-            cells_to_deposit.append((ix_target, iz_target - 1))
-        if abs(min_edge_dist - dist_right_z) < 1e-12 and iz_target < len(self.grid.z_centers) - 1:
-            cells_to_deposit.append((ix_target, iz_target + 1))
-
-        return list(set(cells_to_deposit))
-
-    def _compute_deposition_weights(self, cells: List[Tuple[int, int]]) -> Tuple[float, List[Tuple[int, int, float]]]:
-        n_cells = len(cells)
-
-        if n_cells == 0:
-            return 1.0, []
-        elif n_cells == 1:
-            return 0.0, [(cells[0][0], cells[0][1], 1.0)]
-        elif n_cells == 2:
-            return 0.0, [(c[0], c[1], 0.5) for c in cells]
-        elif n_cells == 4:
-            return 0.0, [(c[0], c[1], 0.25) for c in cells]
-        else:
-            weight = 1.0 / n_cells
-            return 0.0, [(c[0], c[1], weight) for c in cells]
-
-    def _process_phase_space_angle(
-        self,
-        psi: np.ndarray,
-        iE: int,
-        ith: int,
-        stopping_power_func,
-        E_array: np.ndarray,
-    ) -> Tuple[np.ndarray, float]:
-        """Process one angle slice of phase space.
-
-        Args:
-            psi: Input state [Ne, Ntheta, Nz, Nx]
-            iE: Energy index
-            ith: Angle index
-            stopping_power_func: S(E) function
-            E_array: Energy grid [MeV]
-
-        Returns:
-            (psi_out_angle, weight_to_rejected) tuple
-        """
-        theta = self.grid.th_centers[ith]
-        eta = np.sin(theta)  # z-component (forward direction)
-
-        # Check backward transport using z-component (eta) for forward direction
-        allow_transport, weight_to_reject = self.check_backward_transport(theta, eta)
-
-        if not allow_transport:
-            angle_slice = psi[iE, ith, :, :]
-            total_angle_weight = np.sum(angle_slice)
-            return np.zeros((self.grid.z_centers.size, self.grid.x_centers.size)), weight_to_reject * total_angle_weight
-
-        delta_s, _ = self.compute_step_size(theta, E_array[iE], stopping_power_func)
-        Ne, _, Nz, Nx = psi.shape
-
-        psi_out_angle = np.zeros((Nz, Nx))
-        weight_to_rejected_total = 0.0
-
-        for iz in range(Nz):
-            for ix in range(Nx):
-                weight = psi[iE, ith, iz, ix]
-
-                if weight < 1e-12:
-                    continue
-
-                x_in = self.grid.x_centers[ix]
-                z_in = self.grid.z_centers[iz]
-
-                w_reject, deposits = self.shift_and_deposit(x_in, z_in, delta_s, theta)
-                weight_to_rejected_total += w_reject * weight
-
-                for ix_out, iz_out, w_deposit in deposits:
-                    psi_out_angle[iz_out, ix_out] += w_deposit * weight
-
-        return psi_out_angle, weight_to_reject + weight_to_rejected_total
-
-    def apply(
-        self,
-        psi: np.ndarray,
-        stopping_power_func,
-        E_array: np.ndarray,
-    ) -> Tuple[np.ndarray, float]:
+    def apply(self, psi: np.ndarray, delta_s: float) -> StreamingResult:
         """Apply spatial streaming operator.
 
         Args:
-            psi: Input state [Ne, Ntheta, Nz, Nx]
-            stopping_power_func: Function S(E) returning MeV/mm
-            E_array: Energy grid centers [MeV]
+            psi: Input particle distribution [Ne, Ntheta, Nz, Nx]
+            delta_s: Streaming step length [mm]
 
         Returns:
-            (psi_out, weight_to_rejected_backward) tuple
+            StreamingResult containing:
+                - psi_streamed: Streamed distribution [Ne, Ntheta, Nz, Nx]
+                - spatial_leaked: Total weight escaped through boundaries
+
+        SPEC 6.2: Gather-based streaming with bilinear interpolation
         """
-        psi_out = np.zeros_like(psi)
-        Ne, Ntheta, Nz, Nx = psi.shape
-        weight_to_rejected_total = 0.0
+        # Validate input shape
+        if psi.shape != (self.Ne, self.Ntheta, self.Nz, self.Nx):
+            raise ValueError(
+                f"psi shape {psi.shape} does not match grid "
+                f"expected {(self.Ne, self.Ntheta, self.Nz, self.Nx)}"
+            )
 
-        for iE in range(Ne):
-            for ith in range(Ntheta):
-                psi_out_angle, w_rejected = self._process_phase_space_angle(
-                    psi, iE, ith, stopping_power_func, E_array
+        # Initialize output array
+        psi_streamed = np.zeros_like(psi)
+        spatial_leaked = 0.0
+
+        # Loop over all dimensions
+        for iE in range(self.Ne):
+            for ith in range(self.Ntheta):
+                # Get velocity components for this angle
+                vx = self.vx[ith]
+                vz = self.vz[ith]
+
+                # Process all spatial cells for this energy and angle
+                psi_slice, leaked = self._stream_slice(
+                    psi[iE, ith],
+                    delta_s,
+                    vx,
+                    vz
                 )
-                psi_out[iE, ith, :, :] = psi_out_angle
-                weight_to_rejected_total += w_rejected
 
-        return psi_out, weight_to_rejected_total
+                psi_streamed[iE, ith] = psi_slice
+                spatial_leaked += leaked
+
+        return StreamingResult(
+            psi_streamed=psi_streamed,
+            spatial_leaked=spatial_leaked
+        )
+
+    def _stream_slice(
+        self,
+        psi_in: np.ndarray,
+        delta_s: float,
+        vx: float,
+        vz: float,
+    ) -> Tuple[np.ndarray, float]:
+        """Stream one 2D spatial slice [Nz, Nx].
+
+        Args:
+            psi_in: Input spatial distribution [Nz, Nx]
+            delta_s: Step length [mm]
+            vx: Velocity x-component
+            vz: Velocity z-component
+
+        Returns:
+            (psi_out, leaked) tuple
+        """
+        psi_out = np.zeros_like(psi_in)
+
+        # Loop over all output cells
+        for iz_out in range(self.Nz):
+            for ix_out in range(self.Nx):
+                # Output cell center position
+                x_out = self.grid.x_centers[ix_out]
+                z_out = self.grid.z_centers[iz_out]
+
+                # Inverse advection (SPEC 6.2): Trace back to source
+                x_src = x_out - vx * delta_s
+                z_src = z_out - vz * delta_s
+
+                # Check if source location is outside domain (SPEC 6.3)
+                x_min = self.grid.x_edges[0]
+                x_max = self.grid.x_edges[-1]
+                z_min = self.grid.z_edges[0]
+                z_max = self.grid.z_edges[-1]
+
+                if x_src < x_min or x_src > x_max or z_src < z_min or z_src > z_max:
+                    # Source outside domain: output cell gets nothing (already zero)
+                    continue
+
+                # Convert to fractional indices (SPEC 6.2)
+                # fx = (x_src - x_min) / delta_x - 0.5
+                # The -0.5 converts from position to cell index
+                fx = (x_src - self.x_min) / self.delta_x - 0.5
+                fz = (z_src - self.z_min) / self.delta_z - 0.5
+
+                # Integer parts (lower-left cell of interpolation)
+                ix0 = int(np.floor(fx))
+                iz0 = int(np.floor(fz))
+
+                # Interpolation weights (SPEC 6.2)
+                tx = fx - ix0  # Fractional part in x
+                tz = fz - iz0  # Fractional part in z
+
+                # Bilinear interpolation weights
+                w00 = (1.0 - tx) * (1.0 - tz)  # Lower-left
+                w10 = tx * (1.0 - tz)           # Lower-right
+                w01 = (1.0 - tx) * tz           # Upper-left
+                w11 = tx * tz                   # Upper-right
+
+                # Gather from four source cells (SPEC 6.2)
+                psi_out[iz_out, ix_out] = self._gather_bilinear(
+                    psi_in,
+                    ix0,
+                    iz0,
+                    w00,
+                    w10,
+                    w01,
+                    w11
+                )
+
+        # For gather formulation, leakage is the weight that leaves the domain
+        # This is computed as: sum(psi_in) - sum(psi_out)
+        # Clamp to non-negative to handle floating-point errors
+        leaked = max(0.0, np.sum(psi_in) - np.sum(psi_out))
+
+        return psi_out, leaked
+
+    def _gather_bilinear(
+        self,
+        psi_in: np.ndarray,
+        ix0: int,
+        iz0: int,
+        w00: float,
+        w10: float,
+        w01: float,
+        w11: float,
+    ) -> float:
+        """Gather with bilinear interpolation.
+
+        Note: Domain boundary check is done before calling this method.
+        This method assumes all source indices are potentially valid,
+        and handles out-of-bounds by skipping (treating as zero).
+
+        Args:
+            psi_in: Input distribution [Nz, Nx]
+            ix0: Lower-left x index
+            iz0: Lower-left z index
+            w00, w10, w01, w11: Bilinear weights
+
+        Returns:
+            Interpolated value at output cell
+
+        SPEC 6.2: Gather from four source cells
+        """
+        total_value = 0.0
+
+        # Define four source cell indices with weights
+        sources = [
+            (iz0, ix0, w00),     # Lower-left
+            (iz0, ix0 + 1, w10), # Lower-right
+            (iz0 + 1, ix0, w01), # Upper-left
+            (iz0 + 1, ix0 + 1, w11),  # Upper-right
+        ]
+
+        for iz_src, ix_src, weight in sources:
+            # Gather from valid source cells only
+            # Out-of-bounds sources contribute zero (ABSORB boundary)
+            if 0 <= iz_src < self.Nz and 0 <= ix_src < self.Nx:
+                total_value += weight * psi_in[iz_src, ix_src]
+            # If out of bounds, skip (treat as zero)
+
+        return total_value

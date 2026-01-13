@@ -1,115 +1,77 @@
-"""Operator-Factorized Generalized 2D Transport System
+"""Operator-Factorized Generalized 2D Transport System (SPEC v2.1)
 
-A deterministic transport engine using operator factorization instead of
-explicit S-matrix construction. Implements continuous slowing-down approximation
-(CSDA) and multiple Coulomb scattering (MCS) with strict probability
-conservation.
+A deterministic transport engine using operator factorization.
+Implements continuous slowing-down approximation (CSDA) and multiple
+Coulomb scattering (MCS) with NIST-based stopping power lookup tables.
 
 Key Principles:
-- Operator factorization: psi_next = A_E(A_stream(A_theta(psi)))
-- No global S-matrix construction (memory-efficient)
-- GPU-friendly memory layout: psi[E, theta, z, x]
-- First-order and Strang splitting support
+- Operator factorization: psi_next = A_s(A_E(A_theta(psi)))
+- NIST PSTAR stopping power LUT (not Bethe-Bloch formula)
+- Sigma buckets for efficient angular scattering
+- Texture memory optimization for GPU
+- Strict conservation tracking
 
-Version: 7.2
+Version: 2.1
 """
 
-__version__ = '7.2'
+__version__ = '2.1'
 
 # Core data structures
-from smatrix_2d.core.grid import GridSpecs2D, PhaseSpaceGrid2D, create_phase_space_grid
-from smatrix_2d.core.state import TransportState, create_initial_state
+from smatrix_2d.core.grid import (
+    GridSpecsV2,
+    PhaseSpaceGridV2,
+    create_phase_space_grid,
+    GridSpecs2D,  # alias
+    PhaseSpaceGrid2D,  # alias
+)
 from smatrix_2d.core.materials import MaterialProperties2D, create_water_material
 from smatrix_2d.core.constants import PhysicsConstants2D
+from smatrix_2d.core.lut import StoppingPowerLUT, create_water_stopping_power_lut
 
 # Operators
-from smatrix_2d.operators.angular_scattering import (
-    AngularScatteringOperator,
-    EnergyReferencePolicy,
+from smatrix_2d.operators import (
+    SigmaBuckets,
+    SigmaBucketInfo,
+    AngularScatteringV2,
+    AngularEscapeAccounting,
+    EnergyLossV2,
+    SpatialStreamingV2,
+    StreamingResult,
 )
-from smatrix_2d.operators.spatial_streaming import (
-    SpatialStreamingOperator,
-    BackwardTransportMode,
-)
-from smatrix_2d.operators.energy_loss import EnergyLossOperator
 
 # Transport orchestration
-from smatrix_2d.transport.transport_step import (
-    TransportStep,
-    FirstOrderSplitting,
-    StrangSplitting,
+from smatrix_2d.transport import (
+    TransportStepV2,
+    TransportSimulationV2,
+    create_transport_simulation,
+    ConservationReport,
 )
-
-# Validation
-from smatrix_2d.validation.metrics import (
-    compute_l2_norm,
-    compute_linf_norm,
-    compute_gamma_pass_rate,
-    check_rotational_invariance,
-    compute_convergence_order,
-)
-from smatrix_2d.validation.tests import TransportValidator
-
-# Utilities
-from smatrix_2d.utils.visualization import (
-    plot_dose_map,
-    plot_depth_dose,
-    plot_lateral_profile,
-)
-
-# GPU support (optional, requires cupy)
-try:
-    from smatrix_2d.gpu.memory_layout import (
-        GPUMemoryLayout,
-        create_gpu_memory_layout,
-    )
-    from smatrix_2d.gpu.kernels import (
-        GPUTransportStep,
-        AccumulationMode,
-        create_gpu_transport_step,
-        GPU_AVAILABLE,
-    )
-except ImportError:
-    GPU_AVAILABLE = False
 
 __all__ = [
+    # Version
+    '__version__',
     # Core
-    'GridSpecs2D',
-    'PhaseSpaceGrid2D',
+    'GridSpecsV2',
+    'PhaseSpaceGridV2',
     'create_phase_space_grid',
-    'TransportState',
-    'create_initial_state',
+    'GridSpecs2D',  # alias
+    'PhaseSpaceGrid2D',  # alias
     'MaterialProperties2D',
     'create_water_material',
     'PhysicsConstants2D',
+    'StoppingPowerLUT',
+    'create_water_stopping_power_lut',
     # Operators
-    'AngularScatteringOperator',
-    'EnergyReferencePolicy',
-    'SpatialStreamingOperator',
-    'BackwardTransportMode',
-    'EnergyLossOperator',
+    'SigmaBuckets',
+    'SigmaBucketInfo',
+    'AngularScatteringV2',
+    'AngularEscapeAccounting',
+    'EnergyLossV2',
+    'SpatialStreamingV2',
+    'StreamingResult',
     # Transport
-    'TransportStep',
-    'FirstOrderSplitting',
-    'StrangSplitting',
-    # Validation
-    'compute_l2_norm',
-    'compute_linf_norm',
-    'compute_gamma_pass_rate',
-    'check_rotational_invariance',
-    'compute_convergence_order',
-    'TransportValidator',
-    # Utilities
-    'plot_dose_map',
-    'plot_depth_dose',
-    'plot_lateral_profile',
-    # Version
-    '__version__',
-    # GPU (conditional)
-    'GPUMemoryLayout',
-    'create_gpu_memory_layout',
-    'GPUTransportStep',
-    'AccumulationMode',
-    'create_gpu_transport_step',
-    'GPU_AVAILABLE',
+    'TransportStepV2',
+    'TransportSimulationV2',
+    'create_transport_simulation',
+    'ConservationReport',
 ]

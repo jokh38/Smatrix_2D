@@ -1,4 +1,4 @@
-"""GPU acceleration package."""
+"""GPU acceleration package for SPEC v2.1."""
 
 from smatrix_2d.gpu.memory_layout import GPUMemoryLayout, create_gpu_memory_layout
 from smatrix_2d.gpu.tiling import TileManager, TileSpec, TileInfo, create_tile_manager
@@ -13,19 +13,9 @@ except ImportError:
 
 try:
     from smatrix_2d.gpu.kernels import (
-        GPUTransportStep,
-        AccumulationMode,
-        create_gpu_transport_step,
-    )
-except ImportError:
-    pass
-
-try:
-    from smatrix_2d.gpu.reductions import (
-        gpu_total_weight,
-        gpu_mean_energy,
-        gpu_total_dose,
-        gpu_weight_statistics,
+        GPUTransportStepV2,
+        create_gpu_transport_step_v2,
+        TextureMemoryManager,
     )
 except ImportError:
     pass
@@ -37,12 +27,8 @@ __all__ = [
     'TileSpec',
     'TileInfo',
     'create_tile_manager',
-    'GPUTransportStep',
-    'AccumulationMode',
-    'create_gpu_transport_step',
-    'gpu_total_weight',
-    'gpu_mean_energy',
-    'gpu_total_dose',
-    'gpu_weight_statistics',
+    'GPUTransportStepV2',
+    'create_gpu_transport_step_v2',
+    'TextureMemoryManager',
     'GPU_AVAILABLE',
 ]
