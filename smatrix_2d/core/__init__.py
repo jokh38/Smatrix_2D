@@ -2,7 +2,7 @@
 
 This module contains fundamental data structures for grid definitions,
 material properties, physics constants, phase-space state management,
-and configuration resolution.
+configuration resolution, and escape accounting.
 """
 
 from smatrix_2d.core.grid import GridSpecs2D, PhaseSpaceGrid2D
@@ -25,6 +25,12 @@ from smatrix_2d.core.config_resolver import (
     GPUKernelResolver,
     print_resolution_summary,
 )
+from smatrix_2d.core.escape_accounting import (
+    EscapeChannel,
+    EscapeAccounting,
+    validate_conservation,
+    conservation_report,
+)
 
 __all__ = [
     'GridSpecs2D',
@@ -43,4 +49,8 @@ __all__ = [
     'GPUKernelConfig',
     'GPUKernelResolver',
     'print_resolution_summary',
+    'EscapeChannel',
+    'EscapeAccounting',
+    'validate_conservation',
+    'conservation_report',
 ]
