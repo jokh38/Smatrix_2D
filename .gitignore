@@ -66,3 +66,4 @@ update
 
 # Analysis cache
 .complexipy_cache/
+proton_transport_steps.csv
