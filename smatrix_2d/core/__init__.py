@@ -15,6 +15,7 @@ except ImportError:
 
 from smatrix_2d.core.materials import MaterialProperties2D
 from smatrix_2d.core.constants import PhysicsConstants2D
+from smatrix_2d.core.lut import StoppingPowerLUT, create_water_stopping_power_lut
 from smatrix_2d.core.config_resolver import (
     ResolutionConfig,
     ResolutionResolver,
@@ -33,6 +34,8 @@ __all__ = [
     'create_initial_state',
     'MaterialProperties2D',
     'PhysicsConstants2D',
+    'StoppingPowerLUT',
+    'create_water_stopping_power_lut',
     'ResolutionConfig',
     'ResolutionResolver',
     'NumericalConfig',

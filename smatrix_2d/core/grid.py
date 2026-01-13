@@ -1,10 +1,21 @@
 """Grid specifications and phase space definitions for operator-factorized transport.
 
-Implements grid configuration following spec v7.2 requirements:
-- Spatial domain: [0, X_max] × [0, Z_max]
-- Angular domain: [0, 2π) with Ntheta bins
-- Energy domain: [E_cutoff, E_max] with support for non-uniform grids
-- GPU-friendly memory layout: psi[E, theta, z, x]
+This module provides backward compatibility by re-exporting v2.1 grid classes.
+
+For SPEC v2.1 compliant grids, use:
+    - GridSpecsV2: SPEC v2.1 compliant grid specifications
+    - PhaseSpaceGridV2: SPEC v2.1 compliant phase space grid
+
+For legacy grids (deprecated), use:
+    - GridSpecs2D: Legacy grid specifications (0-based spatial, circular angles)
+    - PhaseSpaceGrid2D: Legacy phase space grid
+
+SPEC v2.1 key changes:
+    - Absolute angles: 0-180 degrees (not circular 0-2π)
+    - Centered x domain: -50 to +50 mm (not 0 to X_max)
+    - Centered z domain: -50 to +50 mm (not 0 to Z_max)
+    - Memory layout: [iE, ith, iz, ix]
+    - Texture memory support
 """
 
 import numpy as np
@@ -12,12 +23,30 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
+# Import SPEC v2.1 compliant classes
+from smatrix_2d.core.grid_v2 import (
+    GridSpecsV2,
+    PhaseSpaceGridV2,
+    EnergyGridType,
+    create_energy_grid as create_energy_grid_v2,
+    create_phase_space_grid as create_phase_space_grid_v2,
+    create_default_grid_specs,
+)
 
-class EnergyGridType(Enum):
-    """Energy grid generation strategies."""
-    UNIFORM = 'uniform'
-    LOGARITHMIC = 'logarithmic'
-    RANGE_BASED = 'range_based'
+
+# Re-export for convenience
+__all__ = [
+    'GridSpecsV2',
+    'PhaseSpaceGridV2',
+    'GridSpecs2D',
+    'PhaseSpaceGrid2D',
+    'EnergyGridType',
+    'create_energy_grid',
+    'create_phase_space_grid',
+    'create_energy_grid_v2',
+    'create_phase_space_grid_v2',
+    'create_default_grid_specs',
+]
 
 
 @dataclass
