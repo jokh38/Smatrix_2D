@@ -1,5 +1,9 @@
 """Angular scattering operator A_theta (SPEC v2.1 compliant).
 
+⚠️ DEPRECATED: This CPU-based operator is NOT used in the GPU-only production runtime.
+   See: validation/reference_cpu/README.md for details.
+   Use: smatrix_2d/gpu/kernels_v2.py (angular_scattering_kernel_v2) instead.
+
 Implements deterministic angular scattering following SPEC v2.1 Section 4:
 - Uses sigma buckets from Phase 4 for efficient kernel reuse
 - Applies sparse discrete convolution over theta dimension

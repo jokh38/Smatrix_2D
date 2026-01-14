@@ -1,5 +1,9 @@
 """Transport state management and main loop following SPEC v2.1 Section 3.
 
+⚠️ DEPRECATED: This is the legacy CPU/GPU hybrid implementation with per-step sync.
+   See: validation/reference_cpu/README.md for details.
+   Use: smatrix_2d/transport/simulation.py (TransportSimulation) instead.
+
 This module implements the complete transport simulation with operator-factorized
 approach combining angular scattering, energy loss, and spatial streaming.
 

@@ -1,5 +1,9 @@
 """Spatial streaming operator A_s following SPEC v2.1 Section 6.
 
+⚠️ DEPRECATED: This CPU-based operator is NOT used in the GPU-only production runtime.
+   See: validation/reference_cpu/README.md for details.
+   Use: smatrix_2d/gpu/kernels_v2.py (spatial_streaming_kernel_v2) instead.
+
 Implements gather-based spatial advection with bilinear interpolation
 and ABSORB boundary conditions.
 

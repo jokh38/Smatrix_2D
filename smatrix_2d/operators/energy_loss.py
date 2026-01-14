@@ -1,5 +1,9 @@
 """Energy loss operator A_E per SPEC v2.1 Section 5.
 
+⚠️ DEPRECATED: This CPU-based operator is NOT used in the GPU-only production runtime.
+   See: validation/reference_cpu/README.md for details.
+   Use: smatrix_2d/gpu/kernels_v2.py (energy_loss_kernel_v2) instead.
+
 Implements CSDA (Continuous Slowing Down Approximation) with:
 - Stopping power LUT from Phase 3
 - Conservative bin splitting with exact mass conservation
