@@ -270,114 +270,100 @@ void spatial_streaming_kernel_v2(
     float x_min, float z_min,
     int boundary_mode
 ) {
-    // Thread indexing: 2D thread layout for spatial dimensions
-    const int ix_out = blockIdx.x * blockDim.x + threadIdx.x;
-    const int iz_out = blockIdx.y * blockDim.y + threadIdx.y;
+    // PHASE 2.2: SCATTER FORMULATION for direct leakage tracking
+    // Thread indexing: 2D thread layout for spatial INPUT cells
+    const int ix_in = blockIdx.x * blockDim.x + threadIdx.x;
+    const int iz_in = blockIdx.y * blockDim.y + threadIdx.y;
     const int ith = blockIdx.z;
 
     const int theta_stride = Nz * Nx;
     const int E_stride = Ntheta * theta_stride;
 
     // Check bounds
-    if (ix_out >= Nx || iz_out >= Nz || ith >= Ntheta) return;
+    if (ix_in >= Nx || iz_in >= Nz || ith >= Ntheta) return;
 
     // Get velocity from LUT
     float sin_th = sin_theta_lut[ith];
     float cos_th = cos_theta_lut[ith];
 
-    // Target cell center position
-    float x_tgt = x_min + ix_out * delta_x + delta_x / 2.0f;
-    float z_tgt = z_min + iz_out * delta_z + delta_z / 2.0f;
+    // SOURCE cell center position (INPUT)
+    float x_src = x_min + ix_in * delta_x + delta_x / 2.0f;
+    float z_src = z_min + iz_in * delta_z + delta_z / 2.0f;
 
-    // Inverse advection: find source position
-    float x_src = x_tgt - delta_s * cos_th;
-    float z_src = z_tgt - delta_s * sin_th;
+    // Forward advection: find TARGET position (OUTPUT)
+    float x_tgt = x_src + delta_s * cos_th;
+    float z_tgt = z_src + delta_s * sin_th;
 
-    // Check if source is within bounds
+    // Domain boundaries
     float x_domain_min = x_min;
     float x_domain_max = x_min + Nx * delta_x;
     float z_domain_min = z_min;
     float z_domain_max = z_min + Nz * delta_z;
 
-    bool out_of_bounds = (x_src < x_domain_min || x_src >= x_domain_max ||
-                         z_src < z_domain_min || z_src >= z_domain_max);
+    // Local accumulator for spatial leakage
+    double local_spatial_leak = 0.0;
 
-    if (out_of_bounds) {
-        // Source is out of bounds: particle doesn't exist at this output location
-        // Zero the output (no particle arrives here)
-        for (int iE = 0; iE < Ne; iE++) {
-            int tgt_idx = iE * E_stride + ith * theta_stride + iz_out * Nx + ix_out;
-            psi_out[tgt_idx] = 0.0f;
-        }
-        // Note: particles that leave the domain are tracked via the scatter formulation
-        // (they don't contribute to any output cell)
-
-        // DEBUG: Track boundary crossings
-        if (iz_out == 0 && ix_out == 16) {
-            atomicAdd(&escapes_gpu[3], 1.0);  // Count boundary crossings
-        }
-
-        return;
-    }
-
-    // Bilinear interpolation from 4 source cells
-    float fz = (z_src - z_min) / delta_z - 0.5f;
-    float fx = (x_src - x_min) / delta_x - 0.5f;
-
-    // Get corner indices (floor)
-    int iz0_raw = int(floorf(fz));
-    int ix0_raw = int(floorf(fx));
-
-    // Check which corners are out of bounds (before clamping)
-    bool z0_oob = (iz0_raw < 0);
-    bool z1_oob = (iz0_raw + 1 >= Nz);
-    bool x0_oob = (ix0_raw < 0);
-    bool x1_oob = (ix0_raw + 1 >= Nx);
-
-    // Clamp indices to valid range
-    int iz0 = max(0, min(iz0_raw, Nz - 1));
-    int iz1 = max(0, min(iz0_raw + 1, Nz - 1));
-    int ix0 = max(0, min(ix0_raw, Nx - 1));
-    int ix1 = max(0, min(ix0_raw + 1, Nx - 1));
-
-    // Interpolation weights
-    float wz = fz - iz0_raw;
-    float wx = fx - ix0_raw;
-    float w00 = (1.0f - wz) * (1.0f - wx);
-    float w01 = (1.0f - wz) * wx;
-    float w10 = wz * (1.0f - wx);
-    float w11 = wz * wx;
-
-    // Zero weights for corners that are out of bounds (prevents double-counting)
-    if (z0_oob || x0_oob) w00 = 0.0f;
-    if (z0_oob || x1_oob) w01 = 0.0f;
-    if (z1_oob || x0_oob) w10 = 0.0f;
-    if (z1_oob || x1_oob) w11 = 0.0f;
-
-    // Renormalize weights (so they still sum to 1.0)
-    float w_sum = w00 + w01 + w10 + w11;
-    if (w_sum > 0.0f) {
-        float inv_w_sum = 1.0f / w_sum;
-        w00 *= inv_w_sum;
-        w01 *= inv_w_sum;
-        w10 *= inv_w_sum;
-        w11 *= inv_w_sum;
-    }
-
-    // Gather from 4 source neighbors
+    // Loop over all energies for this spatial/angle cell
     for (int iE = 0; iE < Ne; iE++) {
-        int src_idx00 = iE * E_stride + ith * theta_stride + iz0 * Nx + ix0;
-        int src_idx01 = iE * E_stride + ith * theta_stride + iz0 * Nx + ix1;
-        int src_idx10 = iE * E_stride + ith * theta_stride + iz1 * Nx + ix0;
-        int src_idx11 = iE * E_stride + ith * theta_stride + iz1 * Nx + ix1;
+        int src_idx = iE * E_stride + ith * theta_stride + iz_in * Nx + ix_in;
+        float weight = psi_in[src_idx];
 
-        float val = w00 * psi_in[src_idx00] +
-                   w01 * psi_in[src_idx01] +
-                   w10 * psi_in[src_idx10] +
-                   w11 * psi_in[src_idx11];
+        if (weight < 1e-12f) {
+            continue;  // Skip negligible weights
+        }
 
-        int tgt_idx = iE * E_stride + ith * theta_stride + iz_out * Nx + ix_out;
-        psi_out[tgt_idx] = val;
+        // Check if target is within bounds
+        bool x_out_of_bounds = (x_tgt < x_domain_min || x_tgt >= x_domain_max);
+        bool z_out_of_bounds = (z_tgt < z_domain_min || z_tgt >= z_domain_max);
+
+        if (x_out_of_bounds || z_out_of_bounds) {
+            // Target is out of bounds: DIRECT TRACKING to SPATIAL_LEAK
+            // This particle leaves the spatial domain
+            local_spatial_leak += double(weight);
+            // Don't write to psi_out (particle has left the domain)
+            continue;
+        }
+
+        // Convert target position to fractional cell indices
+        float fx = (x_tgt - x_min) / delta_x - 0.5f;
+        float fz = (z_tgt - z_min) / delta_z - 0.5f;
+
+        // Get corner indices (floor)
+        int iz0 = int(floorf(fz));
+        int ix0 = int(floorf(fx));
+        int iz1 = iz0 + 1;
+        int ix1 = ix0 + 1;
+
+        // Clamp to valid range (should already be in bounds due to check above)
+        iz0 = max(0, min(iz0, Nz - 1));
+        iz1 = max(0, min(iz1, Nz - 1));
+        ix0 = max(0, min(ix0, Nx - 1));
+        ix1 = max(0, min(ix1, Nx - 1));
+
+        // Interpolation weights
+        float wz = fz - floorf(fz);
+        float wx = fx - floorf(fx);
+        float w00 = (1.0f - wz) * (1.0f - wx);
+        float w01 = (1.0f - wz) * wx;
+        float w10 = wz * (1.0f - wx);
+        float w11 = wz * wx;
+
+        // Scatter to 4 target cells with bilinear weights
+        // Use atomicAdd for thread safety (multiple inputs can write to same output)
+        int tgt_idx00 = iE * E_stride + ith * theta_stride + iz0 * Nx + ix0;
+        int tgt_idx01 = iE * E_stride + ith * theta_stride + iz0 * Nx + ix1;
+        int tgt_idx10 = iE * E_stride + ith * theta_stride + iz1 * Nx + ix0;
+        int tgt_idx11 = iE * E_stride + ith * theta_stride + iz1 * Nx + ix1;
+
+        atomicAdd(&psi_out[tgt_idx00], weight * w00);
+        atomicAdd(&psi_out[tgt_idx01], weight * w01);
+        atomicAdd(&psi_out[tgt_idx10], weight * w10);
+        atomicAdd(&psi_out[tgt_idx11], weight * w11);
+    }
+
+    // Accumulate spatial leakage (atomic add to unified array)
+    if (local_spatial_leak > 0.0) {
+        atomicAdd(&escapes_gpu[3], local_spatial_leak);  // SPATIAL_LEAK
     }
 }
 '''
