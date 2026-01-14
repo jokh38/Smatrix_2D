@@ -525,7 +525,7 @@ def create_transport_simulation(
     Nz: int = 100,
     Ntheta: int = 180,
     Ne: int = 100,
-    delta_s: float = 1.0,
+    delta_s: Optional[float] = None,  # Uses DEFAULT_DELTA_S from config if None
     max_steps: int = 100,
     material: Optional[MaterialProperties2D] = None,
     stopping_power_lut: Optional[StoppingPowerLUT] = None,
@@ -555,23 +555,35 @@ def create_transport_simulation(
         >>> sim.run(n_steps=50)
         >>> sim.print_conservation_summary()
     """
-    # Create default grid
+    # Import default constants from config SSOT
+    from smatrix_2d.config.defaults import (
+        DEFAULT_E_MIN, DEFAULT_E_MAX, DEFAULT_E_CUTOFF,
+        DEFAULT_DELTA_X, DEFAULT_DELTA_Z, DEFAULT_DELTA_S,
+        DEFAULT_SPATIAL_HALF_SIZE,
+        DEFAULT_THETA_MIN, DEFAULT_THETA_MAX,
+    )
+
+    # Use config default if delta_s not specified
+    if delta_s is None:
+        delta_s = DEFAULT_DELTA_S
+
+    # Create default grid using config SSOT
     grid_specs = GridSpecsV2(
         Nx=Nx,
         Nz=Nz,
         Ntheta=Ntheta,
         Ne=Ne,
-        delta_x=1.0,
-        delta_z=1.0,
-        x_min=-50.0,
-        x_max=50.0,
-        z_min=-50.0,
-        z_max=50.0,
-        theta_min=0.0,
-        theta_max=180.0,
-        E_min=1.0,  # Fixed: was 0.0, causing energy grid corruption
-        E_max=100.0,
-        E_cutoff=1.0,
+        delta_x=DEFAULT_DELTA_X,
+        delta_z=DEFAULT_DELTA_Z,
+        x_min=-DEFAULT_SPATIAL_HALF_SIZE,
+        x_max=DEFAULT_SPATIAL_HALF_SIZE,
+        z_min=-DEFAULT_SPATIAL_HALF_SIZE,
+        z_max=DEFAULT_SPATIAL_HALF_SIZE,
+        theta_min=DEFAULT_THETA_MIN,
+        theta_max=DEFAULT_THETA_MAX,
+        E_min=DEFAULT_E_MIN,
+        E_max=DEFAULT_E_MAX,
+        E_cutoff=DEFAULT_E_CUTOFF,
     )
     grid = create_phase_space_grid(grid_specs)
 

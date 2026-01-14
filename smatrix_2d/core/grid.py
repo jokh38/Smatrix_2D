@@ -346,22 +346,30 @@ def create_default_grid_specs(
     Returns:
         GridSpecsV2 configured for SPEC v2.1 baseline grid
     """
+    # Import default constants from config SSOT
+    from smatrix_2d.config.defaults import (
+        DEFAULT_E_MIN, DEFAULT_E_MAX, DEFAULT_E_CUTOFF,
+        DEFAULT_DELTA_X, DEFAULT_DELTA_Z,
+        DEFAULT_SPATIAL_HALF_SIZE,
+        DEFAULT_THETA_MIN, DEFAULT_THETA_MAX,
+    )
+
     return GridSpecsV2(
         Nx=Nx,
         Nz=Nz,
         Ntheta=Ntheta,
         Ne=Ne,
-        delta_x=1.0,  # 1 mm
-        delta_z=1.0,  # 1 mm
-        x_min=-50.0,  # Centered domain
-        x_max=50.0,
-        z_min=-50.0,
-        z_max=50.0,
-        theta_min=0.0,  # Absolute angles
-        theta_max=180.0,
-        E_min=0.0,  # MeV
-        E_max=100.0,  # MeV
-        E_cutoff=1.0,  # MeV
+        delta_x=DEFAULT_DELTA_X,
+        delta_z=DEFAULT_DELTA_Z,
+        x_min=-DEFAULT_SPATIAL_HALF_SIZE,
+        x_max=DEFAULT_SPATIAL_HALF_SIZE,
+        z_min=-DEFAULT_SPATIAL_HALF_SIZE,
+        z_max=DEFAULT_SPATIAL_HALF_SIZE,
+        theta_min=DEFAULT_THETA_MIN,
+        theta_max=DEFAULT_THETA_MAX,
+        E_min=DEFAULT_E_MIN,  # Use config SSOT (was 0.0, causing issues)
+        E_max=DEFAULT_E_MAX,
+        E_cutoff=DEFAULT_E_CUTOFF,  # Use config SSOT (was 1.0, too small)
         energy_grid_type=EnergyGridType.UNIFORM,
         use_texture_memory=use_texture_memory,
     )
