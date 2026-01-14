@@ -1,0 +1,98 @@
+======================================================================
+PROTON TRANSPORT PROFILE ANALYSIS
+======================================================================
+
+Total steps: 57
+Grid size: Nz=50, Nx=12
+Spatial domain: z=[0.0, 50.0] mm, x=[0.0, 12.0] mm
+
+KEY STEP ANALYSIS:
+----------------------------------------------------------------------
+
+Step 1:
+  Total weight: 7.222060e-01
+  Non-zero cells: 1
+  Peak weight: 7.222060e-01 at (z=0.50mm, x=5.50mm)
+  Centroid: (z=0.50mm, x=5.50mm)
+  RMS spread: (z=0.000mm, x=0.000mm)
+  Z-range with weight: [0.5, 0.5] mm
+  X-range at peak z: [5.5, 5.5] mm
+
+Step 5:
+  Total weight: 3.625937e+00
+  Non-zero cells: 35
+  Peak weight: 7.223085e-01 at (z=0.50mm, x=5.50mm)
+  Centroid: (z=2.50mm, x=5.52mm)
+  RMS spread: (z=1.414mm, x=0.194mm)
+  Z-range with weight: [0.5, 4.5] mm
+  X-range at peak z: [4.5, 7.5] mm
+
+Step 10:
+  Total weight: 7.290157e+00
+  Non-zero cells: 97
+  Peak weight: 7.223085e-01 at (z=0.50mm, x=5.50mm)
+  Centroid: (z=5.02mm, x=5.54mm)
+  RMS spread: (z=2.871mm, x=0.346mm)
+  Z-range with weight: [0.5, 9.5] mm
+  X-range at peak z: [4.5, 7.5] mm
+
+Step 20:
+  Total weight: 1.475154e+01
+  Non-zero cells: 217
+  Peak weight: 7.223085e-01 at (z=0.50mm, x=5.50mm)
+  Centroid: (z=10.07mm, x=5.58mm)
+  RMS spread: (z=5.761mm, x=0.663mm)
+  Z-range with weight: [0.5, 19.5] mm
+  X-range at peak z: [4.5, 7.5] mm
+
+Step 30:
+  Total weight: 2.242810e+01
+  Non-zero cells: 337
+  Peak weight: 7.223085e-01 at (z=0.50mm, x=5.50mm)
+  Centroid: (z=15.17mm, x=5.63mm)
+  RMS spread: (z=8.646mm, x=1.031mm)
+  Z-range with weight: [0.5, 29.5] mm
+  X-range at peak z: [4.5, 7.5] mm
+
+Step 40:
+  Total weight: 3.042620e+01
+  Non-zero cells: 457
+  Peak weight: 7.223085e-01 at (z=0.50mm, x=5.50mm)
+  Centroid: (z=20.37mm, x=5.67mm)
+  RMS spread: (z=11.534mm, x=1.439mm)
+  Z-range with weight: [0.5, 39.5] mm
+  X-range at peak z: [4.5, 7.5] mm
+
+Step 50:
+  Total weight: 4.041944e+01
+  Non-zero cells: 577
+  Peak weight: 7.223085e-01 at (z=0.50mm, x=5.50mm)
+  Centroid: (z=26.58mm, x=5.72mm)
+  RMS spread: (z=14.821mm, x=1.906mm)
+  Z-range with weight: [0.5, 49.5] mm
+  X-range at peak z: [4.5, 7.5] mm
+
+======================================================================
+LATERAL SPREADING EVOLUTION:
+----------------------------------------------------------------------
+  Step   z_centroid   x_centroid      x_rms      x_min      x_max
+----------------------------------------------------------------------
+     1        0.500        5.500      0.000       5.50       5.50
+     2        1.000        5.504      0.085       4.50       6.50
+     3        1.501        5.509      0.126       3.50       7.50
+     4        2.002        5.513      0.161       2.50       8.50
+     5        2.504        5.517      0.194       1.50       9.50
+     6        3.005        5.522      0.225       0.50      10.50
+     7        3.507        5.526      0.256       0.50      11.50
+     8        4.010        5.531      0.286       0.50      11.50
+     9        4.512        5.535      0.316       0.50      11.50
+    10        5.015        5.539      0.346       0.50      11.50
+    15        7.537        5.561      0.499       0.50      11.50
+    20       10.069        5.584      0.663       0.50      11.50
+    25       12.614        5.606      0.841       0.50      11.50
+    30       15.175        5.628      1.031       0.50      11.50
+    35       17.764        5.651      1.233       0.50      11.50
+    40       20.373        5.674      1.439       0.50      11.50
+    45       22.992        5.696      1.642       0.50      11.50
+    50       26.581        5.725      1.906       0.50      11.50
+    55       26.759        5.729      1.933       0.50      11.50

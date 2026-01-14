@@ -25,10 +25,11 @@ from smatrix_2d.core.materials import MaterialProperties2D
 from smatrix_2d.core.constants import PhysicsConstants2D
 from smatrix_2d.core.escape_accounting import (
     EscapeAccounting,
-    EscapeChannel,
+    EscapeChannel as OldEscapeChannel,
     validate_conservation,
     conservation_report,
 )
+from smatrix_2d.core.accounting import EscapeChannel  # IntEnum for GPU
 from smatrix_2d.operators.sigma_buckets import SigmaBuckets
 from smatrix_2d.operators.angular_scattering import AngularScatteringV2, AngularEscapeAccounting
 from smatrix_2d.operators.energy_loss import EnergyLossV2
@@ -296,7 +297,7 @@ class TransportSimulationV2:
         Args:
             x0: Initial x position [mm]
             z0: Initial z position [mm]
-            theta0: Initial angle [degrees]
+            theta0: Initial angle [radians] (measured from +x axis, 90° = +z direction)
             E0: Initial energy [MeV]
             w0: Initial weight (default: 1.0)
 
@@ -306,7 +307,7 @@ class TransportSimulationV2:
         # Find nearest bin indices
         ix0 = self._find_nearest_index(self.grid.x_centers, x0)
         iz0 = self._find_nearest_index(self.grid.z_centers, z0)
-        ith0 = self._find_nearest_index(self.grid.th_centers, theta0)
+        ith0 = self._find_nearest_index(self.grid.th_centers_rad, theta0)  # theta0 is in radians
         iE0 = self._find_nearest_index(self.grid.E_centers, E0)
 
         # Validate indices
@@ -330,12 +331,19 @@ class TransportSimulationV2:
         self.current_step = 0
         self.deposited_energy = np.zeros((self.grid.Nz, self.grid.Nx), dtype=np.float32)
 
-        # For GPU: allocate deposited_energy on GPU
+        # For GPU: allocate deposited_energy on GPU and create accumulators
         if self._has_gpu:
             import cupy as cp
+            from smatrix_2d.gpu.accumulators import GPUAccumulators
             self.deposited_energy_gpu = cp.zeros((self.grid.Nz, self.grid.Nx), dtype=cp.float32)
+            # Create GPU accumulators for the new API
+            self.gpu_accumulators = GPUAccumulators.create(
+                spatial_shape=(self.grid.Nz, self.grid.Nx),
+                enable_history=False
+            )
         else:
             self.deposited_energy_gpu = None
+            self.gpu_accumulators = None
 
         self.conservation_history = []
 
@@ -365,14 +373,26 @@ class TransportSimulationV2:
 
         # Apply transport step with dose tracking
         if self._has_gpu:
-            # GPU: pass GPU dose array
-            psi_new, escapes = self.transport_step.apply(
-                self.psi,
-                deposited_energy_gpu=self.deposited_energy_gpu
+            # GPU: use new accumulators API
+            import cupy as cp
+            psi_new = self.transport_step.apply(
+                cp.asarray(self.psi),
+                self.gpu_accumulators
+            )
+            # Convert escapes_gpu array to EscapeAccounting
+            escapes_cpu = self.gpu_accumulators.get_escapes_cpu()
+            escapes = EscapeAccounting(
+                theta_boundary=escapes_cpu[EscapeChannel.THETA_BOUNDARY],
+                theta_cutoff=escapes_cpu[EscapeChannel.THETA_CUTOFF],
+                energy_stopped=escapes_cpu[EscapeChannel.ENERGY_STOPPED],
+                spatial_leaked=escapes_cpu[EscapeChannel.SPATIAL_LEAK],
+                step_number=self.current_step + 1,
+                timestamp=self.current_step * self.delta_s
             )
             # Sync dose back to CPU
-            import cupy as cp
-            self.deposited_energy = cp.asnumpy(self.deposited_energy_gpu)
+            self.deposited_energy = self.gpu_accumulators.get_dose_cpu()
+            # Convert psi back to numpy array
+            psi_new = cp.asnumpy(psi_new)
         else:
             # CPU: pass CPU dose array
             psi_new, escapes = self.transport_step.apply(
@@ -383,9 +403,10 @@ class TransportSimulationV2:
         # Track mass after step
         mass_out = np.sum(psi_new)
 
-        # Update escape accounting with step info
-        escapes.step_number = self.current_step + 1
-        escapes.timestamp = self.current_step * self.delta_s
+        # Update escape accounting with step info (only for CPU, GPU already set)
+        if not self._has_gpu:
+            escapes.step_number = self.current_step + 1
+            escapes.timestamp = self.current_step * self.delta_s
 
         # Validate conservation
         is_valid, relative_error = validate_conservation(

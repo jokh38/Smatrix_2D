@@ -103,7 +103,8 @@ class GPUAccumulators:
         escapes_gpu = cp.zeros(EscapeChannel.NUM_CHANNELS, dtype=cp.float64)
 
         # Dose accumulator (always needed)
-        dose_gpu = cp.zeros(spatial_shape, dtype=cp.float64)
+        # NOTE: Must be float32 to match CUDA kernel signature (float* deposited_dose)
+        dose_gpu = cp.zeros(spatial_shape, dtype=cp.float32)
 
         # History tracking (optional)
         mass_in_gpu = None
