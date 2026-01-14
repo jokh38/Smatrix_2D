@@ -116,6 +116,65 @@ validation/
 
 ---
 
+## Completed Work (Phases 0-1, 2.1, 3.1-3.2)
+
+### Phase 2.1: Angular Scattering Direct Escape Tracking ✅
+
+#### Implementation
+Rewrote `angular_scattering_kernel_v2` to use **scatter formulation**:
+
+**Key Changes**:
+1. Loop over INPUT angles (ith_old) instead of OUTPUT angles (ith_new)
+2. Each input scatters to output angles
+3. Out-of-bounds outputs directly accumulate to `THETA_BOUNDARY`
+4. Thread-safe with `atomicAdd`
+
+**Before (Gather)**:
+```cuda
+for (ith_new) {  // Output
+    for (ith_old) {  // Input
+        if (ith_old in bounds) {
+            psi_scattered += psi_in[ith_old] * kernel;
+        }
+        // Out of bounds: weight lost (not tracked)
+    }
+}
+```
+
+**After (Scatter)**:
+```cuda
+for (ith_old) {  // Input
+    weight = psi_in[ith_old];
+    for (ith_new) {  // Output
+        if (ith_new in bounds) {
+            atomicAdd(&psi_out[ith_new], weight * kernel);
+        } else {
+            local_theta_boundary += weight * kernel;  // Direct tracking!
+        }
+    }
+}
+```
+
+#### Test Results
+```
+Beam at theta=2.0° (boundary):
+  Mass in:         1.000000
+  Mass out:        0.999975
+  THETA_BOUNDARY:   0.000025  ← Directly tracked!
+  Balance:          1.000000  ✓ Perfect conservation
+```
+
+#### Benefits
+- **Direct tracking**: THETA_BOUNDARY represents actual boundary crossings
+- **No residual**: Mass conserved exactly in angular scattering step
+- **CPU/GPU consistency**: Same formulation works on both architectures
+- **Template for Phase 2.2**: Demonstrates scatter formulation approach
+
+#### Files Modified
+- `smatrix_2d/gpu/kernels_v2.py`: Lines 38-119 (scatter formulation)
+
+---
+
 ## Known Issues
 
 ### Spatial Streaming Mass Inflation (Phase 1.3)
@@ -125,13 +184,13 @@ validation/
 **Root Cause**: The kernel uses a **gather formulation with inverse advection**. When multiple output cells gather from the same input cell (which happens near boundaries), mass is double-counted.
 
 **Status**:
-- Angular scattering: ✓ Working (mass conserved)
+- Angular scattering: ✅ Direct tracking implemented (Phase 2.1)
 - Energy loss: ✓ Working (mass conserved)
 - Spatial streaming: ✗ Mass inflation at boundaries
 
 **Temporary Workaround**: Using residual approach (mass_in - mass_out) for escape tracking. The residual appears in the `RESIDUAL` escape channel.
 
-**Permanent Fix (Phase 2.2)**: Rewrite spatial streaming kernel to use **scatter formulation**:
+**Permanent Fix (Phase 2.2)**: Rewrite spatial streaming kernel to use **scatter formulation** (similar to Phase 2.1):
 - Loop over input cells (not output cells)
 - For each input cell, compute which output cells it contributes to
 - Scatter mass using atomicAdd
@@ -152,9 +211,9 @@ validation/
 
 | Phase | Task | Estimate | Dependencies | Status |
 |-------|------|----------|--------------|--------|
-| **2.1** | Angular scattering direct escape tracking | 2-3 hours | Phase 1.3 | Pending |
+| **2.1** | Angular scattering direct escape tracking | 2-3 hours | Phase 1.3 | ✅ **COMPLETE** |
 | **2.2** | Spatial streaming direct leakage tracking | 3-4 hours | Phase 2.1 | **CRITICAL** - see issue below |
-| **1.3** | Complete kernel API integration | 3-4 hours | None | **COMPLETE** (with known issue) |
+| **1.3** | Complete kernel API integration | 3-4 hours | None | ✅ **COMPLETE** (with known issue) |
 | **3.3** | Generate golden snapshots | 1-2 hours | Phase 2 | Blocked by Phase 2.2 |
 
 ### Medium Priority

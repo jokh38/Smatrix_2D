@@ -61,14 +61,25 @@ void angular_scattering_kernel_v2(
     double local_theta_boundary = 0.0;
     double local_theta_cutoff = 0.0;
 
-    // Process all output elements
+    // PHASE 2.1: SCATTER FORMULATION for direct escape tracking
+    // Loop over INPUT angles (ith_old), not output angles
+    // Each input scatters to output angles, tracking escapes directly
+
     for (int idx = tid; idx < Ne * Ntheta * Nz * Nx; idx += total_threads) {
         int iE = idx / (Ntheta * Nz * Nx);
         int rem = idx % (Ntheta * Nz * Nx);
-        int ith_new = rem / (Nz * Nx);
+        int ith_old = rem / (Nz * Nx);  // SOURCE angle
         rem = rem % (Nz * Nx);
         int iz = rem / Nx;
         int ix = rem % Nx;
+
+        // Read input weight for this source angle
+        int src_idx = iE * E_stride + ith_old * theta_stride + iz * Nx + ix;
+        float weight_in = psi_in[src_idx];
+
+        if (weight_in < 1e-12f) {
+            continue;  // Skip negligible weights
+        }
 
         // Get bucket for this (iE, iz) combination
         int bucket_idx = bucket_idx_map[iE * Nz + iz];
@@ -76,34 +87,25 @@ void angular_scattering_kernel_v2(
         int kernel_size = kernel_sizes[bucket_idx];
         const float* kernel = &kernel_lut[bucket_idx * max_kernel_size];
 
-        // Gather formulation: sum contributions from all ith_old
-        float psi_scattered = 0.0f;
-
+        // Scatter: this source contributes to multiple output angles
         for (int k = 0; k < kernel_size; k++) {
             int delta_ith = k - half_width;
-            int ith_old = ith_new - delta_ith;
+            int ith_new = ith_old + delta_ith;  // DESTINATION angle
 
-            // Check if ith_old is within valid range
-            if (ith_old >= 0 && ith_old < Ntheta) {
-                // Valid: gather from source
-                int src_idx = iE * E_stride + ith_old * theta_stride + iz * Nx + ix;
-                float kernel_value = kernel[k];
-                psi_scattered += psi_in[src_idx] * kernel_value;
+            float kernel_value = kernel[k];
+            float contribution = weight_in * kernel_value;
+
+            // Check if destination is within valid range
+            if (ith_new >= 0 && ith_new < Ntheta) {
+                // Valid: scatter to output (use atomicAdd for thread safety)
+                int tgt_idx = iE * E_stride + ith_new * theta_stride + iz * Nx + ix;
+                atomicAdd(&psi_out[tgt_idx], contribution);
+            } else {
+                // Out of bounds: DIRECT TRACKING to THETA_BOUNDARY
+                // This particle leaves the angular domain
+                local_theta_boundary += double(contribution);
             }
-            // Out of bounds: particle is absorbed at boundary (escapes)
-            // We DON'T add to psi_scattered, so this weight is lost from the system
-            // This is physically correct: particles from outside the domain don't enter
         }
-
-        // Since we're not gathering from out-of-bounds sources, the kernel is
-        // not normalized (sum < 1). To conserve mass, we need to account for this
-        // by tracking what was lost to the boundary. For now, this shows up as
-        // residual in the conservation calculation.
-        // TODO: Implement direct boundary escape tracking (Phase 2.1)
-
-        // Write scattered output
-        int tgt_idx = iE * E_stride + ith_new * theta_stride + iz * Nx + ix;
-        psi_out[tgt_idx] = psi_scattered;
     }
 
     // Accumulate escapes (atomic add to unified array)
