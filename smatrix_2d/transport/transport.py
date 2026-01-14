@@ -569,7 +569,7 @@ def create_transport_simulation(
         z_max=50.0,
         theta_min=0.0,
         theta_max=180.0,
-        E_min=0.0,
+        E_min=1.0,  # Fixed: was 0.0, causing energy grid corruption
         E_max=100.0,
         E_cutoff=1.0,
     )
