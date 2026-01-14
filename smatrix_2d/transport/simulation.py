@@ -153,13 +153,75 @@ class TransportSimulation:
             self.psi_gpu = self._initialize_beam_gpu()
 
         # Initialize operators (GPU kernels)
-        # TODO: This will be implemented in Phase 1.3
-        # For now, we create placeholders
-        self._kernels_initialized = False
+        self._initialize_kernels()
 
         # Simulation state
         self.current_step = 0
         self.reports: List[ConservationReport] = []
+
+    def _initialize_kernels(self):
+        """Initialize GPU transport kernels with new accumulator API.
+
+        Uses GPUTransportStepV3 which integrates with GPUAccumulators.
+        """
+        from smatrix_2d.gpu.kernels_v2 import create_gpu_transport_step_v3
+        from smatrix_2d.core.grid import PhaseSpaceGridV2, GridSpecsV2, create_phase_space_grid
+        from smatrix_2d.operators.sigma_buckets import SigmaBuckets
+        from smatrix_2d.core.lut import StoppingPowerLUT
+
+        # Create grid specs (calculate spacing)
+        delta_x = (self.config.grid.x_max - self.config.grid.x_min) / self.config.grid.Nx
+        delta_z = (self.config.grid.z_max - self.config.grid.z_min) / self.config.grid.Nz
+
+        # Create grid using factory function
+        specs = GridSpecsV2(
+            Nx=self.config.grid.Nx,
+            Nz=self.config.grid.Nz,
+            Ntheta=self.config.grid.Ntheta,
+            Ne=self.config.grid.Ne,
+            delta_x=delta_x,
+            delta_z=delta_z,
+            x_min=self.config.grid.x_min,
+            x_max=self.config.grid.x_max,
+            z_min=self.config.grid.z_min,
+            z_max=self.config.grid.z_max,
+            theta_min=self.config.grid.theta_min,
+            theta_max=self.config.grid.theta_max,
+            E_min=self.config.grid.E_min,
+            E_max=self.config.grid.E_max,
+            E_cutoff=self.config.grid.E_cutoff,
+        )
+
+        grid = create_phase_space_grid(specs)
+
+        # Create sigma buckets
+        from smatrix_2d.core.materials import create_water_material
+        from smatrix_2d.core.constants import PhysicsConstants2D
+
+        material = create_water_material()
+        constants = PhysicsConstants2D()
+
+        sigma_buckets = SigmaBuckets(
+            grid=grid,
+            material=material,
+            constants=constants,
+            n_buckets=self.config.transport.n_buckets,
+            k_cutoff=self.config.transport.k_cutoff_deg,
+            delta_s=self.config.transport.delta_s,
+        )
+
+        # Create stopping power LUT
+        stopping_power_lut = StoppingPowerLUT()
+
+        # Create GPU transport step V3
+        self.transport_step = create_gpu_transport_step_v3(
+            grid=grid,
+            sigma_buckets=sigma_buckets,
+            stopping_power_lut=stopping_power_lut,
+            delta_s=self.config.transport.delta_s,
+        )
+
+        self._kernels_initialized = True
 
     def _initialize_beam_gpu(self) -> cp.ndarray:
         """Initialize beam on GPU.
@@ -214,7 +276,7 @@ class TransportSimulation:
         All operations are GPU-resident.
 
         Returns:
-            ConservationReport for this step (may be delayed until sync)
+            ConservationReport for this step
 
         Raises:
             RuntimeError: If kernels not initialized
@@ -227,32 +289,32 @@ class TransportSimulation:
         # Record mass before step
         mass_in = float(cp.sum(self.psi_gpu))
 
-        # Apply operators (GPU kernels)
-        # TODO: Phase 1.3 - Refactor kernel API to be GPU-resident
-        # For now, placeholder
-        psi_new_gpu = self._apply_placeholder_step()
+        # Apply complete transport step using GPU kernels
+        self.psi_gpu = self.transport_step.apply(
+            psi=self.psi_gpu,
+            accumulators=self.accumulators,
+        )
 
         # Record mass after step
-        mass_out = float(cp.sum(psi_new_gpu))
-
-        # Update psi
-        self.psi_gpu = psi_new_gpu
+        mass_out = float(cp.sum(self.psi_gpu))
 
         # Record step (if history enabled)
         if self.config.numerics.sync_interval > 0:
+            # Fetch deposited energy from GPU
+            deposited_energy = float(cp.sum(self.accumulators.dose_gpu))
             self.accumulators.record_step(
                 mass_in=mass_in,
                 mass_out=mass_out,
-                deposited_energy=0.0,  # TODO: Track from kernel
+                deposited_energy=deposited_energy,
             )
 
-        # Create report (may use cached values from GPU)
+        # Create report
         report = create_conservation_report(
             step_number=self.current_step,
             mass_in=mass_in,
             mass_out=mass_out,
             escapes_gpu=self.accumulators.escapes_gpu,
-            deposited_energy=0.0,  # TODO: Fetch from accumulators
+            deposited_energy=float(cp.sum(self.accumulators.dose_gpu)),
             tolerance=1e-6,
         )
 
@@ -266,15 +328,6 @@ class TransportSimulation:
             self._sync_to_cpu(report)
 
         return report
-
-    def _apply_placeholder_step(self) -> cp.ndarray:
-        """Placeholder for GPU operator application.
-
-        TODO: Phase 1.3 - Replace with actual GPU kernel calls
-        """
-        # For now, just return a copy (no actual transport)
-        # This will be replaced with proper kernel calls
-        return self.psi_gpu.copy()
 
     def _sync_to_cpu(self, report: Optional[ConservationReport] = None) -> None:
         """Sync accumulators to CPU (causes GPU synchronization).

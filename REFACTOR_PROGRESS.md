@@ -116,24 +116,54 @@ validation/
 
 ---
 
+## Known Issues
+
+### Spatial Streaming Mass Inflation (Phase 1.3)
+
+**Issue**: The spatial streaming kernel exhibits mass inflation (1.0 → 1.32, 32% increase) when particles are near domain boundaries.
+
+**Root Cause**: The kernel uses a **gather formulation with inverse advection**. When multiple output cells gather from the same input cell (which happens near boundaries), mass is double-counted.
+
+**Status**:
+- Angular scattering: ✓ Working (mass conserved)
+- Energy loss: ✓ Working (mass conserved)
+- Spatial streaming: ✗ Mass inflation at boundaries
+
+**Temporary Workaround**: Using residual approach (mass_in - mass_out) for escape tracking. The residual appears in the `RESIDUAL` escape channel.
+
+**Permanent Fix (Phase 2.2)**: Rewrite spatial streaming kernel to use **scatter formulation**:
+- Loop over input cells (not output cells)
+- For each input cell, compute which output cells it contributes to
+- Scatter mass using atomicAdd
+- Direct leakage tracking when scattering to out-of-bounds
+
+**Impact**:
+- Not blocking for initial testing
+- MUST be fixed before production use
+- Blocks golden snapshot generation (Phase 3.3)
+
+**Documentation**: See `SPATIAL_STREAMING_ISSUE.md` for full analysis.
+
+---
+
 ## Remaining Work
 
 ### High Priority (Critical Path)
 
-| Phase | Task | Estimate | Dependencies |
-|-------|------|----------|--------------|
-| **2.1** | Angular scattering direct escape tracking | 2-3 hours | Phase 1.3 |
-| **2.2** | Spatial streaming direct leakage tracking | 2-3 hours | Phase 2.1 |
-| **1.3** | Complete kernel API integration | 3-4 hours | None (started) |
-| **3.3** | Generate golden snapshots | 1-2 hours | Phase 2 |
+| Phase | Task | Estimate | Dependencies | Status |
+|-------|------|----------|--------------|--------|
+| **2.1** | Angular scattering direct escape tracking | 2-3 hours | Phase 1.3 | Pending |
+| **2.2** | Spatial streaming direct leakage tracking | 3-4 hours | Phase 2.1 | **CRITICAL** - see issue below |
+| **1.3** | Complete kernel API integration | 3-4 hours | None | **COMPLETE** (with known issue) |
+| **3.3** | Generate golden snapshots | 1-2 hours | Phase 2 | Blocked by Phase 2.2 |
 
 ### Medium Priority
 
-| Phase | Task | Estimate | Dependencies |
-|-------|------|----------|--------------|
-| **0.6** | Consolidate scattered defaults | 1-2 hours | None |
-| **2.3** | Residual calculation/reporting | 1 hour | Phase 2.1-2.2 |
-| **3.4** | Move CPU reference to validation | 1 hour | None |
+| Phase | Task | Estimate | Dependencies | Status |
+|-------|------|----------|--------------|--------|
+| **0.6** | Consolidate scattered defaults | 1-2 hours | None | Pending |
+| **2.3** | Residual calculation/reporting | 1 hour | Phase 2.1-2.2 | Pending |
+| **3.4** | Move CPU reference to validation | 1 hour | None | Pending |
 
 ### Low Priority (Cleanup)
 
