@@ -13,6 +13,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+import yaml
 
 # Add project to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -28,6 +29,14 @@ from smatrix_2d import (
 )
 
 
+def load_config(config_path: str = "initial_info.yaml") -> dict:
+    """Load simulation configuration from YAML file."""
+    config_file = Path(__file__).parent / config_path
+    with open(config_file, 'r') as f:
+        config = yaml.safe_load(f)
+    return config
+
+
 def main():
     print("=" * 70)
     print("SPEC v2.1 PROTON TRANSPORT SIMULATION")
@@ -39,34 +48,49 @@ def main():
     print("\n[1] CONFIGURATION")
     print("-" * 70)
 
-    # Particle parameters (70 MeV proton beam)
-    E_init = 70.0  # MeV
-    x_init = 0.0   # mm
-    z_init = -40.0  # mm (start before water phantom)
-    theta_init = 90.0  # degrees (beam in +z direction)
-    weight_init = 1.0
+    # Load configuration from YAML
+    config = load_config()
+    print(f"  Loaded configuration from: initial_info.yaml")
 
-    # Grid parameters
-    Nx = 50  # Lateral bins
-    Nz = 100  # Depth bins
-    Ntheta = 180  # Angular bins (1 degree resolution)
-    Ne = 100  # Energy bins
+    # Extract particle parameters
+    particle = config['particle']
+    E_init = particle['energy']['value']
+    x_init = particle['position']['x']['value']
+    z_init = particle['position']['z']['value']
+    theta_init = particle['angle']['value']
+    weight_init = particle['weight']['value']
 
-    # Spatial domain
-    x_min, x_max = -25.0, 25.0  # mm
-    z_min, z_max = -50.0, 50.0  # mm
+    # Extract grid parameters
+    grid_cfg = config['grid']
+    x_min = grid_cfg['spatial']['x']['min']
+    x_max = grid_cfg['spatial']['x']['max']
+    delta_x = grid_cfg['spatial']['x']['delta']
+    Nx = int((x_max - x_min) / delta_x)
 
-    # Angular domain (absolute angles)
-    theta_min = 0.0  # degrees
-    theta_max = 180.0  # degrees
+    z_min = grid_cfg['spatial']['z']['min']
+    z_max = grid_cfg['spatial']['z']['max']
+    delta_z = grid_cfg['spatial']['z']['delta']
+    Nz = int((z_max - z_min) / delta_z)
 
-    # Energy domain
-    E_min = 0.0  # MeV
-    E_max = 100.0  # MeV
-    E_cutoff = 1.0  # MeV
+    theta_center = grid_cfg['angular']['center']
+    theta_half_range = grid_cfg['angular']['half_range']
+    delta_theta = grid_cfg['angular']['delta']
+    theta_min = theta_center - theta_half_range
+    theta_max = theta_center + theta_half_range
+    Ntheta = int((theta_max - theta_min) / delta_theta)
 
-    # Transport parameters
-    delta_s = 1.0  # mm (step size)
+    E_min = grid_cfg['energy']['min']
+    E_max = grid_cfg['energy']['max']
+    delta_E = grid_cfg['energy']['delta']
+    E_cutoff = grid_cfg['energy']['cutoff']
+    Ne = int((E_max - E_min) / delta_E)
+
+    # Extract transport parameters
+    resolution = config['resolution']
+    if resolution['propagation']['mode'] == 'auto':
+        delta_s = min(delta_x, delta_z) * resolution['propagation']['multiplier']
+    else:
+        delta_s = resolution['propagation']['value']
 
     print(f"  Beam energy: {E_init} MeV")
     print(f"  Initial position: (x={x_init}, z={z_init}) mm")
@@ -82,8 +106,8 @@ def main():
 
     grid_specs = GridSpecsV2(
         Nx=Nx, Nz=Nz, Ntheta=Ntheta, Ne=Ne,
-        delta_x=(x_max - x_min) / Nx,
-        delta_z=(z_max - z_min) / Nz,
+        delta_x=delta_x,
+        delta_z=delta_z,
         x_min=x_min, x_max=x_max,
         z_min=z_min, z_max=z_max,
         theta_min=theta_min, theta_max=theta_max,
