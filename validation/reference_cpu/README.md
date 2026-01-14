@@ -8,7 +8,7 @@ This directory contains documentation for legacy CPU-based transport operators t
 
 The new GPU-only implementation is in:
 - **Simulation**: `smatrix_2d/transport/simulation.py` (TransportSimulation class)
-- **GPU Operators**: `smatrix_2d/gpu/kernels_v2.py` (CUDA kernels with direct tracking)
+- **GPU Operators**: `smatrix_2d/gpu/kernels.py` (CUDA kernels with direct tracking)
 - **GPU Accumulators**: `smatrix_2d/gpu/accumulators.py` (GPU-resident escape tracking)
 
 ## Legacy CPU Operators (Kept for Reference)
@@ -19,19 +19,19 @@ The following files contain CPU-based reference implementations:
 - **Location**: `smatrix_2d/operators/angular_scattering.py`
 - **Class**: `AngularScattering`
 - **Purpose**: CPU-based angular scattering operator using Gaussian convolution
-- **Replaced by**: `angular_scattering_kernel_v2` in `smatrix_2d/gpu/kernels_v2.py`
+- **Replaced by**: `angular_scattering_kernel_v2` in `smatrix_2d/gpu/kernels.py`
 
 ### 2. Energy Loss
 - **Location**: `smatrix_2d/operators/energy_loss.py`
 - **Class**: `EnergyLoss`
 - **Purpose**: CPU-based continuous energy loss using stopping power LUT
-- **Replaced by**: `energy_loss_kernel_v2` in `smatrix_2d/gpu/kernels_v2.py`
+- **Replaced by**: `energy_loss_kernel_v2` in `smatrix_2d/gpu/kernels.py`
 
 ### 3. Spatial Streaming
 - **Location**: `smatrix_2d/operators/spatial_streaming.py`
 - **Class**: `SpatialStreaming`
 - **Purpose**: CPU-based spatial advection with boundary handling
-- **Replaced by**: `spatial_streaming_kernel_v2` in `smatrix_2d/gpu/kernels_v2.py`
+- **Replaced by**: `spatial_streaming_kernel_v2` in `smatrix_2d/gpu/kernels.py`
 
 ### 4. Legacy Transport Step
 - **Location**: `smatrix_2d/transport/transport.py`

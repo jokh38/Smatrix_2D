@@ -164,7 +164,7 @@ class TransportSimulation:
 
         Uses GPUTransportStepV3 which integrates with GPUAccumulators.
         """
-        from smatrix_2d.gpu.kernels_v2 import create_gpu_transport_step_v3
+        from smatrix_2d.gpu.kernels import create_gpu_transport_step_v3
         from smatrix_2d.core.grid import PhaseSpaceGridV2, GridSpecsV2, create_phase_space_grid
         from smatrix_2d.operators.sigma_buckets import SigmaBuckets
         from smatrix_2d.core.lut import StoppingPowerLUT

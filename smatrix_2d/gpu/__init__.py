@@ -13,9 +13,8 @@ except ImportError:
 
 try:
     from smatrix_2d.gpu.kernels import (
-        GPUTransportStepV2,
-        create_gpu_transport_step_v2,
-        TextureMemoryManager,
+        GPUTransportStepV3,
+        create_gpu_transport_step_v3,
     )
 except ImportError:
     pass
@@ -27,8 +26,7 @@ __all__ = [
     'TileSpec',
     'TileInfo',
     'create_tile_manager',
-    'GPUTransportStepV2',
-    'create_gpu_transport_step_v2',
-    'TextureMemoryManager',
+    'GPUTransportStepV3',
+    'create_gpu_transport_step_v3',
     'GPU_AVAILABLE',
 ]

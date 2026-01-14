@@ -246,8 +246,8 @@ class TransportSimulationV2:
 
         # Initialize transport step operator
         if self._has_gpu:
-            from smatrix_2d.gpu.kernels import GPUTransportStepV2, create_gpu_transport_step_v2
-            self.transport_step = create_gpu_transport_step_v2(
+            from smatrix_2d.gpu.kernels import GPUTransportStepV3, create_gpu_transport_step_v3
+            self.transport_step = create_gpu_transport_step_v3(
                 grid=grid,
                 sigma_buckets=SigmaBuckets(
                     grid=grid,

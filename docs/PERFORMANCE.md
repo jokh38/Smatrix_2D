@@ -41,17 +41,21 @@ This guide consolidates all performance optimization strategies for Smatrix_2D, 
 
 ```python
 import cupy as cp
-from smatrix_2d.gpu.kernels import create_gpu_transport_step
+from smatrix_2d.gpu.kernels import create_gpu_transport_step_v3
 
-# Create GPU transport
-gpu_transport = create_gpu_transport_step(
-    Ne=100, Ntheta=36, Nz=150, Nx=40,
-    accumulation_mode='fast'
+# Create GPU transport step (V3 with unified escape tracking)
+gpu_transport = create_gpu_transport_step_v3(
+    grid=grid,
+    sigma_buckets=sigma_buckets,
+    stopping_power_lut=stopping_power_lut,
+    delta_s=1.0,
 )
 
-# Use GPU arrays
+# Use GPU arrays with accumulators
+from smatrix_2d.gpu.accumulators import GPUAccumulators
 psi_gpu = cp.asarray(psi_cpu)
-result = gpu_transport.apply_step(psi_gpu, ...)
+accumulators = GPUAccumulators(grid, float64=True)
+result = gpu_transport.apply(psi_gpu, accumulators)
 ```
 
 **See:** `docs/GPU.md` for complete GPU guide.
@@ -308,11 +312,14 @@ specs = GridSpecs2D(
 
 ```python
 import cupy as cp
-from smatrix_2d.gpu.kernels import create_gpu_transport_step
+from smatrix_2d.gpu.kernels import create_gpu_transport_step_v3
 
-gpu_transport = create_gpu_transport_step(
-    Ne=200, Ntheta=72, Nz=150, Nx=40,
-    accumulation_mode='fast'
+# Create GPU transport step (V3 with unified escape tracking)
+gpu_transport = create_gpu_transport_step_v3(
+    grid=grid,
+    sigma_buckets=sigma_buckets,
+    stopping_power_lut=stopping_power_lut,
+    delta_s=1.0,
 )
 ```
 

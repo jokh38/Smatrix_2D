@@ -88,7 +88,7 @@ Final (after 5 steps):
 ## Implementation Details
 
 ### Files Modified
-- `smatrix_2d/gpu/kernels_v2.py`: Lines 260-369 (spatial_streaming_kernel_v2_src)
+- `smatrix_2d/gpu/kernels.py`: Lines 260-369 (spatial_streaming_kernel_v2_src)
 
 ### Key Changes
 1. **Loop direction**: INPUT → OUTPUT (scatter) instead of OUTPUT → INPUT (gather)

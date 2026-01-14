@@ -90,7 +90,7 @@ Wide beam (5 particles at indices 0-4):
 
 ## Files Modified
 
-- `smatrix_2d/gpu/kernels_v2.py`: Updated `angular_scattering_kernel_v2_src`
+- `smatrix_2d/gpu/kernels.py`: Updated `angular_scattering_kernel_v2_src`
   - Changed loop order (input→output instead of output→input)
   - Added direct boundary escape tracking
   - Used atomicAdd for scatter writes

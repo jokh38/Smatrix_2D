@@ -171,7 +171,7 @@ Beam at theta=2.0° (boundary):
 - **Template for Phase 2.2**: Demonstrates scatter formulation approach
 
 #### Files Modified
-- `smatrix_2d/gpu/kernels_v2.py`: Lines 38-119 (scatter formulation)
+- `smatrix_2d/gpu/kernels.py`: Lines 38-119 (scatter formulation)
 
 ---
 
@@ -253,7 +253,7 @@ Final:   Mass: 1.000000, Escapes: 0.000000
 - ✅ Physics validation (can now trust results)
 
 #### Files Modified
-- `smatrix_2d/gpu/kernels_v2.py`: Lines 260-369 (scatter formulation)
+- `smatrix_2d/gpu/kernels.py`: Lines 260-369 (scatter formulation)
 
 ---
 

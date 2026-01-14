@@ -4,7 +4,7 @@
 
 ## Problem
 
-The spatial streaming kernel in `smatrix_2d/gpu/kernels_v2.py` exhibits mass inflation when particles are near domain boundaries. Mass increases from 1.0 to ~1.32 (32% increase) after a single spatial streaming step.
+The spatial streaming kernel in `smatrix_2d/gpu/kernels.py` (formerly kernels_v2.py during development) exhibits mass inflation when particles are near domain boundaries. Mass increases from 1.0 to ~1.32 (32% increase) after a single spatial streaming step.
 
 ## Root Cause
 

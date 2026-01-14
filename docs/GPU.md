@@ -108,33 +108,23 @@ All three operators are fully implemented:
 
 ```python
 import cupy as cp
-from smatrix_2d.gpu.kernels import create_gpu_transport_step
+from smatrix_2d.gpu.kernels import create_gpu_transport_step_v3
 
-# Create GPU transport step
-gpu_transport = create_gpu_transport_step(
-    Ne=100,
-    Ntheta=36,
-    Nz=150,
-    Nx=40,
-    accumulation_mode='fast',  # or 'deterministic'
-    delta_x=2.0,
-    delta_z=0.5,
+# Create GPU transport step (V3 with unified escape tracking)
+gpu_transport = create_gpu_transport_step_v3(
+    grid=grid,
+    sigma_buckets=sigma_buckets,
+    stopping_power_lut=stopping_power_lut,
+    delta_s=1.0,
 )
 
 # Convert arrays to GPU
 psi_gpu = cp.asarray(psi_cpu)
-E_grid_gpu = cp.asarray(E_grid)
 
-# Run transport step
-psi_out, weight_leaked, deposited_energy = gpu_transport.apply_step(
-    psi_gpu,
-    E_grid_gpu,
-    sigma_theta=0.01,
-    theta_beam=0.0,
-    delta_s=0.5,
-    stopping_power=2.0e-3,
-    E_cutoff=0.5,
-)
+# Run transport step with accumulators
+from smatrix_2d.gpu.accumulators import GPUAccumulators
+accumulators = GPUAccumulators(grid, float64=True)
+psi_out = gpu_transport.apply(psi_gpu, accumulators)
 
 # Convert back to CPU if needed
 psi_out_cpu = cp.asnumpy(psi_out)

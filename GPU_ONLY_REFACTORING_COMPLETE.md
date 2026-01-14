@@ -365,7 +365,7 @@ smatrix_2d/
 ├── gpu/
 │   ├── accumulators.py    # GPU-resident accumulators
 │   ├── operators.py       # GPU operator wrappers
-│   └── kernels_v2.py      # Refactored CUDA kernels (scatter)
+│   └── kernels.py         # Refactored CUDA kernels (scatter)
 │
 ├── transport/
 │   ├── simulation.py      # GPU-only simulation loop
