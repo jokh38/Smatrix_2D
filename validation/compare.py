@@ -123,11 +123,30 @@ class GoldenSnapshot:
 
         np.savez_compressed(results_path, **save_dict)
 
-        # Save metadata
+        # Save metadata (convert numpy types to Python types)
         if self.metadata:
             metadata_path = snapshot_dir / "metadata.yaml"
+            # Convert numpy types to Python native types for YAML serialization
+            metadata_clean = {}
+            for key, value in self.metadata.items():
+                # Handle all numpy scalar types (bool, int, float, etc.)
+                if isinstance(value, (np.number, np.bool_)):
+                    metadata_clean[key] = value.item()  # Convert numpy scalar to Python type
+                elif isinstance(value, np.ndarray):
+                    metadata_clean[key] = value.tolist()
+                elif isinstance(value, dict):
+                    # Recursively clean dictionaries
+                    metadata_clean[key] = {}
+                    for k2, v2 in value.items():
+                        if isinstance(v2, (np.number, np.bool_)):
+                            metadata_clean[key][k2] = v2.item()
+                        else:
+                            metadata_clean[key][k2] = v2
+                else:
+                    metadata_clean[key] = value
+
             with open(metadata_path, 'w') as f:
-                yaml.dump(self.metadata, f)
+                yaml.dump(metadata_clean, f)
 
     @classmethod
     def load(cls, directory: Path, name: str) -> "GoldenSnapshot":
