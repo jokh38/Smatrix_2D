@@ -244,10 +244,10 @@ class TestIntegration:
         """Test profiling real GPU array operations."""
         profiler = Profiler()
 
-        # Create arrays
+        # Create arrays (use ones to avoid CURAND dependency)
         size = (1000, 1000)
-        a = cupy.random.random(size, dtype=cupy.float32)
-        b = cupy.random.random(size, dtype=cupy.float32)
+        a = cupy.ones(size, dtype=cupy.float32) * 1.5
+        b = cupy.ones(size, dtype=cupy.float32) * 2.5
 
         profiler.track_tensor("array_a", a)
         profiler.track_tensor("array_b", b)

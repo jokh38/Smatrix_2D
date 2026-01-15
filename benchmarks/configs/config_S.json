@@ -1,0 +1,44 @@
+{
+  "config_name": "Config-S",
+  "description": "Small configuration for fast validation (3mm resolution)",
+  "grid": {
+    "Nx": 32,
+    "Nz": 32,
+    "Ntheta": 45,
+    "Ne": 35,
+    "delta_x": 1.0,
+    "delta_z": 1.0,
+    "x_min": -16.0,
+    "x_max": 16.0,
+    "z_min": -16.0,
+    "z_max": 16.0,
+    "theta_min": 0.0,
+    "theta_max": 180.0,
+    "E_min": 1.0,
+    "E_max": 70.0,
+    "E_cutoff": 2.0
+  },
+  "beam": {
+    "E0": 70.0,
+    "x0": 0.0,
+    "z0": -10.0,
+    "theta0": 0.0,
+    "w0": 1.0
+  },
+  "simulation": {
+    "delta_s": 1.0,
+    "n_steps": 50,
+    "n_buckets": 32,
+    "k_cutoff": 5.0
+  },
+  "performance_targets": {
+    "max_step_time_ms": 100,
+    "max_total_time_sec": 5.0,
+    "max_memory_mb": 500
+  },
+  "regression_thresholds": {
+    "step_time_pct": 5.0,
+    "memory_pct": 10.0,
+    "kernel_time_pct": 5.0
+  }
+}

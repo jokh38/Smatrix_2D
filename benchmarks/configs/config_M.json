@@ -1,0 +1,44 @@
+{
+  "config_name": "Config-M",
+  "description": "Medium configuration for standard validation (1mm resolution)",
+  "grid": {
+    "Nx": 100,
+    "Nz": 100,
+    "Ntheta": 180,
+    "Ne": 100,
+    "delta_x": 1.0,
+    "delta_z": 1.0,
+    "x_min": -50.0,
+    "x_max": 50.0,
+    "z_min": -50.0,
+    "z_max": 50.0,
+    "theta_min": 0.0,
+    "theta_max": 180.0,
+    "E_min": 1.0,
+    "E_max": 70.0,
+    "E_cutoff": 2.0
+  },
+  "beam": {
+    "E0": 70.0,
+    "x0": 0.0,
+    "z0": -30.0,
+    "theta0": 0.0,
+    "w0": 1.0
+  },
+  "simulation": {
+    "delta_s": 1.0,
+    "n_steps": 100,
+    "n_buckets": 32,
+    "k_cutoff": 5.0
+  },
+  "performance_targets": {
+    "max_step_time_ms": 300,
+    "max_total_time_sec": 30.0,
+    "max_memory_mb": 2000
+  },
+  "regression_thresholds": {
+    "step_time_pct": 5.0,
+    "memory_pct": 10.0,
+    "kernel_time_pct": 5.0
+  }
+}

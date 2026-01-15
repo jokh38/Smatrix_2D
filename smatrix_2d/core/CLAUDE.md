@@ -7,15 +7,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #352 | 12:42 PM | ✅ | Phase C-1, C-2, and C-3 implementations committed and pushed to repository | ~328 |
-| #341 | 12:39 PM | ✅ | Added __all__ export list to smatrix_2d/core/grid.py for explicit public API | ~363 |
-| #340 | " | 🔵 | Phase C-3 non-uniform grid integration examined | ~159 |
-| #338 | " | 🟣 | Phase C-3 non-uniform grid factory function added to core grid module | ~303 |
-| #337 | " | 🔵 | GridSpecsV2 supports energy_grid_type parameter for non-uniform grids | ~461 |
-| #336 | 12:38 PM | 🔵 | create_phase_space_grid uses uniform grids for energy, angle, and spatial dimensions | ~618 |
-| #335 | " | 🟣 | Integrated Phase C-3 non-uniform grid support into core grid module | ~607 |
-| #334 | " | 🟣 | Added NON_UNIFORM enum values to EnergyGridType and created AngularGridType enum | ~529 |
-| #333 | " | ✅ | Added angular_grid_type parameter to GridSpecsV2 dataclass | ~234 |
-| #84 | 11:06 AM | 🟣 | Git commit created for Phase A validation implementation | ~294 |
-| #82 | 11:05 AM | 🟣 | Git commit and push for Phase A completion | ~254 |
+| #83 | 11:05 AM | ✅ | Phase A validation suite fully implemented and passing | ~445 |
+| #78 | 8:24 AM | ✅ | GridSpecsV2 E_cutoff Default Changed from 1.0 to 2.0 for SSOT Compliance | ~326 |
 </claude-mem-context>

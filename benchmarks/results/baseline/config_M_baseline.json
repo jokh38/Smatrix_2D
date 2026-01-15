@@ -1,0 +1,42 @@
+{
+  "config_name": "Config-M",
+  "timestamp": "2026-01-15T12:00:00.000000",
+  "git_commit": "baseline",
+  "gpu_info": {
+    "device": "NVIDIA RTX 3080 (sample)",
+    "compute_capability": "8.6",
+    "total_memory_mb": "10240",
+    "free_memory_mb": "6144"
+  },
+  "setup_time_sec": 0.8,
+  "total_time_sec": 25.0,
+  "avg_step_time_ms": 250.0,
+  "min_step_time_ms": 245.0,
+  "max_step_time_ms": 255.0,
+  "steps_per_second": 4.0,
+  "kernel_timings": {
+    "angular_scattering_ms": 80.0,
+    "energy_loss_ms": 100.0,
+    "spatial_streaming_ms": 70.0,
+    "total_step_ms": 250.0
+  },
+  "memory_usage": {
+    "gpu_memory_mb": 1500.0,
+    "cpu_memory_mb": 500.0,
+    "phase_space_mb": 500.0,
+    "luts_mb": 30.0,
+    "total_mb": 2000.0
+  },
+  "final_mass": 0.92,
+  "total_deposited_energy": 63.0,
+  "conservation_error": 1.2e-7,
+  "conservation_valid": true,
+  "grid_size_mb": 530.0,
+  "total_dof": 180000000,
+  "grid": {
+    "Nx": 100,
+    "Nz": 100,
+    "Ntheta": 180,
+    "Ne": 100
+  }
+}
