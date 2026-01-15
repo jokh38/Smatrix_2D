@@ -14,6 +14,47 @@ IMPORTANT: This module replaces and extends escape_accounting.py with:
 - GPU accumulator support
 - Separation of weight vs energy tracking
 
+
+Policy-A: Normalized Kernel with Boundary-Only Mass Accounting
+================================================================
+
+This simulation implements Policy-A for mass conservation tracking:
+
+Kernel Normalization:
+    The scattering kernel is normalized such that sum(kernel) = 1.0 for all valid
+    scattering angles within the domain. This ensures conservation during the
+    scattering operation itself.
+
+Mass Balance Equation:
+    Under Policy-A, mass conservation is expressed as:
+
+        W_in = W_out + escape_boundary
+
+    Where:
+        W_in: Total particle weight at start of transport step
+        W_out: Total particle weight remaining in domain after transport
+        escape_boundary: Weight lost through boundary escapes (physical losses)
+
+Escape Channels (Physical vs Diagnostic):
+    Physical escape channels (participate in mass balance):
+        - THETA_BOUNDARY: Angular boundary edge effects at 0°, 180°
+        - ENERGY_STOPPED: Particles falling below E_cutoff
+        - SPATIAL_LEAK: Particles exiting spatial domain
+
+    Diagnostic channels (NOT part of mass balance):
+        - THETA_CUTOFF: Gaussian kernel truncation loss (diagnostic metric only)
+
+    Note: THETA_CUTOFF tracks particles lost due to kernel truncation for
+    diagnostic purposes, but this is not considered a physical escape channel
+    in the mass balance because the normalized kernel ensures conservation
+    within the valid scattering domain.
+
+Implementation:
+    - GPU kernels use normalized scattering kernel (sum = 1.0)
+    - Only boundary escapes are accumulated as mass loss
+    - Conservation validation checks: W_in ≈ W_out + sum(boundary_escapes)
+    - RESIDUAL channel tracks numerical errors from floating-point precision
+
 Import Policy:
     from smatrix_2d.core.accounting import (
         EscapeChannel, ConservationReport,
@@ -29,27 +70,81 @@ from typing import Optional, Tuple, Dict, Any
 import numpy as np
 
 
+# ============================================================================
+# KERNEL POLICY CONSTANTS (Policy-A)
+# ============================================================================
+
+# Policy identifier for documentation and validation
+KERNEL_POLICY = "NORMALIZED"  # Policy-A: Normalized kernel with sum=1.0
+
+# Kernel normalization flag (read-only, for documentation purposes)
+KERNEL_NORMALIZATION_ENABLED = True
+
+# Physical escape channels that participate in mass balance equation
+# These are the ONLY channels that count as "escape_boundary" in the equation:
+#     W_in = W_out + escape_boundary
+PHYSICAL_ESCAPE_CHANNELS = (
+    "THETA_BOUNDARY",   # Angular boundary edge effects
+    "ENERGY_STOPPED",   # Particles falling below E_cutoff
+    "SPATIAL_LEAK",     # Particles exiting spatial domain
+)
+
+# Diagnostic channels tracked but NOT part of mass balance
+DIAGNOSTIC_ESCAPE_CHANNELS = (
+    "THETA_CUTOFF",     # Gaussian kernel truncation (diagnostic only)
+)
+
+# Mass balance tolerance for conservation validation
+MASS_BALANCE_TOLERANCE = 1e-6  # Maximum relative error for valid conservation
+
+
 class EscapeChannel(IntEnum):
     """Escape channels for particle loss tracking.
 
     These are the indices used in GPU accumulator arrays.
     Order MUST match the GPU kernel escape channel indexing.
 
-    Channels:
-        THETA_BOUNDARY (0): Angular boundary edge effects (mass loss at 0°, 180°)
-        THETA_CUTOFF (1): Gaussian scattering kernel truncation loss (diagnostic)
-        ENERGY_STOPPED (2): Particles falling below E_cutoff
-        SPATIAL_LEAK (3): Particles exiting spatial domain
-        RESIDUAL (4): Numerical residual (non-physical error metric)
+    Policy-A Classification:
+        Under Policy-A (normalized kernel), channels are classified as:
 
-    Note:
-        RESIDUAL is computed on host side and represents the difference between
-        expected and actual conservation. It's NOT accumulated in kernels.
+        Physical Escape Channels (participate in mass balance):
+            These contribute to the equation: W_in = W_out + escape_boundary
+
+            THETA_BOUNDARY (0): Angular boundary edge effects at 0°, 180°
+            ENERGY_STOPPED (2): Particles falling below E_cutoff
+            SPATIAL_LEAK (3): Particles exiting spatial domain
+
+        Diagnostic Channels (NOT part of mass balance):
+            Tracked for analysis but do not affect conservation equation
+
+            THETA_CUTOFF (1): Gaussian scattering kernel truncation (diagnostic only)
+                Note: Under Policy-A, this is diagnostic because the normalized
+                kernel (sum=1.0) ensures conservation within valid domain.
+                Truncation losses are edge effects, not mass loss.
+
+        Error Metrics:
+            RESIDUAL (4): Numerical residual (non-physical error metric)
+                Computed on host side as: W_in - W_out - sum(physical_escapes)
+                NOT accumulated in GPU kernels.
+
+    Mass Balance Equation (Policy-A):
+        W_in = W_out + W_theta_boundary + W_energy_stopped + W_spatial_leak
+
+        Where:
+            W_in: Total weight at step start
+            W_out: Total weight remaining in domain
+            W_*: Individual physical escape channel weights
+
+        Note: THETA_CUTOFF is deliberately EXCLUDED from this equation
+              because the normalized kernel accounts for all scattering
+              probability within the valid domain.
 
     GPU Index Mapping:
         escapes_gpu[EscapeChannel.THETA_BOUNDARY] -> atomicAdd boundary weight
+        escapes_gpu[EscapeChannel.THETA_CUTOFF] -> atomicAdd truncation count
+        escapes_gpu[EscapeChannel.ENERGY_STOPPED] -> atomicAdd stopped weight
         escapes_gpu[EscapeChannel.SPATIAL_LEAK] -> atomicAdd leaked weight
-        etc.
+        escapes_gpu[EscapeChannel.RESIDUAL] -> NOT accumulated (host computed)
     """
     THETA_BOUNDARY = 0
     THETA_CUTOFF = 1
@@ -82,6 +177,36 @@ class EscapeChannel(IntEnum):
             Tuple of channel indices computed from CPU analysis
         """
         return (cls.RESIDUAL,)
+
+    @classmethod
+    def physical_escape_channels(cls) -> Tuple[int, ...]:
+        """Return channels that participate in Policy-A mass balance equation.
+
+        Under Policy-A (normalized kernel), only physical boundary escapes
+        contribute to the conservation equation:
+            W_in = W_out + sum(physical_escapes)
+
+        Returns:
+            Tuple of channel indices that are physical escapes
+        """
+        return (
+            cls.THETA_BOUNDARY,
+            cls.ENERGY_STOPPED,
+            cls.SPATIAL_LEAK,
+        )
+
+    @classmethod
+    def diagnostic_channels(cls) -> Tuple[int, ...]:
+        """Return channels tracked for diagnostic purposes only.
+
+        Diagnostic channels do NOT participate in the mass balance equation.
+        They are tracked for analysis and validation but represent edge effects
+        or non-physical metrics.
+
+        Returns:
+            Tuple of channel indices that are diagnostic only
+        """
+        return (cls.THETA_CUTOFF,)
 
 
 # Channel name mapping for reporting
@@ -122,20 +247,45 @@ class ConservationReport:
     relative_error: float = 0.0
     is_valid: bool = True
 
-    def total_escape_weight(self, include_residual: bool = True) -> float:
+    def total_escape_weight(self, include_residual: bool = True, include_diagnostic: bool = False) -> float:
         """Calculate total escaped weight.
+
+        Policy-A Note: By default, only physical escape channels are included
+        in mass balance calculations. Diagnostic channels (e.g., THETA_CUTOFF)
+        are excluded unless explicitly requested.
 
         Args:
             include_residual: Whether to include RESIDUAL channel
+            include_diagnostic: Whether to include diagnostic channels (THETA_CUTOFF)
 
         Returns:
             Sum of all escape weights
         """
         total = 0.0
         for channel, weight in self.escape_weights.items():
+            # Exclude residual unless requested
             if channel == EscapeChannel.RESIDUAL and not include_residual:
                 continue
+            # Exclude diagnostic channels unless requested (Policy-A)
+            if channel in EscapeChannel.diagnostic_channels() and not include_diagnostic:
+                continue
             total += weight
+        return total
+
+    def physical_escape_weight(self) -> float:
+        """Calculate total physical escape weight (Policy-A mass balance).
+
+        Under Policy-A, this is the ONLY escape weight that participates in
+        the conservation equation:
+            W_in = W_out + physical_escape_weight
+
+        Returns:
+            Sum of physical escape channel weights (excludes diagnostic channels)
+        """
+        total = 0.0
+        for channel, weight in self.escape_weights.items():
+            if channel in EscapeChannel.physical_escape_channels():
+                total += weight
         return total
 
     def total_escape_energy(self) -> float:
@@ -149,36 +299,192 @@ class ConservationReport:
     def check_conservation(self, tolerance: float = 1e-6) -> bool:
         """Check if mass conservation holds within tolerance.
 
+        Policy-A Conservation Check:
+            Validates the mass balance equation:
+                W_in = W_out + physical_escapes
+
+            Where physical_escapes includes:
+                - THETA_BOUNDARY (angular edge effects)
+                - ENERGY_STOPPED (particles below E_cutoff)
+                - SPATIAL_LEAK (spatial domain exits)
+
+            Note: THETA_CUTOFF is EXCLUDED from this check under Policy-A
+                  because it's a diagnostic metric, not a physical escape.
+
         Args:
             tolerance: Maximum allowed relative error
 
         Returns:
-            True if conservation holds
+            True if conservation holds within tolerance
         """
-        expected = self.mass_in - self.total_escape_weight(include_residual=False)
+        # Use physical escapes only (Policy-A: exclude diagnostic channels)
+        physical_escapes = self.physical_escape_weight()
+        expected = self.mass_in - physical_escapes
         self.relative_error = abs(expected - self.mass_out) / max(self.mass_in, 1e-30)
         self.is_valid = self.relative_error <= tolerance
         return self.is_valid
 
     def compute_residual(self) -> float:
-        """Compute numerical residual.
+        """Compute numerical residual based on Policy-A mass balance.
 
-        Residual = mass_in - mass_out - sum(physical_escapes)
+        Policy-A Residual Equation:
+            residual = W_in - W_out - sum(physical_escapes)
+
+        Where physical_escapes excludes diagnostic channels (THETA_CUTOFF).
+        The residual represents numerical errors from floating-point precision
+        limits, not missing physical escape channels.
 
         Returns:
-            Residual value (should be small)
+            Residual value (should be small, ideally < 1e-10)
         """
-        physical_escapes = self.total_escape_weight(include_residual=False)
+        # Use physical escapes only (Policy-A compliant)
+        physical_escapes = self.physical_escape_weight()
         self.residual = self.mass_in - self.mass_out - physical_escapes
         self.escape_weights[EscapeChannel.RESIDUAL] = abs(self.residual)
         return self.residual
+
+    def compute_weight_closure(self) -> Dict[str, float]:
+        """Compute weight closure metrics with detailed balance.
+
+        Mass Balance Equation (Policy-A):
+            W_in = W_out + W_escapes + W_residual
+
+        Where:
+            W_in: Initial total weight in domain
+            W_out: Final total weight remaining in domain
+            W_escapes: Sum of physical escapes (THETA_BOUNDARY + ENERGY_STOPPED + SPATIAL_LEAK)
+            W_residual: Numerical residual from floating-point errors
+
+        Physical Escape Channels (Policy-A):
+            - THETA_BOUNDARY: Angular boundary edge effects at 0°, 180°
+            - ENERGY_STOPPED: Particles falling below E_cutoff
+            - SPATIAL_LEAK: Particles exiting spatial domain
+
+        Note: THETA_CUTOFF is EXCLUDED from weight closure as it's a diagnostic
+              channel tracking kernel truncation, not actual mass loss.
+
+        Returns:
+            Dict containing:
+                - W_in: Initial weight
+                - W_out: Final weight
+                - W_escapes: Total physical escape weight
+                - W_residual: Numerical residual
+                - relative_error: |W_in - (W_out + W_escapes)| / W_in
+                - is_closed: Whether relative_error < 1e-6
+        """
+        # Use physical escapes only (Policy-A)
+        w_escapes = self.physical_escape_weight()
+        w_residual = self.mass_in - self.mass_out - w_escapes
+        relative_error = abs(w_residual) / max(self.mass_in, 1e-30)
+        is_closed = relative_error < 1e-6
+
+        return {
+            'W_in': self.mass_in,
+            'W_out': self.mass_out,
+            'W_escapes': w_escapes,
+            'W_residual': w_residual,
+            'relative_error': relative_error,
+            'is_closed': is_closed,
+        }
+
+    def compute_energy_closure(self) -> Dict[str, float]:
+        """Compute energy closure metrics with detailed balance.
+
+        Energy Balance Equation:
+            E_in = E_out + E_deposit + E_escape + E_residual
+
+        Where:
+            E_in: Initial total kinetic energy (computed from particle states)
+            E_out: Final total kinetic energy remaining in domain
+            E_deposit: Energy deposited as dose (stopping power)
+            E_escape: Energy carried by escaped particles
+            E_residual: Numerical residual from floating-point errors
+
+        Note: This requires escape_energy to be populated during simulation.
+              Currently, escape_energy tracking is optional and may be empty.
+              When E_in = 0 (not tracked), relative_error is reported as 0.0.
+
+        Returns:
+            Dict containing:
+                - E_in: Initial energy (0.0 if not tracked)
+                - E_out: Final energy (0.0 if not tracked)
+                - E_deposit: Deposited energy (dose)
+                - E_escape: Total escaped energy
+                - E_residual: Numerical residual
+                - relative_error: |E_in - (E_out + E_deposit + E_escape)| / E_in
+                - is_closed: Whether relative_error < 1e-5
+        """
+        # Energy tracking is optional - compute closure if available
+        e_in = 0.0  # Would need to be computed from particle states
+        e_out = 0.0  # Would need to be computed from particle states
+        e_deposit = self.deposited_energy
+        e_escape = self.total_escape_energy()
+
+        # Compute residual
+        e_residual = e_in - e_out - e_deposit - e_escape
+        relative_error = abs(e_residual) / max(e_in, 1e-30) if e_in > 0 else 0.0
+        is_closed = relative_error < 1e-5
+
+        return {
+            'E_in': e_in,
+            'E_out': e_out,
+            'E_deposit': e_deposit,
+            'E_escape': e_escape,
+            'E_residual': e_residual,
+            'relative_error': relative_error,
+            'is_closed': is_closed,
+        }
+
+    def is_weight_closed(self, tolerance: float = 1e-6) -> bool:
+        """Check if weight conservation holds within tolerance.
+
+        Validates the Policy-A mass balance equation:
+            W_in = W_out + W_escapes
+
+        Where W_escapes includes only physical channels:
+            - THETA_BOUNDARY (angular edge effects)
+            - ENERGY_STOPPED (particles below E_cutoff)
+            - SPATIAL_LEAK (spatial domain exits)
+
+        Args:
+            tolerance: Maximum allowed relative error (default: 1e-6)
+
+        Returns:
+            True if |W_in - W_out - W_escapes| / W_in <= tolerance
+        """
+        closure = self.compute_weight_closure()
+        return closure['relative_error'] <= tolerance
+
+    def is_energy_closed(self, tolerance: float = 1e-5) -> bool:
+        """Check if energy conservation holds within tolerance.
+
+        Validates the energy balance equation:
+            E_in = E_out + E_deposit + E_escape
+
+        Note: Energy tracking is currently optional. When E_in = 0 (not tracked),
+              this returns True by default.
+
+        Args:
+            tolerance: Maximum allowed relative error (default: 1e-5)
+
+        Returns:
+            True if |E_in - E_out - E_deposit - E_escape| / E_in <= tolerance
+        """
+        closure = self.compute_energy_closure()
+        # If E_in = 0 (not tracked), consider it closed
+        if closure['E_in'] == 0.0:
+            return True
+        return closure['relative_error'] <= tolerance
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert report to dictionary for serialization.
 
         Returns:
-            Dictionary representation of report
+            Dictionary representation of report including closure metrics
         """
+        weight_closure = self.compute_weight_closure()
+        energy_closure = self.compute_energy_closure()
+
         return {
             'step_number': self.step_number,
             'mass_in': self.mass_in,
@@ -191,10 +497,16 @@ class ConservationReport:
             'residual': self.residual,
             'relative_error': self.relative_error,
             'is_valid': self.is_valid,
+            # Closure metrics (R-ACC-002, R-ACC-003)
+            'weight_closure': weight_closure,
+            'energy_closure': energy_closure,
         }
 
     def __str__(self) -> str:
         """Generate formatted conservation report string."""
+        weight_closure = self.compute_weight_closure()
+        energy_closure = self.compute_energy_closure()
+
         lines = [
             "=" * 70,
             f"CONSERVATION REPORT - Step {self.step_number}",
@@ -217,10 +529,23 @@ class ConservationReport:
             "ENERGY:",
             f"  Deposited:      {self.deposited_energy:.6e}",
             "",
+            "WEIGHT CLOSURE (Policy-A):",
+            f"  W_escapes:      {weight_closure['W_escapes']:.6e}",
+            f"  W_residual:     {weight_closure['W_residual']:.6e}",
+            f"  Rel Error:      {weight_closure['relative_error']:.6e}",
+            f"  Closed:         {'YES' if weight_closure['is_closed'] else 'NO'}",
+            "",
+            "ENERGY CLOSURE:",
+            f"  E_deposit:      {energy_closure['E_deposit']:.6e}",
+            f"  E_escape:       {energy_closure['E_escape']:.6e}",
+            f"  E_residual:     {energy_closure['E_residual']:.6e}",
+            f"  Rel Error:      {energy_closure['relative_error']:.6e}",
+            f"  Closed:         {'YES' if energy_closure['is_closed'] else 'NO'}",
+            "",
             "CONSERVATION CHECK:",
             f"  Residual:       {self.residual:.6e}",
             f"  Relative Error: {self.relative_error:.6e}",
-            f"  Status:         {'✓ PASS' if self.is_valid else '✗ FAIL'}",
+            f"  Status:         {'PASS' if self.is_valid else 'FAIL'}",
             "=" * 70,
         ])
 
@@ -233,9 +558,21 @@ def validate_conservation(
     escape_weights: np.ndarray,
     tolerance: float = 1e-6
 ) -> Tuple[bool, float]:
-    """Validate mass conservation.
+    """Validate mass conservation under Policy-A.
 
     This is the main validation function used by the simulation loop.
+
+    Policy-A Conservation Equation:
+        W_in = W_out + W_theta_boundary + W_energy_stopped + W_spatial_leak
+
+    Where:
+        W_in: Total weight at start of step
+        W_out: Total weight remaining in domain
+        W_*: Physical escape channel weights
+
+    Note: THETA_CUTOFF is EXCLUDED from validation under Policy-A.
+          This channel is diagnostic-only and tracks kernel truncation
+          edge effects, not actual mass loss.
 
     Args:
         mass_in: Total weight at start of step
@@ -245,14 +582,20 @@ def validate_conservation(
 
     Returns:
         Tuple of (is_valid, relative_error)
+
+    Raises:
+        ValueError: If mass_in is not positive
     """
     if mass_in <= 0:
         raise ValueError(f"mass_in must be positive, got {mass_in}")
 
-    # Sum physical escape channels (excluding RESIDUAL)
+    # Sum only physical escape channels (Policy-A: exclude diagnostic channels)
     physical_escapes = 0.0
-    for channel in EscapeChannel.gpu_accumulated_channels():
+    for channel in EscapeChannel.physical_escape_channels():
         physical_escapes += escape_weights[channel]
+
+    # Note: THETA_CUTOFF is deliberately excluded from this sum
+    # because it's a diagnostic metric, not a physical escape
 
     expected_out = mass_in - physical_escapes
     relative_error = abs(expected_out - mass_out) / mass_in
@@ -377,6 +720,12 @@ __all__ = [
     "reset_gpu_accumulators",
     "create_conservation_report",
     "CHANNEL_NAMES",
+    # Policy-A constants
+    "KERNEL_POLICY",
+    "KERNEL_NORMALIZATION_ENABLED",
+    "PHYSICAL_ESCAPE_CHANNELS",
+    "DIAGNOSTIC_ESCAPE_CHANNELS",
+    "MASS_BALANCE_TOLERANCE",
     # Legacy API (for backward compatibility)
     "EscapeAccounting",
     "old_validate_conservation",

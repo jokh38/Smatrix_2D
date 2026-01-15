@@ -5,7 +5,13 @@ This module provides validation functions for simulation configurations.
 It includes invariant checking, cross-validation, and safety checks.
 
 Import Policy:
-    from smatrix_2d.config.validation import validate_config, check_invariants, warn_if_unsafe
+    from smatrix_2d.config.validation import (
+        validate_config,
+        check_invariants,
+        warn_if_unsafe,
+        ConfigValidator,
+        ConfigValidationError
+    )
 
 DO NOT use: from smatrix_2d.config.validation import *
 """
@@ -27,6 +33,196 @@ class ConfigurationWarning(Warning):
     """Warning for potentially unsafe configuration choices."""
 
     pass
+
+
+class ConfigValidationError(Exception):
+    """Exception raised for configuration validation errors.
+
+    This exception wraps one or more validation error messages.
+    """
+
+    def __init__(self, errors: list[str]):
+        """Initialize validation error.
+
+        Args:
+            errors: List of error messages
+        """
+        self.errors = errors
+        message = "Configuration validation failed:\n" + "\n".join(f"  - {err}" for err in errors)
+        super().__init__(message)
+
+
+class ConfigValidator:
+    """Centralized validator for simulation configuration parameters.
+
+    This class provides static validation methods for different aspects
+    of the simulation configuration. Each method validates a specific
+    subset of parameters and returns a list of error messages.
+
+    Usage:
+        >>> validator = ConfigValidator()
+        >>> errors = validator.validate_energy_config(E_min=1.0, E_cutoff=2.0, E_max=100.0)
+        >>> if errors:
+        ...     raise ConfigValidationError(errors)
+    """
+
+    def validate_energy_config(
+        self, E_min: float, E_cutoff: float, E_max: float
+    ) -> list[str]:
+        """Validate energy grid configuration.
+
+        This method checks:
+        1. E_cutoff > E_min (critical for numerical stability)
+        2. E_cutoff < E_max (cutoff must be within grid)
+        3. E_cutoff - E_min >= 1.0 MeV (minimum buffer to prevent edge artifacts)
+
+        Args:
+            E_min: Minimum energy in the grid (MeV)
+            E_cutoff: Energy cutoff threshold (MeV)
+            E_max: Maximum energy in the grid (MeV)
+
+        Returns:
+            List of error messages (empty if valid)
+        """
+        errors = []
+
+        # Check 1: E_cutoff must be > E_min
+        if E_cutoff <= E_min:
+            errors.append(
+                f"E_cutoff ({E_cutoff} MeV) must be > E_min ({E_min} MeV) "
+                "to avoid numerical instability at grid edges"
+            )
+
+        # Check 2: E_cutoff must be < E_max
+        if E_cutoff >= E_max:
+            errors.append(
+                f"E_cutoff ({E_cutoff} MeV) must be < E_max ({E_max} MeV)"
+            )
+
+        # Check 3: Minimum buffer enforcement
+        buffer = E_cutoff - E_min
+        if buffer < DEFAULT_E_BUFFER_MIN:
+            errors.append(
+                f"E_cutoff - E_min buffer ({buffer:.2f} MeV) is below minimum "
+                f"({DEFAULT_E_BUFFER_MIN} MeV). This causes numerical instability "
+                "at grid edges. Increase E_cutoff or decrease E_min."
+            )
+
+        return errors
+
+    def validate_spatial_config(
+        self, delta_s: float, delta_x: float, delta_z: float
+    ) -> list[str]:
+        """Validate spatial and transport step configuration.
+
+        This method checks:
+        1. delta_s <= min(delta_x, delta_z) to avoid bin-skipping artifacts
+
+        The transport step size should be smaller than or equal to the
+        spatial resolution to prevent particles from skipping over grid cells.
+
+        Args:
+            delta_s: Transport step size (mm)
+            delta_x: Spatial resolution in x direction (mm)
+            delta_z: Spatial resolution in z direction (mm)
+
+        Returns:
+            List of error messages (empty if valid)
+        """
+        errors = []
+
+        # Calculate minimum spatial resolution
+        min_delta = min(delta_x, delta_z)
+
+        # Check: delta_s should be <= min spatial resolution
+        if delta_s > min_delta:
+            errors.append(
+                f"delta_s ({delta_s} mm) should be <= min(delta_x, delta_z) ({min_delta} mm) "
+                "to avoid bin-skipping artifacts. Decrease delta_s or increase spatial resolution."
+            )
+
+        return errors
+
+    def validate_grid_dimensions(
+        self, Nx: int, Nz: int, Ntheta: int, Ne: int
+    ) -> list[str]:
+        """Validate grid dimension parameters.
+
+        This method checks that all grid dimensions are positive integers.
+        Grid dimensions must be > 0 to be physically meaningful.
+
+        Args:
+            Nx: Number of spatial grid points in x direction
+            Nz: Number of spatial grid points in z direction
+            Ntheta: Number of angular bins
+            Ne: Number of energy bins
+
+        Returns:
+            List of error messages (empty if valid)
+        """
+        errors = []
+
+        # Check all dimensions are > 0
+        if Nx <= 0:
+            errors.append(f"Nx must be > 0, got {Nx}")
+
+        if Nz <= 0:
+            errors.append(f"Nz must be > 0, got {Nz}")
+
+        if Ntheta <= 0:
+            errors.append(f"Ntheta must be > 0, got {Ntheta}")
+
+        if Ne <= 0:
+            errors.append(f"Ne must be > 0, got {Ne}")
+
+        return errors
+
+    def validate_all(
+        self,
+        # Energy parameters
+        E_min: float,
+        E_cutoff: float,
+        E_max: float,
+        # Spatial parameters
+        delta_s: float,
+        delta_x: float,
+        delta_z: float,
+        # Grid dimensions
+        Nx: int,
+        Nz: int,
+        Ntheta: int,
+        Ne: int,
+    ) -> list[str]:
+        """Validate all configuration parameters.
+
+        This is a convenience method that runs all validation checks.
+
+        Args:
+            E_min: Minimum energy in the grid (MeV)
+            E_cutoff: Energy cutoff threshold (MeV)
+            E_max: Maximum energy in the grid (MeV)
+            delta_s: Transport step size (mm)
+            delta_x: Spatial resolution in x direction (mm)
+            delta_z: Spatial resolution in z direction (mm)
+            Nx: Number of spatial grid points in x direction
+            Nz: Number of spatial grid points in z direction
+            Ntheta: Number of angular bins
+            Ne: Number of energy bins
+
+        Returns:
+            List of error messages (empty if valid)
+
+        Raises:
+            ConfigValidationError: If any validation fails
+        """
+        errors = []
+
+        # Run all validation checks
+        errors.extend(self.validate_energy_config(E_min, E_cutoff, E_max))
+        errors.extend(self.validate_spatial_config(delta_s, delta_x, delta_z))
+        errors.extend(self.validate_grid_dimensions(Nx, Nz, Ntheta, Ne))
+
+        return errors
 
 
 def validate_config(config: SimulationConfig, raise_on_error: bool = True) -> Tuple[bool, List[str]]:

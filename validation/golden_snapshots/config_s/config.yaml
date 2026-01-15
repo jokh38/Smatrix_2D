@@ -1,0 +1,9 @@
+E_cutoff: 2.0
+E_max: 70.0
+E_min: 1.0
+Ne: 35
+Ntheta: 45
+Nx: 32
+Nz: 32
+delta_s: 1.0
+sync_interval: 0

@@ -23,6 +23,7 @@ from typing import Dict, Any, Optional, Tuple, List
 from pathlib import Path
 import numpy as np
 import yaml
+import json
 
 
 @dataclass
@@ -94,15 +95,23 @@ class GoldenSnapshot:
     psi_final: Optional[np.ndarray] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def save(self, directory: Path) -> None:
+    def save(self, directory: Path, format_version: str = "v2") -> None:
         """Save snapshot to directory.
 
         Args:
             directory: Directory to save snapshot (will be created if needed)
+            format_version: Snapshot format version ("v1" for results.npz, "v2" for separate files)
 
-        Creates:
+        Creates (v2 format, R-PROF-002 compliant):
+            {directory}/{name}/config.yaml
+            {directory}/{name}/dose.npy
+            {directory}/{name}/escapes.npy
+            {directory}/{name}/metadata.json
+
+        Creates (v1 format, legacy):
             {directory}/{name}/config.yaml
             {directory}/{name}/results.npz
+            {directory}/{name}/metadata.yaml
         """
         snapshot_dir = directory / self.name
         snapshot_dir.mkdir(parents=True, exist_ok=True)
@@ -112,41 +121,74 @@ class GoldenSnapshot:
         with open(config_path, 'w') as f:
             yaml.dump(self.config, f)
 
-        # Save results
-        results_path = snapshot_dir / "results.npz"
-        save_dict = {
-            'dose_final': self.dose_final,
-            'escapes': self.escapes,
-        }
-        if self.psi_final is not None:
-            save_dict['psi_final'] = self.psi_final
+        if format_version == "v2":
+            # Save separate files per R-PROF-002 specification
+            dose_path = snapshot_dir / "dose.npy"
+            np.save(dose_path, self.dose_final)
 
-        np.savez_compressed(results_path, **save_dict)
+            escapes_path = snapshot_dir / "escapes.npy"
+            np.save(escapes_path, self.escapes)
 
-        # Save metadata (convert numpy types to Python types)
-        if self.metadata:
-            metadata_path = snapshot_dir / "metadata.yaml"
-            # Convert numpy types to Python native types for YAML serialization
-            metadata_clean = {}
-            for key, value in self.metadata.items():
-                # Handle all numpy scalar types (bool, int, float, etc.)
-                if isinstance(value, (np.number, np.bool_)):
-                    metadata_clean[key] = value.item()  # Convert numpy scalar to Python type
-                elif isinstance(value, np.ndarray):
-                    metadata_clean[key] = value.tolist()
-                elif isinstance(value, dict):
-                    # Recursively clean dictionaries
-                    metadata_clean[key] = {}
-                    for k2, v2 in value.items():
-                        if isinstance(v2, (np.number, np.bool_)):
-                            metadata_clean[key][k2] = v2.item()
-                        else:
-                            metadata_clean[key][k2] = v2
-                else:
-                    metadata_clean[key] = value
+            # Optionally save psi_final (large file)
+            if self.psi_final is not None:
+                psi_path = snapshot_dir / "psi_final.npy"
+                np.save(psi_path, self.psi_final)
 
-            with open(metadata_path, 'w') as f:
-                yaml.dump(metadata_clean, f)
+            # Save metadata as JSON per R-PROF-002
+            if self.metadata:
+                metadata_path = snapshot_dir / "metadata.json"
+                # Convert numpy types to Python native types for JSON serialization
+                metadata_clean = self._clean_metadata_for_json(self.metadata)
+                with open(metadata_path, 'w') as f:
+                    json.dump(metadata_clean, f, indent=2)
+        else:
+            # Legacy v1 format (combined results.npz)
+            results_path = snapshot_dir / "results.npz"
+            save_dict = {
+                'dose_final': self.dose_final,
+                'escapes': self.escapes,
+            }
+            if self.psi_final is not None:
+                save_dict['psi_final'] = self.psi_final
+
+            np.savez_compressed(results_path, **save_dict)
+
+            # Save metadata as YAML (legacy)
+            if self.metadata:
+                metadata_path = snapshot_dir / "metadata.yaml"
+                metadata_clean = self._clean_metadata_for_json(self.metadata)
+                with open(metadata_path, 'w') as f:
+                    yaml.dump(metadata_clean, f)
+
+    def _clean_metadata_for_json(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Clean metadata to JSON-serializable format.
+
+        Converts numpy types to Python native types.
+
+        Args:
+            metadata: Raw metadata dict
+
+        Returns:
+            Cleaned metadata dict
+        """
+        metadata_clean = {}
+        for key, value in metadata.items():
+            # Handle all numpy scalar types (bool, int, float, etc.)
+            if isinstance(value, (np.number, np.bool_)):
+                metadata_clean[key] = value.item()  # Convert numpy scalar to Python type
+            elif isinstance(value, np.ndarray):
+                metadata_clean[key] = value.tolist()
+            elif isinstance(value, dict):
+                # Recursively clean dictionaries
+                metadata_clean[key] = {}
+                for k2, v2 in value.items():
+                    if isinstance(v2, (np.number, np.bool_)):
+                        metadata_clean[key][k2] = v2.item()
+                    else:
+                        metadata_clean[key][k2] = v2
+            else:
+                metadata_clean[key] = value
+        return metadata_clean
 
     @classmethod
     def load(cls, directory: Path, name: str) -> "GoldenSnapshot":
@@ -166,19 +208,43 @@ class GoldenSnapshot:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
 
-        # Load results
+        # Detect format version
+        dose_path = snapshot_dir / "dose.npy"
         results_path = snapshot_dir / "results.npz"
-        results = np.load(results_path)
-        dose_final = results['dose_final']
-        escapes = results['escapes']
-        psi_final = results.get('psi_final', None)
 
-        # Load metadata
-        metadata_path = snapshot_dir / "metadata.yaml"
-        metadata = {}
-        if metadata_path.exists():
-            with open(metadata_path, 'r') as f:
-                metadata = yaml.safe_load(f)
+        if dose_path.exists():
+            # V2 format: separate files
+            dose_final = np.load(dose_path)
+            escapes = np.load(snapshot_dir / "escapes.npy")
+
+            # Optional psi_final
+            psi_path = snapshot_dir / "psi_final.npy"
+            psi_final = np.load(psi_path) if psi_path.exists() else None
+
+            # Load JSON metadata
+            metadata_path = snapshot_dir / "metadata.json"
+            metadata = {}
+            if metadata_path.exists():
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+        elif results_path.exists():
+            # V1 format: combined results.npz
+            results = np.load(results_path)
+            dose_final = results['dose_final']
+            escapes = results['escapes']
+            psi_final = results.get('psi_final', None)
+
+            # Load YAML metadata
+            metadata_path = snapshot_dir / "metadata.yaml"
+            metadata = {}
+            if metadata_path.exists():
+                with open(metadata_path, 'r') as f:
+                    metadata = yaml.safe_load(f)
+        else:
+            raise FileNotFoundError(
+                f"Cannot find snapshot data files in {snapshot_dir}. "
+                f"Expected either dose.npy or results.npz"
+            )
 
         return cls(
             name=name,

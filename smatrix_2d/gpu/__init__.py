@@ -19,6 +19,16 @@ try:
 except ImportError:
     pass
 
+try:
+    from smatrix_2d.gpu.profiling import (
+        KernelTimer,
+        MemoryTracker,
+        Profiler,
+        profile_kernel,
+    )
+except ImportError:
+    pass
+
 __all__ = [
     'GPUMemoryLayout',
     'create_gpu_memory_layout',
@@ -28,5 +38,9 @@ __all__ = [
     'create_tile_manager',
     'GPUTransportStepV3',
     'create_gpu_transport_step_v3',
+    'KernelTimer',
+    'MemoryTracker',
+    'Profiler',
+    'profile_kernel',
     'GPU_AVAILABLE',
 ]

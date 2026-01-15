@@ -35,6 +35,7 @@ from smatrix_2d.operators.angular_scattering import AngularScatteringV2, Angular
 from smatrix_2d.operators.energy_loss import EnergyLossV2
 from smatrix_2d.operators.spatial_streaming import SpatialStreamingV2, StreamingResult
 from smatrix_2d.core.lut import StoppingPowerLUT
+from smatrix_2d.config.defaults import DEFAULT_NX, DEFAULT_NZ, DEFAULT_NE, DEFAULT_MAX_STEPS
 
 
 @dataclass
@@ -181,10 +182,10 @@ class TransportStepV2:
 
         # Accumulate escapes from all operators
         escapes = EscapeAccounting()
-        escapes.add(EscapeChannel.THETA_CUTOFF, theta_escape.sum_cutoff)
-        escapes.add(EscapeChannel.THETA_BOUNDARY, theta_escape.sum_boundary)
-        escapes.add(EscapeChannel.ENERGY_STOPPED, energy_escape)
-        escapes.add(EscapeChannel.SPATIAL_LEAKED, streaming_result.spatial_leaked)
+        escapes.add(OldEscapeChannel.THETA_CUTOFF, theta_escape.sum_cutoff)
+        escapes.add(OldEscapeChannel.THETA_BOUNDARY, theta_escape.sum_boundary)
+        escapes.add(OldEscapeChannel.ENERGY_STOPPED, energy_escape)
+        escapes.add(OldEscapeChannel.SPATIAL_LEAKED, streaming_result.spatial_leaked)
 
         return psi_after_s, escapes
 
@@ -210,7 +211,7 @@ class TransportSimulationV2:
         grid: PhaseSpaceGridV2,
         material: MaterialProperties2D,
         delta_s: float = 1.0,
-        max_steps: int = 100,
+        max_steps: int = DEFAULT_MAX_STEPS,
         n_buckets: int = 32,
         k_cutoff: float = 5.0,
         stopping_power_lut: Optional[StoppingPowerLUT] = None,
@@ -222,7 +223,7 @@ class TransportSimulationV2:
             grid: Phase space grid (SPEC v2.1 compliant)
             material: Material properties
             delta_s: Step length [mm] (default: 1.0)
-            max_steps: Maximum number of steps (default: 100)
+            max_steps: Maximum number of steps (default: DEFAULT_MAX_STEPS from config)
             n_buckets: Number of sigma buckets for angular scattering
             k_cutoff: Kernel cutoff for angular scattering
             stopping_power_lut: Stopping power lookup table
@@ -382,10 +383,10 @@ class TransportSimulationV2:
             # Convert escapes_gpu array to EscapeAccounting
             escapes_cpu = self.gpu_accumulators.get_escapes_cpu()
             escapes = EscapeAccounting(
-                theta_boundary=escapes_cpu[EscapeChannel.THETA_BOUNDARY],
-                theta_cutoff=escapes_cpu[EscapeChannel.THETA_CUTOFF],
-                energy_stopped=escapes_cpu[EscapeChannel.ENERGY_STOPPED],
-                spatial_leaked=escapes_cpu[EscapeChannel.SPATIAL_LEAK],
+                theta_boundary=escapes_cpu[EscapeChannel.THETA_BOUNDARY.value],
+                theta_cutoff=escapes_cpu[EscapeChannel.THETA_CUTOFF.value],
+                energy_stopped=escapes_cpu[EscapeChannel.ENERGY_STOPPED.value],
+                spatial_leaked=escapes_cpu[EscapeChannel.SPATIAL_LEAK.value],
                 step_number=self.current_step + 1,
                 timestamp=self.current_step * self.delta_s
             )
@@ -546,12 +547,12 @@ class TransportSimulationV2:
 
 
 def create_transport_simulation(
-    Nx: int = 100,
-    Nz: int = 100,
+    Nx: int = DEFAULT_NX,
+    Nz: int = DEFAULT_NZ,
     Ntheta: int = 180,
-    Ne: int = 100,
+    Ne: int = DEFAULT_NE,
     delta_s: Optional[float] = None,  # Uses DEFAULT_DELTA_S from config if None
-    max_steps: int = 100,
+    max_steps: int = DEFAULT_MAX_STEPS,
     material: Optional[MaterialProperties2D] = None,
     stopping_power_lut: Optional[StoppingPowerLUT] = None,
     use_gpu: bool = True,
@@ -561,12 +562,12 @@ def create_transport_simulation(
     Convenience function for creating a simulation with standard parameters.
 
     Args:
-        Nx: Number of x bins (default: 100)
-        Nz: Number of z bins (default: 100)
+        Nx: Number of x bins (default: DEFAULT_NX from config)
+        Nz: Number of z bins (default: DEFAULT_NZ from config)
         Ntheta: Number of angular bins (default: 180)
-        Ne: Number of energy bins (default: 100)
-        delta_s: Step length [mm] (default: 1.0)
-        max_steps: Maximum number of steps (default: 100)
+        Ne: Number of energy bins (default: DEFAULT_NE from config)
+        delta_s: Step length [mm] (default: DEFAULT_DELTA_S from config)
+        max_steps: Maximum number of steps (default: DEFAULT_MAX_STEPS from config)
         material: Material properties (default: water)
         stopping_power_lut: Stopping power LUT (default: water)
         use_gpu: Use GPU acceleration if available (default: True)

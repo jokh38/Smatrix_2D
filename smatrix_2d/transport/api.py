@@ -34,12 +34,13 @@ from smatrix_2d.transport.simulation import (
     create_default_config,
 )
 from smatrix_2d.config import SimulationConfig, create_validated_config
+from smatrix_2d.config.defaults import DEFAULT_NX, DEFAULT_NZ, DEFAULT_NE
 
 
 def run_simulation(
-    Nx: int = 100,
-    Nz: int = 100,
-    Ne: int = 100,
+    Nx: int = DEFAULT_NX,
+    Nz: int = DEFAULT_NZ,
+    Ne: int = DEFAULT_NE,
     Ntheta: int = 180,
     E_beam: float = 70.0,
     n_steps: Optional[int] = None,
@@ -266,12 +267,12 @@ Examples:
     )
 
     # Grid parameters
-    parser.add_argument('--Nx', type=int, default=100,
-                       help='Number of x bins (default: 100)')
-    parser.add_argument('--Nz', type=int, default=100,
-                       help='Number of z bins (default: 100)')
-    parser.add_argument('--Ne', type=int, default=100,
-                       help='Number of energy bins (default: 100)')
+    parser.add_argument('--Nx', type=int, default=DEFAULT_NX,
+                       help=f'Number of x bins (default: {DEFAULT_NX})')
+    parser.add_argument('--Nz', type=int, default=DEFAULT_NZ,
+                       help=f'Number of z bins (default: {DEFAULT_NZ})')
+    parser.add_argument('--Ne', type=int, default=DEFAULT_NE,
+                       help=f'Number of energy bins (default: {DEFAULT_NE})')
     parser.add_argument('--Ntheta', type=int, default=180,
                        help='Number of angular bins (default: 180)')
 

@@ -1,6 +1,16 @@
-"""Escape accounting system for particle conservation tracking.
+"""DEPRECATED: Escape accounting system for particle conservation tracking.
 
-This module implements the escape accounting system as specified in SPEC v2.1 Section 7.
+.. deprecated::
+    This module is deprecated. Use :mod:`smatrix_2d.core.accounting` instead.
+
+Migration Guide:
+    - Replace ``from smatrix_2d.core.escape_accounting import EscapeChannel``
+      with ``from smatrix_2d.core.accounting import EscapeChannel``
+    - The new ``EscapeChannel`` is an IntEnum with 5 channels (includes RESIDUAL)
+    - Use ``ConservationReport`` instead of ``EscapeAccounting`` for new code
+    - Old ``EscapeAccounting`` class is still available for backward compatibility
+
+This legacy module implements the escape accounting system as specified in SPEC v2.1 Section 7.
 It tracks four channels of particle loss from the transport system:
 - THETA_CUTOFF: Loss from Gaussian kernel truncation at ±k*sigma
 - THETA_BOUNDARY: Additional loss at angular edges (0°, 180°)
@@ -11,6 +21,7 @@ The system provides conservation validation and reporting to ensure mass balance
 throughout the transport simulation.
 """
 
+import warnings
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
@@ -35,6 +46,9 @@ class EscapeChannel(Enum):
 class EscapeAccounting:
     """Accounting for all particle escape channels.
 
+    .. deprecated::
+        Use :class:`smatrix_2d.core.accounting.ConservationReport` instead.
+
     Tracks the accumulated weight/particles lost through each escape mechanism.
     Supports addition, validation, and reporting for conservation checking.
 
@@ -52,6 +66,15 @@ class EscapeAccounting:
     spatial_leaked: float = 0.0
     step_number: int = 0
     timestamp: float = 0.0
+
+    def __post_init__(self):
+        """Emit deprecation warning on instantiation."""
+        warnings.warn(
+            "escape_accounting.py is deprecated. Use smatrix_2d.core.accounting instead. "
+            "Replace EscapeAccounting with ConservationReport for new code.",
+            DeprecationWarning,
+            stacklevel=2
+        )
 
     def total_escape(self) -> float:
         """Calculate total escape across all channels.

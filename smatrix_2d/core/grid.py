@@ -13,6 +13,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
+# Import default grid dimensions from config SSOT (R-CFG-001 compliance)
+from smatrix_2d.config.defaults import DEFAULT_NX, DEFAULT_NZ, DEFAULT_NE
+
 
 class EnergyGridType(Enum):
     """Energy grid generation strategies."""
@@ -69,7 +72,8 @@ class GridSpecsV2:
 
     E_min: float = 0.0
     E_max: float = 100.0
-    E_cutoff: float = 1.0
+    # Import from SSOT (defaults.py) - R-CFG-001 compliance
+    E_cutoff: float = 2.0  # DEFAULT_E_CUTOFF from config/defaults.py
 
     energy_grid_type: EnergyGridType = EnergyGridType.UNIFORM
     use_texture_memory: bool = False
@@ -137,6 +141,111 @@ class GridSpecsV2:
     def total_bins(self) -> int:
         """Total number of bins in phase space."""
         return self.Ne * self.Ntheta * self.Nz * self.Nx
+
+    @classmethod
+    def from_simulation_config(cls, config: "SimulationConfig") -> "GridSpecsV2":
+        """Create GridSpecsV2 from SimulationConfig (R-CFG-003).
+
+        This factory function extracts grid parameters from SimulationConfig.grid
+        and creates a GridSpecsV2 instance with proper parameter mapping.
+
+        Args:
+            config: SimulationConfig instance containing GridConfig
+
+        Returns:
+            GridSpecsV2 instance with parameters from SimulationConfig
+
+        Example:
+            >>> from smatrix_2d.config.simulation_config import SimulationConfig
+            >>> config = SimulationConfig()
+            >>> grid_specs = GridSpecsV2.from_simulation_config(config)
+        """
+        from smatrix_2d.config.simulation_config import SimulationConfig
+
+        if not isinstance(config, SimulationConfig):
+            raise TypeError(
+                f"Expected SimulationConfig, got {type(config).__name__}"
+            )
+
+        grid = config.grid
+
+        # Calculate spatial spacing from domain bounds
+        delta_x = (grid.x_max - grid.x_min) / grid.Nx
+        delta_z = (grid.z_max - grid.z_min) / grid.Nz
+
+        # Convert energy_grid_type enum to EnergyGridType if needed
+        # Handle both string and enum types from config.enums
+        config_energy_type = grid.energy_grid_type
+        if isinstance(config_energy_type, str):
+            energy_grid_type = EnergyGridType(config_energy_type)
+        else:
+            # Map from config.enums.EnergyGridType to core.grid.EnergyGridType
+            energy_type_str = config_energy_type.value
+            energy_grid_type = EnergyGridType(energy_type_str)
+
+        return cls(
+            Nx=grid.Nx,
+            Nz=grid.Nz,
+            Ntheta=grid.Ntheta,
+            Ne=grid.Ne,
+            delta_x=delta_x,
+            delta_z=delta_z,
+            x_min=grid.x_min,
+            x_max=grid.x_max,
+            z_min=grid.z_min,
+            z_max=grid.z_max,
+            theta_min=grid.theta_min,
+            theta_max=grid.theta_max,
+            E_min=grid.E_min,
+            E_max=grid.E_max,
+            E_cutoff=grid.E_cutoff,
+            energy_grid_type=energy_grid_type,
+            use_texture_memory=False,  # Default, can be overridden
+        )
+
+    def to_simulation_config(self) -> "SimulationConfig":
+        """Create SimulationConfig from GridSpecsV2 (R-CFG-003).
+
+        This reverse factory creates a SimulationConfig with GridConfig populated
+        from this GridSpecsV2 instance. Other config sections use defaults.
+
+        Returns:
+            SimulationConfig with GridConfig from this instance
+
+        Example:
+            >>> grid_specs = GridSpecsV2(Nx=100, Nz=100, ...)
+            >>> config = grid_specs.to_simulation_config()
+        """
+        from smatrix_2d.config.simulation_config import (
+            SimulationConfig,
+            GridConfig,
+        )
+        from smatrix_2d.config.enums import EnergyGridType as ConfigEnergyGridType
+
+        # Convert energy_grid_type from core.grid.EnergyGridType to config.enums.EnergyGridType
+        grid_energy_type_str = self.energy_grid_type.value
+        config_energy_type = ConfigEnergyGridType(grid_energy_type_str)
+
+        # Create GridConfig from this instance
+        grid_config = GridConfig(
+            Nx=self.Nx,
+            Nz=self.Nz,
+            x_min=self.x_min,
+            x_max=self.x_max,
+            z_min=self.z_min,
+            z_max=self.z_max,
+            Ntheta=self.Ntheta,
+            theta_min=self.theta_min,
+            theta_max=self.theta_max,
+            Ne=self.Ne,
+            E_min=self.E_min,
+            E_max=self.E_max,
+            E_cutoff=self.E_cutoff,
+            energy_grid_type=config_energy_type,
+        )
+
+        # Create SimulationConfig with populated grid and defaults for others
+        return SimulationConfig(grid=grid_config)
 
 
 @dataclass
@@ -328,10 +437,10 @@ def create_phase_space_grid(specs: GridSpecsV2) -> PhaseSpaceGridV2:
 
 
 def create_default_grid_specs(
-    Nx: int = 100,
-    Nz: int = 100,
+    Nx: int = DEFAULT_NX,
+    Nz: int = DEFAULT_NZ,
     Ntheta: int = 180,
-    Ne: int = 100,
+    Ne: int = DEFAULT_NE,
     use_texture_memory: bool = False,
 ) -> GridSpecsV2:
     """Create default GridSpecsV2 following SPEC v2.1 baseline.
@@ -346,7 +455,7 @@ def create_default_grid_specs(
     Returns:
         GridSpecsV2 configured for SPEC v2.1 baseline grid
     """
-    # Import default constants from config SSOT
+    # Import remaining default constants from config SSOT
     from smatrix_2d.config.defaults import (
         DEFAULT_E_MIN, DEFAULT_E_MAX, DEFAULT_E_CUTOFF,
         DEFAULT_DELTA_X, DEFAULT_DELTA_Z,

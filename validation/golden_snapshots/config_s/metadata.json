@@ -1,0 +1,11 @@
+{
+  "description": "Config-S: 32x32 grid, 45 angles, 35 energies (DOC-1 Phase A)",
+  "n_steps": 20,
+  "runtime_seconds": 0.03695869445800781,
+  "conservation_valid": true,
+  "timestamp": "2026-01-15T09:19:01.049630",
+  "gpu_name": "NVIDIA GeForce RTX 2080",
+  "cuda_version": "12.9",
+  "cupy_version": "13.6.0",
+  "version": "2.0"
+}
