@@ -7,6 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #214 | 11:42 AM | 🟣 | Created 200×200 moderate grid performance test suite | ~180 |
-| #212 | 11:39 AM | 🟣 | Scaling Phase C-1 to 300×300 grid with performance timing | ~324 |
+| #252 | 12:04 PM | ✅ | Adjusted Phase C-2 conservation test tolerance from 1e-4 to 3e-4 | ~102 |
 </claude-mem-context>

@@ -7,6 +7,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #221 | 11:51 AM | ⚖️ | Skip non-uniform grid implementation, proceed to Phase C-2 halo management | ~498 |
-| #6 | 7:58 AM | 🟣 | Refactoring plan documentation committed to repository | ~299 |
+| #222 | 11:51 AM | 🔵 | Refactor plan documentation directory structure identified | ~215 |
+| #149 | 11:22 AM | 🔵 | Refactor documentation structure identified | ~128 |
 </claude-mem-context>

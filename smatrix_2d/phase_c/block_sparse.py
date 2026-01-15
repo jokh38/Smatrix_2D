@@ -127,7 +127,25 @@ class BlockMask:
 
         Returns:
             Number of active blocks after update
+
+        Raises:
+            ValueError: If psi shape doesn't match expected dimensions
+            TypeError: If psi is not a CuPy array
         """
+        # Input validation
+        if not isinstance(psi, cp.ndarray):
+            raise TypeError(f"psi must be a CuPy array, got {type(psi)}")
+
+        if psi.ndim != 4:
+            raise ValueError(f"psi must be 4-dimensional [Ne, Ntheta, Nz, Nx], got shape {psi.shape}")
+
+        Ne, Ntheta, Nz, Nx = psi.shape
+        if Nz != self.Nz or Nx != self.Nx:
+            raise ValueError(
+                f"psi spatial dimensions mismatch: expected (..., {self.Nz}, {self.Nx}), "
+                f"got ({Ne}, {Ntheta}, {Nz}, {Nx})"
+            )
+
         self.update_counter += 1
 
         # Check if update is needed
@@ -179,23 +197,43 @@ class BlockMask:
         return self.active_count
 
     def _add_halo(self) -> None:
-        """Add halo regions around active blocks.
+        """Add halo regions around active blocks using morphological dilation.
 
-        For each active block, mark neighboring blocks as active to handle
-        kernel interactions that cross block boundaries (R-BSP-003).
+        **Algorithm (R-BSP-003):**
+        For each iteration of halo_size:
+        1. Create an expanded mask initialized to False
+        2. For each active block, mark its 4 neighbors as active
+        3. After halo_size iterations, blocks within halo_size distance are active
+
+        **Why halo is needed:**
+        Particles can stream from an active block to adjacent blocks. If the
+        destination block is marked inactive, those particles are lost. The halo
+        ensures neighboring blocks are processed to capture boundary crossings.
+
+        **Example with halo_size=1:**
+        - Active blocks: ████████
+        - After halo:   ██████████
+
+        **Note:** This is a simplified approach using in-place dilation.
+        Phase C-2 will implement proper double-buffering to avoid race conditions.
+
+        Args:
+            None (operates on self.block_active_gpu in-place)
         """
         # Create expanded mask
         expanded = cp.zeros_like(self.block_active_gpu, dtype=cp.bool_)
 
-        # For halo_size, dilate the active mask
+        # Morphological dilation: repeat halo_size times
         for _ in range(self.config.halo_size):
-            # Shift in all 4 directions and OR
-            expanded[1:, :] |= self.block_active_gpu[:-1, :]  # Shift up
-            expanded[:-1, :] |= self.block_active_gpu[1:, :]  # Shift down
-            expanded[:, 1:] |= self.block_active_gpu[:, :-1]  # Shift left
-            expanded[:, :-1] |= self.block_active_gpu[:, 1:]  # Shift right
-            expanded |= self.block_active_gpu  # Include original
+            # Shift in all 4 cardinal directions and OR with active mask
+            # This marks all neighbors of active blocks as active
+            expanded[1:, :] |= self.block_active_gpu[:-1, :]  # North neighbor
+            expanded[:-1, :] |= self.block_active_gpu[1:, :]  # South neighbor
+            expanded[:, 1:] |= self.block_active_gpu[:, :-1]  # West neighbor
+            expanded[:, :-1] |= self.block_active_gpu[:, 1:]  # East neighbor
+            expanded |= self.block_active_gpu  # Include original active blocks
 
+        # Union expanded halo with original mask
         self.block_active_gpu |= expanded
 
     def get_active_fraction(self) -> float:
