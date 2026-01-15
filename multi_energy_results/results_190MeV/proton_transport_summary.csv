@@ -1,0 +1,31 @@
+Parameter,Value,Unit
+BEAM PARAMETERS,,
+Initial Energy,190.0,MeV
+Initial Weight,1.0,-
+GRID PARAMETERS,,
+X Range,0.0-40.0,mm
+Z Range,0.0-90.0,mm
+Delta X,1.0,mm
+Delta Z,1.0,mm
+NX,40,-
+NZ,90,-
+Energy Range,1.0-190.0,MeV
+Delta E,0.2,MeV
+NE,945,-
+Energy Cutoff,2.0,MeV
+Angular Center,90.0,degrees
+Angular Half Range,20.0,degrees
+Delta Theta,1.0,degrees
+NTheta,40,-
+RESULTS,,
+Bragg Peak Position,89.5000,mm
+Peak Dose,9.64041352e-01,MeV
+FWHM,89.0000,mm
+Total Dose Deposited,7.15386124e+01,MeV
+Final Weight,1.08945244e-07,-
+Total Escape,9.99999881e-01,-
+DOSE STATISTICS,,
+Max Dose,6.60426795e-01,MeV
+Min Dose (non-zero),8.55453837e-13,MeV
+Mean Dose,1.98718365e-02,MeV
+Std Dose,7.94366747e-02,MeV

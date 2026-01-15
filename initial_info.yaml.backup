@@ -1,0 +1,209 @@
+# Particle Transport Simulation Configuration
+# GPU-optimized Monte Carlo transport for proton therapy dose calculation
+
+# =============================================================================
+# INITIAL PARTICLE STATE
+# =============================================================================
+particle:
+  # Initial beam energy
+  energy:
+    value: 70.0          # MeV
+    unit: MeV
+    description: "Initial proton beam energy"
+
+  # Initial beam angle (measured from +x axis, 90° = +z direction)
+  angle:
+    value: 90.0          # degrees
+    unit: degrees
+    description: "Initial beam direction (90° = along +z axis)"
+
+  # Initial spatial position
+  position:
+    x:
+      value: 6.0         # mm (center of [0, 12] mm domain)
+      unit: mm
+      description: "Initial lateral position (center of x-domain)"
+    z:
+      value: 0.0         # mm
+      unit: mm
+      description: "Initial depth position (entry surface)"
+
+  # Initial particle weight
+  weight:
+    value: 1.0           # dimensionless
+    description: "Initial particle weight (normalized to 1)"
+
+# =============================================================================
+# SPATIAL GRID CONFIGURATION
+# =============================================================================
+grid:
+  spatial:
+    x:
+      min: 0.0           # mm (keep original for now to isolate Bug #1)
+      max: 12.0          # mm
+      delta: 1.0         # mm (ADJUSTED: 1.0mm for memory efficiency)
+      unit: mm
+      description: "Lateral domain (perpendicular to beam direction)"
+
+    z:
+      min: 0.0           # mm
+      max: 50.0          # mm
+      delta: 1.0         # mm (ADJUSTED: 1.0mm for memory efficiency)
+      unit: mm
+      description: "Depth domain (along beam direction)"
+
+  # Angular grid (scattering angle distribution)
+  angular:
+    center: 90.0         # degrees (beam direction)
+    half_range: 20.0     # degrees (keep original to isolate Bug #1)
+    delta: 1.0           # degrees (ADJUSTED: 1.0° for memory efficiency)
+    unit: degrees
+    description: "Angular scattering domain (θ = center ± half_range)"
+
+  # Energy grid (energy loss straggling)
+  energy:
+    min: 1.0             # MeV (FIXED: E=0 causes numerical instability in stopping power)
+    max: 70.0            # MeV
+    delta: 0.2           # MeV (TEST: Very fine energy resolution for best energy conservation)
+    cutoff: 2.0          # MeV (particles below this energy are absorbed)
+    unit: MeV
+    description: "Energy loss domain (Bethe-Bloch formula)"
+
+# =============================================================================
+# RESOLUTION CONSISTENCY
+# =============================================================================
+resolution:
+  # Spatial resolution (PRIMARY - drives other parameters)
+  spatial:
+    x: 0.5          # mm - lateral grid spacing
+    z: 0.5          # mm - depth grid spacing
+    unit: mm
+    description: "Spatial grid resolution (primary parameter)"
+
+  # Propagation step (DERIVED from spatial resolution)
+  propagation:
+    mode: "auto"    # Options: "auto" (match spatial), "manual" (use value)
+    value: null     # Used only when mode="manual" [mm]
+    multiplier: 1.0 # When mode="auto": delta_s = min(delta_x, delta_z) * multiplier
+    description: "Transport step size (auto-derived from spatial resolution)"
+
+  # Sub-cycling (DERIVED automatically)
+  sub_cycling:
+    enabled: true   # Enable sub-cycling to prevent bin-skipping
+    description: "Automatically calculate sub-steps to match spatial resolution"
+
+# =============================================================================
+# NUMERICAL CONFIGURATION
+# =============================================================================
+numerical:
+  safeguards:
+    beta_sq_minimum: 1.0e-12
+    log_argument_minimum: 1.0e-12
+    dose_threshold: 1.0e-6
+    weight_threshold: 1.0e-6
+    description: "Numerical safeguards to prevent division by zero and underflow"
+
+  scattering:
+    highland_log_coefficient: 0.038
+    scattering_probability_minimum: 1.0e-12
+    description: "Highland formula parameters for multiple Coulomb scattering"
+
+  energy_loss:
+    bethe_bloch_calibration: 55.9  # Material-specific calibration factor
+    description: "Bethe-Bloch formula calibration for water"
+
+# =============================================================================
+# SIMULATION PARAMETERS
+# =============================================================================
+simulation:
+  # Convergence criteria
+  convergence:
+    min_weight: 1.0e-4   # Stop when total weight falls below this threshold
+    description: "Minimum active weight for simulation continuation"
+
+  # Angular scattering model
+  scattering:
+    model: "Highland"    # Highland formula for multiple Coulomb scattering
+    formula: "sigma_theta = 0.5 * sqrt(delta_z / E)"
+    description: "RMS scattering angle per step"
+
+  # Energy loss model
+  energy_loss:
+    model: "Bethe-Bloch"
+    material: "H2O"      # Water (liquid)
+    description: "Bhe stopping power formula for protons in water"
+
+# =============================================================================
+# GPU CONFIGURATION
+# =============================================================================
+gpu:
+  # CUDA kernel configuration
+  kernel:
+    block_size_x: 16
+    block_size_y: 16
+    block_size_z: 1
+    early_exit_threshold: 1.0e-12
+    description: "CUDA kernel launch configuration and numerical thresholds"
+
+  # Accumulation mode for atomic operations
+  accumulation_mode: "FAST"  # Options: FAST, DETERMINISTIC
+
+  # Memory management
+  memory_pool:
+    fraction: 0.8        # Use 80% of available VRAM
+    description: "Fraction of GPU memory to use for CuPy memory pool"
+
+  # Profiling (for performance analysis)
+  profiling:
+    enabled: true
+    description: "Enable per-operator timing statistics"
+
+# =============================================================================
+# OUTPUT CONFIGURATION
+# =============================================================================
+output:
+  # CSV data files
+  csv:
+    enabled: true
+    detailed_file: "proton_transport_steps.csv"
+    summary_file: "proton_transport_summary.csv"
+    description: "Save particle distribution data for each transport step"
+
+  # Figures
+  figures:
+    enabled: true
+    format: "png"        # Options: png, pdf, svg
+    dpi: 150
+    files:
+      depth_dose:
+        filename: "proton_pdd.png"
+        title: "Proton Percentage Depth Dose (PDD)"
+        description: "Depth-dose curve showing Bragg peak"
+      dose_map_2d:
+        filename: "proton_dose_map_2d.png"
+        title: "2D Dose Distribution"
+        description: "2D spatial dose distribution map"
+      lateral_spreading:
+        filename: "lateral_spreading_analysis.png"
+        title: "Lateral Spreading Analysis"
+        description: "Analysis of lateral beam spreading with depth"
+
+  # Console output verbosity
+  verbosity: 1           # 0=minimal, 1=normal, 2=verbose
+  description: "Level of detail for console output"
+
+# =============================================================================
+# METADATA
+# =============================================================================
+metadata:
+  simulation_type: "GPU Monte Carlo Particle Transport"
+  particle_type: "Proton"
+  target_material: "Water (Liquid)"
+  physics:
+    - "Multiple Coulomb scattering (Highland formula)"
+    - "Energy loss (Bethe-Bloch formula)"
+    - "Spatial streaming (theta-dependent transport)"
+    - "Lateral spreading (angular scattering → spatial dispersion)"
+  code_version: "Smatrix_2D v2.0"
+  date: "2026-01-10"
+  description: "GPU-accelerated proton pencil beam dose calculation with Phase P0 optimizations"

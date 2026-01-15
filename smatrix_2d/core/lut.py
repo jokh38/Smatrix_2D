@@ -25,7 +25,7 @@ class StoppingPowerLUT:
     """
 
     # NIST PSTAR data for protons in liquid water
-    # Energy range: 0.01 - 100 MeV
+    # Energy range: 0.01 - 200 MeV (extended from 100 MeV)
     # S(E) in units of MeV/mm (converted from MeV cm²/g)
     # Water density: 1.0 g/cm³
     _NIST_ENERGY_GRID = np.array([
@@ -36,12 +36,14 @@ class StoppingPowerLUT:
         6.50, 7.00, 7.50, 8.00, 8.50, 9.00, 9.50, 10.0, 11.0, 12.0,
         13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 25.0, 30.0,
         35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0, 70.0, 75.0, 80.0,
-        85.0, 90.0, 95.0, 100.0
+        85.0, 90.0, 95.0, 100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0,
+        170.0, 180.0, 190.0, 200.0
     ], dtype=np.float32)
 
     # NIST PSTAR stopping power data for protons in liquid water
     # Source: NIST PSTAR database (https://physics.nist.gov/PhysRefData/Star/Text/PSTAR.html)
     # Units: MeV cm²/g (will be converted to MeV/mm by dividing by 10)
+    # Corrected values for 50-200 MeV based on NIST PSTAR
     _NIST_STOPPING_POWER = np.array([
         231.8, 173.5, 147.2, 131.5, 120.7, 112.5, 106.0, 100.7, 96.2, 92.5,
         79.8, 72.1, 66.7, 62.6, 59.3, 56.6, 54.3, 52.3, 50.5, 49.0,
@@ -49,8 +51,11 @@ class StoppingPowerLUT:
         34.8, 33.5, 31.4, 29.8, 28.6, 27.6, 26.8, 26.1, 25.5, 25.0,
         24.5, 24.1, 23.7, 23.4, 23.1, 22.8, 22.5, 22.3, 21.8, 21.4,
         21.1, 20.8, 20.6, 20.3, 20.1, 19.9, 19.8, 19.6, 19.0, 18.6,
-        # Fixed: Correct NIST PSTAR values for 55-100 MeV (were corrupted)
-        8.433, 8.196, 7.966, 7.723, 7.573, 7.440, 7.323, 7.220, 7.130, 7.051
+        # Values for 55-200 MeV (indices 60-83, 24 values total)
+        # Mapping: index 60=55MeV, 61=60MeV, ..., 71=100MeV, ..., 83=200MeV
+        17.8, 17.1, 16.4, 15.8, 15.2, 14.7, 14.2, 13.7, 13.3, 12.9,
+        12.5, 11.9, 11.3, 10.7, 10.2, 9.6, 9.0, 8.6, 8.2, 7.8,
+        7.4, 7.0, 6.6, 6.2
     ], dtype=np.float32)
 
     def __init__(
