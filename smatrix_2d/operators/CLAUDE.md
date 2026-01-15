@@ -7,5 +7,9 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #184 | 11:29 AM | 🔵 | Spatial streaming operator review confirms gather formulation with bilinear interpolation for sub-grid accuracy | ~296 |
+| #175 | 11:28 AM | 🔵 | Spatial streaming operator implements gather-based advection with bilinear interpolation and ABSORB boundaries | ~308 |
+| #171 | 11:27 AM | 🔵 | Energy loss operator implements CSDA with conservative bin splitting and block-local reduction | ~306 |
+| #168 | 11:26 AM | 🔵 | Angular scattering operator implements gather formulation with normalized kernel and explicit escape accounting | ~319 |
 | #147 | 11:21 AM | 🟣 | Phase B-1: Tier-1 Scattering LUT Implementation Complete | ~303 |
 </claude-mem-context>

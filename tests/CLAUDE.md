@@ -7,6 +7,10 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #209 | 11:35 AM | 🔵 | Test suite README documents 99 total tests with 73 passing (74%), 26 failing (26%) due to known issues | ~69 |
+| #204 | 11:33 AM | 🔵 | Pytest configuration backup provides shared fixtures for grid, materials, constants, and initial state | ~297 |
+| #196 | 11:32 AM | 🔵 | Deprecated gather kernel tests document transition from V2 (gather) to V3 (scatter) implementation | ~280 |
+| #172 | 11:27 AM | 🔵 | Validation metrics test suite implements L2, Linf, gamma pass rate, convergence order, and rotational invariance checks | ~282 |
 | #55 | 8:17 AM | 🔵 | Comprehensive SPEC v2.1 Test Documentation Already Exists | ~356 |
 | #39 | 8:10 AM | 🔵 | Deprecated Test File Documents 32% Mass Inflation Bug Fixed by Scatter-Based Kernels | ~406 |
 | #31 | 8:06 AM | 🔵 | Integration Tests Include Conservation Checking with Relaxed Tolerances for Long Simulations | ~383 |

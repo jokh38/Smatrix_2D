@@ -7,7 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #147 | 11:21 AM | 🟣 | Phase B-1: Tier-1 Scattering LUT Implementation Complete | ~303 |
 | #83 | 11:05 AM | ✅ | Phase A validation suite fully implemented and passing | ~445 |
-| #81 | 9:33 AM | 🔴 | Golden snapshot test compatibility fixed | ~409 |
 </claude-mem-context>

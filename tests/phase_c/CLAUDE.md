@@ -7,5 +7,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #83 | 11:05 AM | ✅ | Phase A validation suite fully implemented and passing | ~445 |
+| #214 | 11:42 AM | 🟣 | Created 200×200 moderate grid performance test suite | ~180 |
+| #212 | 11:39 AM | 🟣 | Scaling Phase C-1 to 300×300 grid with performance timing | ~324 |
 </claude-mem-context>
