@@ -7,6 +7,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #462 | 4:42 PM | 🔵 | Phase C Performance Tests Validate Block-Sparse Optimization Targets | ~195 |
 | #270 | 12:15 PM | 🟣 | Phase C-2 implemented with dual block mask architecture for improved conservation | ~189 |
 | #252 | 12:04 PM | ✅ | Adjusted Phase C-2 conservation test tolerance from 1e-4 to 3e-4 | ~102 |
 </claude-mem-context>

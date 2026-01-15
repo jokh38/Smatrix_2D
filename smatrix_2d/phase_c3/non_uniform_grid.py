@@ -14,6 +14,15 @@ from dataclasses import dataclass
 from typing import Tuple, Optional
 import numpy as np
 
+# SSOT: Import default spatial grid values from defaults.py
+from smatrix_2d.config.defaults import (
+    DEFAULT_NX,
+    DEFAULT_NZ,
+    DEFAULT_SPATIAL_HALF_SIZE,
+    DEFAULT_DELTA_X,
+    DEFAULT_DELTA_Z,
+)
+
 try:
     import cupy as cp
     GPU_AVAILABLE = True
@@ -61,15 +70,15 @@ class NonUniformGridSpecs:
     theta_max: float = 120.0
     theta0: float = 90.0  # Beam direction
 
-    # Spatial grid (uniform)
-    Nx: int = 100
-    Nz: int = 100
-    x_min: float = -50.0
-    x_max: float = 50.0
+    # Spatial grid (uniform) - SSOT: Use defaults from config.defaults
+    Nx: int = DEFAULT_NX
+    Nz: int = DEFAULT_NZ
+    x_min: float = -DEFAULT_SPATIAL_HALF_SIZE
+    x_max: float = DEFAULT_SPATIAL_HALF_SIZE
     z_min: float = 0.0
-    z_max: float = 100.0
-    delta_x: float = 1.0
-    delta_z: float = 1.0
+    z_max: float = 2.0 * DEFAULT_SPATIAL_HALF_SIZE
+    delta_x: float = DEFAULT_DELTA_X
+    delta_z: float = DEFAULT_DELTA_Z
 
     # Energy grid (non-uniform)
     E_spacing_low: float = 0.2   # 2-10 MeV

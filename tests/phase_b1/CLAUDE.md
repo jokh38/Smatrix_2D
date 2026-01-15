@@ -7,6 +7,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #458 | 4:41 PM | 🔵 | Phase B-1 Benchmark Tests Document LUT Performance Characteristics | ~165 |
 | #170 | 11:26 AM | 🔵 | Phase B-1 scattering LUT tests validate accuracy with 1e-3 tolerance due to bucket discretization | ~52 |
 | #166 | " | 🔵 | Phase B-1 scattering LUT tests validate Highland formula accuracy within 1e-4 tolerance | ~277 |
 | #147 | 11:21 AM | 🟣 | Phase B-1: Tier-1 Scattering LUT Implementation Complete | ~303 |

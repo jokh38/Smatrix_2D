@@ -7,6 +7,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #452 | 4:40 PM | 🔵 | Phase A Conservation Tests Validate V-ACC-001 and V-ACC-002 | ~281 |
 | #199 | 11:32 AM | 🔵 | Phase A reproducibility tests verify GPU simulation consistency with 1e-7 tolerance allowing for floating-point variations | ~289 |
 | #191 | 11:30 AM | 🔵 | Phase A golden snapshot tests implement regression testing with dose L2 error and escape channel validation | ~28 |
 | #183 | 11:29 AM | 🔵 | Phase A conservation tests validate cumulative weight conservation and energy closure with relaxed tolerances | ~54 |

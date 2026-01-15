@@ -7,6 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #314 | 12:31 PM | 🔵 | Refactor plan documents directory contains Phase A, B1, and C specifications | ~322 |
-| #269 | 12:15 PM | 🟣 | Phase C-2 implementation committed with dual block mask architecture | ~432 |
+| #222 | 11:51 AM | 🔵 | Refactor plan documentation directory structure identified | ~215 |
 </claude-mem-context>
