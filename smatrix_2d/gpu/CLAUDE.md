@@ -7,6 +7,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #147 | 11:21 AM | 🟣 | Phase B-1: Tier-1 Scattering LUT Implementation Complete | ~303 |
 | #83 | 11:05 AM | ✅ | Phase A validation suite fully implemented and passing | ~445 |
 | #63 | 8:20 AM | 🔵 | GPUMemoryLayout Implements Canonical psi[E,theta,z,x] Layout with Stride Calculation | ~343 |
 | #54 | 8:17 AM | 🔵 | GPUAccumulators Implements Zero-Sync Architecture with Float64 Precision and History Tracking | ~425 |

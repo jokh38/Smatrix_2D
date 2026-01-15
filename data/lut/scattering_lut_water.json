@@ -1,0 +1,20 @@
+{
+  "generation_date": "2026-01-15T11:18:22.102339",
+  "formula_version": "Highland_v1",
+  "energy_grid": {
+    "min": 1.0,
+    "max": 200.0,
+    "spacing": 0.5,
+    "n_points": 399,
+    "grid_type": "uniform"
+  },
+  "material": {
+    "name": "water",
+    "X0": 360.8,
+    "rho": 1.0,
+    "Z": 7.2167,
+    "A": 14.3223952
+  },
+  "normalization_length": 1.0,
+  "checksum": "9d64fc4bb21bde0a9de0e214d9787cc5881a763f2a5808f954b1dd29d16a7c0e"
+}

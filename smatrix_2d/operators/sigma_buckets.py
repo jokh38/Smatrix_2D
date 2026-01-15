@@ -7,14 +7,16 @@ Precomputes scattering kernels for each bucket to avoid per-bin kernel generatio
 from __future__ import annotations
 
 import numpy as np
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Tuple, Optional
 from dataclasses import dataclass
+import warnings
 
 from smatrix_2d.core.grid import PhaseSpaceGrid2D
 from smatrix_2d.core.constants import PhysicsConstants2D
 
 if TYPE_CHECKING:
     from smatrix_2d.core.materials import MaterialProperties2D
+    from smatrix_2d.lut.scattering import ScatteringLUT
 
 
 @dataclass
@@ -67,8 +69,12 @@ class SigmaBuckets:
         n_buckets: int = 32,
         k_cutoff: float = 5.0,
         delta_s: float = 1.0,
+        scattering_lut: Optional['ScatteringLUT'] = None,
+        use_lut: bool = True,
     ):
         """Initialize sigma bucketing system.
+
+        Following DOC-2 R-SCAT-T1-004: Integrates with Scattering LUT for Phase B-1.
 
         Args:
             grid: Phase space grid
@@ -77,6 +83,8 @@ class SigmaBuckets:
             n_buckets: Number of percentile-based buckets (default: 32)
             k_cutoff: Kernel cutoff in units of sigma (default: 5.0)
             delta_s: Step length [mm] for sigma calculation (default: 1.0)
+            scattering_lut: Optional scattering LUT (if None, attempts auto-load)
+            use_lut: Whether to use LUT (default: True). Falls back to Highland if unavailable.
         """
         self.grid = grid
         self.material = material
@@ -84,6 +92,30 @@ class SigmaBuckets:
         self.n_buckets = n_buckets
         self.k_cutoff = k_cutoff
         self.delta_s = delta_s
+
+        # LUT support (Phase B-1)
+        self.sigma_lut = scattering_lut
+        self._using_lut = False
+
+        # Try to load LUT if not provided
+        if use_lut and self.sigma_lut is None:
+            try:
+                from smatrix_2d.lut.scattering import load_scattering_lut
+                self.sigma_lut = load_scattering_lut(material, regen=True)
+                if self.sigma_lut is not None:
+                    self._using_lut = True
+            except ImportError:
+                warnings.warn(
+                    "Scattering LUT module not available, falling back to Highland formula",
+                    UserWarning, stacklevel=2
+                )
+            except Exception as e:
+                warnings.warn(
+                    f"Failed to load scattering LUT, falling back to Highland formula: {e}",
+                    UserWarning, stacklevel=2
+                )
+        elif use_lut and self.sigma_lut is not None:
+            self._using_lut = True
 
         # Storage for bucket information
         self.sigma_squared_map: np.ndarray = None  # [Ne, Nz]
@@ -95,8 +127,25 @@ class SigmaBuckets:
         self._create_buckets()
         self._compute_kernels()
 
+    def _lookup_sigma_norm(self, E_MeV: float) -> float:
+        """Lookup normalized scattering coefficient from LUT.
+
+        Following DOC-2 R-SCAT-T1-004:
+            sigma = sigma_norm * sqrt(delta_s)
+
+        Args:
+            E_MeV: Kinetic energy [MeV]
+
+        Returns:
+            sigma_norm: Normalized scattering [rad/√mm]
+        """
+        if self.sigma_lut is None:
+            raise RuntimeError("LUT not available, cannot lookup sigma_norm")
+
+        return self.sigma_lut.lookup(E_MeV)
+
     def _compute_sigma_theta(self, E_MeV: float) -> float:
-        """Compute RMS scattering angle using Highland formula.
+        """Compute RMS scattering angle using Highland formula (fallback).
 
         Args:
             E_MeV: Kinetic energy [MeV]
@@ -132,6 +181,7 @@ class SigmaBuckets:
         """Calculate sigma² for all (iE, iz) combinations.
 
         Following SPEC v2.1 Section 4.2, step 1.
+        Phase B-1: Uses LUT when available (DOC-2 R-SCAT-T1-004).
 
         Populates self.sigma_squared_map[iE, iz].
         """
@@ -144,7 +194,16 @@ class SigmaBuckets:
         # Note: sigma does not depend on depth for homogeneous material
         for iE in range(Ne):
             E_MeV = self.grid.E_centers[iE]
-            sigma_theta = self._compute_sigma_theta(E_MeV)
+
+            # Use LUT if available, otherwise fallback to Highland
+            if self._using_lut:
+                # LUT lookup: sigma = sigma_norm * sqrt(delta_s)
+                sigma_norm = self._lookup_sigma_norm(E_MeV)
+                sigma_theta = sigma_norm * np.sqrt(self.delta_s)
+            else:
+                # Direct Highland calculation
+                sigma_theta = self._compute_sigma_theta(E_MeV)
+
             self.sigma_squared_map[iE, :] = sigma_theta ** 2
 
     def _create_buckets(self):
@@ -371,6 +430,7 @@ class SigmaBuckets:
             f"Total (iE, iz) combinations: {self.sigma_squared_map.size}",
             f"k_cutoff: {self.k_cutoff}",
             f"delta_s: {self.delta_s} mm",
+            f"Using LUT: {self._using_lut}",
             "",
             "Bucket Statistics:",
             "-" * 50,
@@ -396,3 +456,28 @@ class SigmaBuckets:
         lines.append(f"Sigma std:   {np.std(all_sigmas)*1000:.3f} mrad")
 
         return "\n".join(lines)
+
+    def is_using_lut(self) -> bool:
+        """Check if LUT is being used for sigma computation.
+
+        Returns:
+            True if using LUT, False if using Highland formula
+        """
+        return self._using_lut
+
+    def upload_lut_to_gpu(self):
+        """Upload LUT to GPU memory (Phase B-1: global memory).
+
+        Following DOC-2 R-SCAT-T1-005.
+
+        Returns:
+            gpu_array: CuPy array on GPU, or None if LUT unavailable
+        """
+        if self.sigma_lut is None:
+            warnings.warn(
+                "No scattering LUT available, cannot upload to GPU",
+                UserWarning, stacklevel=2
+            )
+            return None
+
+        return self.sigma_lut.to_gpu()

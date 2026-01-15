@@ -8,7 +8,4 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #147 | 11:21 AM | 🟣 | Phase B-1: Tier-1 Scattering LUT Implementation Complete | ~303 |
-| #10 | 7:59 AM | 🔵 | Phase A Specification Defines Configuration SSOT and Accounting Closure Requirements | ~565 |
-| #9 | " | 🔵 | Master Specification v2.1 Defines Multi-Phase Refactoring Architecture | ~371 |
-| #8 | " | 🔵 | Refactoring Plan Documentation Structure Identified | ~302 |
 </claude-mem-context>
