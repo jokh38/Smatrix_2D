@@ -7,6 +7,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #305 | 12:26 PM | 🔵 | Examined sigma bucket indexing system for graded grid implementation | ~313 |
 | #184 | 11:29 AM | 🔵 | Spatial streaming operator review confirms gather formulation with bilinear interpolation for sub-grid accuracy | ~296 |
 | #175 | 11:28 AM | 🔵 | Spatial streaming operator implements gather-based advection with bilinear interpolation and ABSORB boundaries | ~308 |
 | #171 | 11:27 AM | 🔵 | Energy loss operator implements CSDA with conservative bin splitting and block-local reduction | ~306 |

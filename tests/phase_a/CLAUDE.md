@@ -7,5 +7,11 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #199 | 11:32 AM | 🔵 | Phase A reproducibility tests verify GPU simulation consistency with 1e-7 tolerance allowing for floating-point variations | ~289 |
+| #191 | 11:30 AM | 🔵 | Phase A golden snapshot tests implement regression testing with dose L2 error and escape channel validation | ~28 |
+| #183 | 11:29 AM | 🔵 | Phase A conservation tests validate cumulative weight conservation and energy closure with relaxed tolerances | ~54 |
+| #179 | 11:28 AM | 🔵 | Phase A conservation tests validate weight and energy closure within 1e-6 tolerance per step | ~272 |
+| #147 | 11:21 AM | 🟣 | Phase B-1: Tier-1 Scattering LUT Implementation Complete | ~303 |
 | #83 | 11:05 AM | ✅ | Phase A validation suite fully implemented and passing | ~445 |
+| #81 | 9:33 AM | 🔴 | Golden snapshot test compatibility fixed | ~409 |
 </claude-mem-context>

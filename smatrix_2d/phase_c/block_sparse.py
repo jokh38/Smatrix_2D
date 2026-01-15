@@ -41,12 +41,16 @@ class BlockSparseConfig:
         update_frequency: Steps between block mask updates (default: 10)
         halo_size: Additional blocks to include for halo (default: 1)
         enable_block_sparse: Master switch for block-sparse (default: True)
+        enable_block_level_launch: Use block-level kernel launch for spatial streaming (default: True)
+        enable_block_sparse_angular: Use block-sparse angular scattering (dominant operator, default: True)
     """
     block_size: int = 16
     threshold: float = 1e-10
     update_frequency: int = 10
     halo_size: int = 1
     enable_block_sparse: bool = True
+    enable_block_level_launch: bool = True
+    enable_block_sparse_angular: bool = True
 
     def __post_init__(self):
         """Validate configuration."""

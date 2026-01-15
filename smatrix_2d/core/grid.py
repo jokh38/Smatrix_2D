@@ -18,10 +18,29 @@ from smatrix_2d.config.defaults import DEFAULT_NX, DEFAULT_NZ, DEFAULT_NE
 
 
 class EnergyGridType(Enum):
-    """Energy grid generation strategies."""
+    """Energy grid generation strategies.
+
+    Options:
+        UNIFORM: Equal spacing across entire energy range
+        LOGARITHMIC: Logarithmic spacing
+        RANGE_BASED: Equal steps in residual range
+        NON_UNIFORM: Phase C-3 non-uniform grid with region-based spacing
+    """
     UNIFORM = 'uniform'
     LOGARITHMIC = 'logarithmic'
     RANGE_BASED = 'range_based'
+    NON_UNIFORM = 'non_uniform'  # Phase C-3
+
+
+class AngularGridType(Enum):
+    """Angular grid generation strategies.
+
+    Options:
+        UNIFORM: Equal spacing across entire angular range
+        NON_UNIFORM: Phase C-3 non-uniform grid with core/wing/tail regions
+    """
+    UNIFORM = 'uniform'
+    NON_UNIFORM = 'non_uniform'  # Phase C-3
 
 
 @dataclass
@@ -76,6 +95,7 @@ class GridSpecsV2:
     E_cutoff: float = 2.0  # DEFAULT_E_CUTOFF from config/defaults.py
 
     energy_grid_type: EnergyGridType = EnergyGridType.UNIFORM
+    angular_grid_type: AngularGridType = AngularGridType.UNIFORM
     use_texture_memory: bool = False
 
     def __post_init__(self):
@@ -339,6 +359,7 @@ def create_energy_grid(
     E_max: float,
     Ne: int,
     grid_type: EnergyGridType = EnergyGridType.RANGE_BASED,
+    E_cutoff: float = 2.0,
     material_range: Optional[np.ndarray] = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Generate energy grid edges and centers.
@@ -346,8 +367,9 @@ def create_energy_grid(
     Args:
         E_min: Minimum energy [MeV]
         E_max: Maximum energy [MeV]
-        Ne: Number of energy bins
+        Ne: Number of energy bins (used for uniform grids, ignored for non-uniform)
         grid_type: Strategy for bin generation
+        E_cutoff: Energy cutoff for non-uniform grid region boundaries
         material_range: Residual range data for range-based grids
 
     Returns:
@@ -372,11 +394,59 @@ def create_energy_grid(
         # Use equal steps in residual range (placeholder - needs implementation)
         E_edges = np.linspace(E_min, E_max, Ne + 1)
 
+    elif grid_type == EnergyGridType.NON_UNIFORM:
+        # Phase C-3: Non-uniform energy grid with region-based spacing
+        from smatrix_2d.phase_c3 import create_non_uniform_energy_grid
+        E_edges, E_centers, _ = create_non_uniform_energy_grid(
+            E_min=E_min,
+            E_max=E_max,
+            E_cutoff=E_cutoff,
+        )
+        return E_edges, E_centers
+
     else:
         raise ValueError(f"Unknown energy grid type: {grid_type}")
 
     E_centers = 0.5 * (E_edges[:-1] + E_edges[1:])
     return E_edges, E_centers
+
+
+def create_angular_grid(
+    theta_min: float,
+    theta_max: float,
+    Ntheta: int,
+    grid_type: AngularGridType = AngularGridType.UNIFORM,
+    theta0: float = 90.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Generate angular grid edges and centers.
+
+    Args:
+        theta_min: Minimum angle [degrees]
+        theta_max: Maximum angle [degrees]
+        Ntheta: Number of angular bins (used for uniform grids, ignored for non-uniform)
+        grid_type: Strategy for bin generation
+        theta0: Central beam angle for non-uniform grid [degrees]
+
+    Returns:
+        (theta_edges, theta_centers) tuple in degrees
+    """
+    if grid_type == AngularGridType.UNIFORM:
+        theta_edges = np.linspace(theta_min, theta_max, Ntheta + 1)
+        theta_centers = 0.5 * (theta_edges[:-1] + theta_edges[1:])
+        return theta_edges, theta_centers
+
+    elif grid_type == AngularGridType.NON_UNIFORM:
+        # Phase C-3: Non-uniform angular grid with core/wing/tail regions
+        from smatrix_2d.phase_c3 import create_non_uniform_angular_grid
+        theta_edges, theta_centers, _ = create_non_uniform_angular_grid(
+            theta_min=theta_min,
+            theta_max=theta_max,
+            theta0=theta0,
+        )
+        return theta_edges, theta_centers
+
+    else:
+        raise ValueError(f"Unknown angular grid type: {grid_type}")
 
 
 def create_phase_space_grid(specs: GridSpecsV2) -> PhaseSpaceGridV2:
@@ -393,14 +463,22 @@ def create_phase_space_grid(specs: GridSpecsV2) -> PhaseSpaceGridV2:
         specs.E_min,
         specs.E_max,
         specs.Ne,
-        specs.energy_grid_type
+        specs.energy_grid_type,
+        E_cutoff=specs.E_cutoff,
     )
-    delta_E = E_edges[1] - E_edges[0]
+    # For non-uniform grids, delta_E represents average spacing
+    delta_E = (E_edges[-1] - E_edges[0]) / len(E_centers)
 
     # Angular grid (absolute, NOT circular)
-    th_edges = np.linspace(specs.theta_min, specs.theta_max, specs.Ntheta + 1)
-    th_centers = 0.5 * (th_edges[:-1] + th_edges[1:])
-    delta_theta = th_edges[1] - th_edges[0]
+    th_edges, th_centers = create_angular_grid(
+        specs.theta_min,
+        specs.theta_max,
+        specs.Ntheta,
+        specs.angular_grid_type,
+        theta0=90.0,  # Default beam direction
+    )
+    # For non-uniform grids, delta_theta represents average spacing
+    delta_theta = (th_edges[-1] - th_edges[0]) / len(th_centers)
 
     # Convert to radians for internal calculations
     th_edges_rad = np.deg2rad(th_edges)
@@ -484,6 +562,79 @@ def create_default_grid_specs(
     )
 
 
+def create_non_uniform_grid_specs(
+    Nx: int = DEFAULT_NX,
+    Nz: int = DEFAULT_NZ,
+    use_texture_memory: bool = False,
+    theta0: float = 90.0,
+) -> GridSpecsV2:
+    """Create GridSpecsV2 with Phase C-3 non-uniform energy and angular grids.
+
+    This factory creates a grid specification with non-uniform grids that
+    focus resolution where physically important:
+    - Energy: Finer near Bragg peak (2-10 MeV), coarser at high energy
+    - Angle: Finer in forward direction (beam core), coarser in tails
+
+    Args:
+        Nx: Number of x bins (default: 100 for 1mm resolution)
+        Nz: Number of z bins (default: 100 for 1mm resolution)
+        use_texture_memory: Enable texture memory (default: False)
+        theta0: Central beam angle for angular grid [degrees] (default: 90)
+
+    Returns:
+        GridSpecsV2 configured with Phase C-3 non-uniform grids
+
+    Note:
+        Ne and Ntheta are determined by the non-uniform grid generation,
+        not specified as inputs. The actual bin counts are returned by
+        the grid generation functions.
+    """
+    from smatrix_2d.config.defaults import (
+        DEFAULT_E_MIN, DEFAULT_E_MAX, DEFAULT_E_CUTOFF,
+        DEFAULT_DELTA_X, DEFAULT_DELTA_Z,
+        DEFAULT_SPATIAL_HALF_SIZE,
+        DEFAULT_THETA_MIN, DEFAULT_THETA_MAX,
+    )
+
+    # For non-uniform grids, use placeholder values for Ne, Ntheta
+    # They will be overridden by grid generation
+    return GridSpecsV2(
+        Nx=Nx,
+        Nz=Nz,
+        Ntheta=100,  # Placeholder, actual count determined by non-uniform grid
+        Ne=100,      # Placeholder, actual count determined by non-uniform grid
+        delta_x=DEFAULT_DELTA_X,
+        delta_z=DEFAULT_DELTA_Z,
+        x_min=-DEFAULT_SPATIAL_HALF_SIZE,
+        x_max=DEFAULT_SPATIAL_HALF_SIZE,
+        z_min=-DEFAULT_SPATIAL_HALF_SIZE,
+        z_max=DEFAULT_SPATIAL_HALF_SIZE,
+        theta_min=DEFAULT_THETA_MIN,
+        theta_max=DEFAULT_THETA_MAX,
+        E_min=DEFAULT_E_MIN,
+        E_max=DEFAULT_E_MAX,
+        E_cutoff=DEFAULT_E_CUTOFF,
+        energy_grid_type=EnergyGridType.NON_UNIFORM,
+        angular_grid_type=AngularGridType.NON_UNIFORM,
+        use_texture_memory=use_texture_memory,
+    )
+
+
 # Type aliases for backward compatibility
 GridSpecs2D = GridSpecsV2
 PhaseSpaceGrid2D = PhaseSpaceGridV2
+
+
+__all__ = [
+    "EnergyGridType",
+    "AngularGridType",
+    "GridSpecsV2",
+    "PhaseSpaceGridV2",
+    "create_energy_grid",
+    "create_angular_grid",
+    "create_phase_space_grid",
+    "create_default_grid_specs",
+    "create_non_uniform_grid_specs",
+    "GridSpecs2D",  # Backward compatibility
+    "PhaseSpaceGrid2D",  # Backward compatibility
+]

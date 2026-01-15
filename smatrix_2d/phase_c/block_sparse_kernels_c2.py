@@ -5,11 +5,13 @@ This module provides CUDA kernels optimized for Phase C-2:
 1. GPU-based block mask update using parallel reduction
 2. Spatial streaming with dual block masks for conservation
 3. Block-level kernel launch optimization
+4. Block-sparse angular scattering kernel
 
 Key improvements over Phase C-1:
 - GPU block mask update (no CPU round-trip)
 - Dual block masks (input/output) for conservation
 - Block list for efficient kernel launch
+- Block-sparse angular scattering (dominant operator)
 
 Import Policy:
     from smatrix_2d.phase_c import BlockSparseGPUTransportStepC2
@@ -231,6 +233,141 @@ void spatial_streaming_dual_mask(
 
 
 # ============================================================================
+# CUDA Kernel: Block-Level Spatial Streaming (Optimized)
+# ============================================================================
+
+# This kernel processes one ACTIVE BLOCK per thread block
+# Instead of launching for all cells and using early exit,
+# we launch only for blocks that have particles.
+
+_spatial_streaming_block_level_src = r'''
+extern "C" __global__
+void spatial_streaming_block_level(
+    const float* __restrict__ psi_in,
+    float* __restrict__ psi_out,
+    double* __restrict__ escapes_gpu,
+    const int* __restrict__ active_blocks,  // [num_active_blocks, 2] = (bz, bx) pairs
+    int num_active_blocks,
+    const float* __restrict__ sin_theta_lut,
+    const float* __restrict__ cos_theta_lut,
+    int Ne, int Ntheta, int Nz, int Nx,
+    float delta_x, float delta_z, float delta_s,
+    float x_min, float z_min,
+    int boundary_mode,
+    int block_size
+) {
+    // Grid layout: (num_active_blocks, Ntheta)
+    // Block layout: (block_size, block_size)
+    const int block_idx = blockIdx.x;  // Which active block we're processing
+    const int ith = blockIdx.y;        // Which angle
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+
+    // Get the block coordinates (bz, bx) from the active block list
+    if (block_idx >= num_active_blocks || ith >= Ntheta) return;
+
+    const int bz = active_blocks[block_idx * 2 + 0];
+    const int bx = active_blocks[block_idx * 2 + 1];
+
+    // Compute spatial bounds for this block
+    const int x_start = bx * block_size;
+    const int z_start = bz * block_size;
+    const int x_end = min(x_start + block_size, Nx);
+    const int z_end = min(z_start + block_size, Nz);
+
+    // Each thread processes one cell in this block
+    const int ix_in = x_start + tx;
+    const int iz_in = z_start + ty;
+
+    if (ix_in >= x_end || iz_in >= z_end) return;
+
+    const int theta_stride = Nz * Nx;
+    const int E_stride = Ntheta * theta_stride;
+
+    // Get velocity from LUT
+    float sin_th = sin_theta_lut[ith];
+    float cos_th = cos_theta_lut[ith];
+
+    // SOURCE cell center position (INPUT)
+    float x_src = x_min + ix_in * delta_x + delta_x / 2.0f;
+    float z_src = z_min + iz_in * delta_z + delta_z / 2.0f;
+
+    // Forward advection: find TARGET position (OUTPUT)
+    float x_tgt = x_src + delta_s * cos_th;
+    float z_tgt = z_src + delta_s * sin_th;
+
+    // Domain boundaries
+    float x_domain_min = x_min;
+    float x_domain_max = x_min + Nx * delta_x;
+    float z_domain_min = z_min;
+    float z_domain_max = z_min + Nz * delta_z;
+
+    // Local accumulator for spatial leakage
+    double local_spatial_leak = 0.0;
+
+    // Loop over all energies for this spatial/angle cell
+    for (int iE = 0; iE < Ne; iE++) {
+        int src_idx = iE * E_stride + ith * theta_stride + iz_in * Nx + ix_in;
+        float weight = psi_in[src_idx];
+
+        if (weight < 1e-12f) {
+            continue;
+        }
+
+        // Check if target is within bounds
+        bool x_out_of_bounds = (x_tgt < x_domain_min || x_tgt >= x_domain_max);
+        bool z_out_of_bounds = (z_tgt < z_domain_min || z_tgt >= z_domain_max);
+
+        if (x_out_of_bounds || z_out_of_bounds) {
+            local_spatial_leak += double(weight);
+            continue;
+        }
+
+        // Convert target position to fractional cell indices
+        float fx = (x_tgt - x_min) / delta_x - 0.5f;
+        float fz = (z_tgt - z_min) / delta_z - 0.5f;
+
+        // Get corner indices
+        int iz0 = int(floorf(fz));
+        int ix0 = int(floorf(fx));
+        int iz1 = iz0 + 1;
+        int ix1 = ix0 + 1;
+
+        // Clamp to valid range
+        iz0 = max(0, min(iz0, Nz - 1));
+        iz1 = max(0, min(iz1, Nz - 1));
+        ix0 = max(0, min(ix0, Nx - 1));
+        ix1 = max(0, min(ix1, Nx - 1));
+
+        // Interpolation weights
+        float wz = fz - floorf(fz);
+        float wx = fx - floorf(fx);
+        float w00 = (1.0f - wz) * (1.0f - wx);
+        float w01 = (1.0f - wz) * wx;
+        float w10 = wz * (1.0f - wx);
+        float w11 = wz * wx;
+
+        // Scatter to 4 target cells
+        int tgt_idx00 = iE * E_stride + ith * theta_stride + iz0 * Nx + ix0;
+        int tgt_idx01 = iE * E_stride + ith * theta_stride + iz0 * Nx + ix1;
+        int tgt_idx10 = iE * E_stride + ith * theta_stride + iz1 * Nx + ix0;
+        int tgt_idx11 = iE * E_stride + ith * theta_stride + iz1 * Nx + ix1;
+
+        atomicAdd(&psi_out[tgt_idx00], weight * w00);
+        atomicAdd(&psi_out[tgt_idx01], weight * w01);
+        atomicAdd(&psi_out[tgt_idx10], weight * w10);
+        atomicAdd(&psi_out[tgt_idx11], weight * w11);
+    }
+
+    // Accumulate spatial leakage
+    if (local_spatial_leak > 0.0) {
+        atomicAdd(&escapes_gpu[3], local_spatial_leak);
+    }
+}
+'''
+
+
+# ============================================================================
 # CUDA Kernel: Halo Expansion for Dual Mask
 # ============================================================================
 
@@ -257,6 +394,110 @@ void expand_halo_dual_kernel(
     if (bx < n_blocks_x - 1 && mask_in[bz * n_blocks_x + (bx + 1)]) active = true;  // East
 
     mask_out[bz * n_blocks_x + bx] = active;
+}
+'''
+
+
+# ============================================================================
+# CUDA Kernel: Block-Sparse Angular Scattering
+# ============================================================================
+
+# This kernel processes only active spatial blocks for angular scattering,
+# which is the dominant operator (99% of runtime in dense mode).
+
+_angular_scattering_block_sparse_src = r'''
+extern "C" __global__
+void angular_scattering_block_sparse(
+    const float* __restrict__ psi_in,
+    float* __restrict__ psi_out,
+    double* __restrict__ escapes_gpu,
+    const int* __restrict__ active_blocks,  // [num_active_blocks, 2] = (bz, bx) pairs
+    int num_active_blocks,
+    const int* __restrict__ bucket_idx_map,
+    const float* __restrict__ kernel_lut,
+    const int* __restrict__ kernel_offsets,
+    const int* __restrict__ kernel_sizes,
+    int Ne, int Ntheta, int Nz, int Nx,
+    int n_buckets, int max_kernel_size,
+    float theta_cutoff_idx,
+    int theta_boundary_idx,
+    int block_size
+) {
+    // Grid layout: (num_active_blocks, Ne)
+    // Block layout: (block_size, block_size)
+    const int block_idx = blockIdx.x;  // Which active block
+    const int iE = blockIdx.y;         // Which energy
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+
+    if (block_idx >= num_active_blocks || iE >= Ne) return;
+
+    // Get block coordinates
+    const int bz = active_blocks[block_idx * 2 + 0];
+    const int bx = active_blocks[block_idx * 2 + 1];
+
+    // Compute spatial bounds for this block
+    const int x_start = bx * block_size;
+    const int z_start = bz * block_size;
+    const int x_end = min(x_start + block_size, Nx);
+    const int z_end = min(z_start + block_size, Nz);
+
+    // Each thread processes one cell in this block
+    const int ix = x_start + tx;
+    const int iz = z_start + ty;
+
+    if (ix >= x_end || iz >= z_end) return;
+
+    const int theta_stride = Nz * Nx;
+    const int E_stride = Ntheta * theta_stride;
+
+    // Local escape accumulators
+    double local_theta_boundary = 0.0;
+    double local_theta_cutoff = 0.0;
+
+    // Loop over all INPUT angles for this spatial/energy cell
+    for (int ith_old = 0; ith_old < Ntheta; ith_old++) {
+        // Read input weight for this source angle
+        int src_idx = iE * E_stride + ith_old * theta_stride + iz * Nx + ix;
+        float weight_in = psi_in[src_idx];
+
+        if (weight_in < 1e-12f) {
+            continue;  // Skip negligible weights
+        }
+
+        // Get bucket for this (iE, iz) combination
+        int bucket_idx = bucket_idx_map[iE * Nz + iz];
+        int half_width = kernel_offsets[bucket_idx];
+        int kernel_size = kernel_sizes[bucket_idx];
+        const float* kernel = &kernel_lut[bucket_idx * max_kernel_size];
+
+        // Scatter: this source contributes to multiple output angles
+        for (int k = 0; k < kernel_size; k++) {
+            int delta_ith = k - half_width;
+            int ith_new = ith_old + delta_ith;  // DESTINATION angle
+
+            float kernel_value = kernel[k];
+            float contribution = weight_in * kernel_value;
+
+            // Check if destination is within valid range
+            if (ith_new >= 0 && ith_new < Ntheta) {
+                // Valid: scatter to output (use atomicAdd for thread safety)
+                int tgt_idx = iE * E_stride + ith_new * theta_stride + iz * Nx + ix;
+                atomicAdd(&psi_out[tgt_idx], contribution);
+            } else {
+                // Out of bounds: DIRECT TRACKING to THETA_BOUNDARY
+                local_theta_boundary += double(contribution);
+            }
+        }
+    }
+
+    // Accumulate escapes (atomic add to unified array)
+    if (local_theta_boundary > 0.0) {
+        atomicAdd(&escapes_gpu[0], local_theta_boundary);  // THETA_BOUNDARY
+    }
+    if (local_theta_cutoff > 0.0) {
+        atomicAdd(&escapes_gpu[1], local_theta_cutoff);    // THETA_CUTOFF
+    }
 }
 '''
 
@@ -317,10 +558,17 @@ class BlockSparseGPUTransportStepC2:
             options=('--use_fast_math',)
         )
 
-        # Dual mask spatial streaming
+        # Dual mask spatial streaming (original with early exit)
         self.spatial_streaming_dual_kernel = cp.RawKernel(
             _spatial_streaming_dual_mask_src,
             'spatial_streaming_dual_mask',
+            options=('--use_fast_math',)
+        )
+
+        # Block-level spatial streaming (optimized - one block per active block)
+        self.spatial_streaming_block_level_kernel = cp.RawKernel(
+            _spatial_streaming_block_level_src,
+            'spatial_streaming_block_level',
             options=('--use_fast_math',)
         )
 
@@ -328,6 +576,13 @@ class BlockSparseGPUTransportStepC2:
         self.expand_halo_dual_kernel = cp.RawKernel(
             _expand_halo_dual_src,
             'expand_halo_dual_kernel',
+            options=('--use_fast_math',)
+        )
+
+        # Block-sparse angular scattering
+        self.angular_scattering_block_sparse_kernel = cp.RawKernel(
+            _angular_scattering_block_sparse_src,
+            'angular_scattering_block_sparse',
             options=('--use_fast_math',)
         )
 
@@ -454,6 +709,135 @@ class BlockSparseGPUTransportStepC2:
             )
         )
 
+    def _get_active_block_indices_gpu(self) -> cp.ndarray:
+        """Get active block indices as a GPU array.
+
+        Returns:
+            GPU array [num_active, 2] containing (bz, bx) pairs
+        """
+        mask_out = self.dual_mask.mask_out_gpu
+        n_blocks_z, n_blocks_x = mask_out.shape
+
+        # Find active blocks using nonzero
+        active_bz, active_bx = cp.nonzero(mask_out)
+
+        # Stack into [N, 2] array
+        if len(active_bz) == 0:
+            # No active blocks, return empty array
+            return cp.zeros((0, 2), dtype=cp.int32)
+
+        active_blocks = cp.stack([active_bz, active_bx], axis=1).astype(cp.int32)
+        return active_blocks
+
+    def apply_spatial_streaming_block_level(
+        self,
+        psi_in: cp.ndarray,
+        psi_out: cp.ndarray,
+        escapes_gpu: cp.ndarray,
+    ) -> None:
+        """Apply spatial streaming with block-level optimization.
+
+        This version launches one thread block per active block instead of
+        launching for all cells and using early exit. This provides better
+        performance when the fraction of active blocks is low.
+
+        Args:
+            psi_in: Input phase space [Ne, Ntheta, Nz, Nx]
+            psi_out: Output phase space [Ne, Ntheta, Nz, Nx]
+            escapes_gpu: Escape accumulator [NUM_CHANNELS]
+        """
+        # Get active block indices
+        active_blocks = self._get_active_block_indices_gpu()
+        num_active = len(active_blocks)
+
+        if num_active == 0:
+            return  # Nothing to process
+
+        # Block configuration: each thread block processes one 16x16 spatial block
+        block_dim = (self.config.block_size, self.config.block_size)
+        # Grid: (num_active_blocks, Ntheta)
+        grid_dim = (num_active, self.base_step.Ntheta)
+
+        # Launch kernel
+        self.spatial_streaming_block_level_kernel(
+            grid_dim,
+            block_dim,
+            (
+                psi_in,
+                psi_out,
+                escapes_gpu,
+                active_blocks,
+                np.int32(num_active),
+                self.base_step.sin_theta_gpu,
+                self.base_step.cos_theta_gpu,
+                self.base_step.Ne,
+                self.base_step.Ntheta,
+                self.base_step.Nz,
+                self.base_step.Nx,
+                np.float32(self.base_step.delta_x),
+                np.float32(self.base_step.delta_z),
+                np.float32(self.base_step.delta_s),
+                np.float32(self.base_step.x_min),
+                np.float32(self.base_step.z_min),
+                np.int32(0),  # ABSORB boundary mode
+                np.int32(self.config.block_size),
+            )
+        )
+
+    def apply_angular_scattering_block_sparse(
+        self,
+        psi_in: cp.ndarray,
+        psi_out: cp.ndarray,
+        escapes_gpu: cp.ndarray,
+    ) -> None:
+        """Apply angular scattering with block-level optimization.
+
+        This is the dominant operator (99% of runtime in dense mode), so
+        block-sparse optimization here provides significant speedup.
+
+        Args:
+            psi_in: Input phase space [Ne, Ntheta, Nz, Nx]
+            psi_out: Output phase space [Ne, Ntheta, Nz, Nx]
+            escapes_gpu: Escape accumulator [NUM_CHANNELS]
+        """
+        # Get active block indices
+        active_blocks = self._get_active_block_indices_gpu()
+        num_active = len(active_blocks)
+
+        if num_active == 0:
+            return  # Nothing to process
+
+        # Block configuration: each thread block processes one spatial cell
+        block_dim = (self.config.block_size, self.config.block_size)
+        # Grid: (num_active_blocks, Ne)
+        grid_dim = (num_active, self.base_step.Ne)
+
+        # Launch kernel (GPU arrays are in base_step)
+        self.angular_scattering_block_sparse_kernel(
+            grid_dim,
+            block_dim,
+            (
+                psi_in,
+                psi_out,
+                escapes_gpu,
+                active_blocks,
+                np.int32(num_active),
+                self.base_step.bucket_idx_map_gpu,
+                self.base_step.kernel_lut_gpu,
+                self.base_step.kernel_offsets_gpu,
+                self.base_step.kernel_sizes_gpu,
+                self.base_step.Ne,
+                self.base_step.Ntheta,
+                self.base_step.Nz,
+                self.base_step.Nx,
+                np.int32(self.base_step.sigma_buckets.n_buckets),
+                np.int32(self.base_step.kernel_lut_gpu.shape[1]),
+                np.float32(0.0),  # theta_cutoff_idx (unused in v2)
+                np.int32(0),     # theta_boundary_idx (unused in v2)
+                np.int32(self.config.block_size),
+            )
+        )
+
     def apply(
         self,
         psi: cp.ndarray,
@@ -478,11 +862,22 @@ class BlockSparseGPUTransportStepC2:
         psi_out = cp.zeros_like(psi)
 
         # Operator sequence: A_theta -> A_E -> A_s (with dual masks)
-        self.base_step.apply_angular_scattering(psi, psi_tmp1, accumulators.escapes_gpu)
+        # Angular scattering (dominant operator - 99% of runtime)
+        if self.config.enable_block_sparse and self.config.enable_block_sparse_angular:
+            self.apply_angular_scattering_block_sparse(psi, psi_tmp1, accumulators.escapes_gpu)
+        else:
+            self.base_step.apply_angular_scattering(psi, psi_tmp1, accumulators.escapes_gpu)
+
+        # Energy loss (0.6% of runtime - keep dense for now)
         self.base_step.apply_energy_loss(psi_tmp1, psi_tmp2, accumulators.dose_gpu, accumulators.escapes_gpu)
 
         if self.config.enable_block_sparse:
-            self.apply_spatial_streaming_dual(psi_tmp2, psi_out, accumulators.escapes_gpu)
+            if self.config.enable_block_level_launch:
+                # Block-level launch: one thread block per active block (optimized)
+                self.apply_spatial_streaming_block_level(psi_tmp2, psi_out, accumulators.escapes_gpu)
+            else:
+                # Original dual mask with early exit
+                self.apply_spatial_streaming_dual(psi_tmp2, psi_out, accumulators.escapes_gpu)
         else:
             self.base_step.apply_spatial_streaming(psi_tmp2, psi_out, accumulators.escapes_gpu)
 
