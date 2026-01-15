@@ -7,6 +7,8 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #465 | 4:46 PM | 🔴 | Removed obsolete test files with import errors | ~161 |
+| #467 | " | ✅ | Staged all codebase fixes for commit | ~168 |
 | #448 | 4:39 PM | 🔵 | Transport Tests Validate Operator Splitting and Conservation | ~481 |
 | #443 | 4:38 PM | 🔵 | Core Module Tests Reveal Fundamental Data Structures | ~499 |
 | #209 | 11:35 AM | 🔵 | Test suite README documents 99 total tests with 73 passing (74%), 26 failing (26%) due to known issues | ~69 |

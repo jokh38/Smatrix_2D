@@ -7,6 +7,14 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #464 | 4:46 PM | 🔴 | Fixed SSOT violations in non_uniform_grid.py | ~156 |
+| #189 | 11:30 AM | 🔵 | Configuration defaults module serves as SSOT for all simulation parameters with explicit import policy | ~326 |
+| #187 | " | 🔵 | Configuration enums define type-safe options for energy grid, boundaries, operator splitting, and determinism levels | ~337 |
+| #165 | 11:26 AM | 🔵 | Configuration defaults module serves as SSOT for all simulation parameters | ~270 |
+| #160 | 11:25 AM | 🔵 | SimulationConfig implements SSOT (Single Source of Truth) pattern for all simulation parameters | ~55 |
 | #83 | 11:05 AM | ✅ | Phase A validation suite fully implemented and passing | ~445 |
 | #77 | 8:23 AM | 🔵 | defaults.py Implements Comprehensive SSOT with Correct Tolerances Matching Phase A Specifications | ~403 |
+| #67 | 8:21 AM | 🔵 | Configuration Enums Define Type-Safe Options with Clear Documentation and Warnings | ~381 |
+| #30 | 8:06 AM | 🔵 | SimulationConfig Implements Comprehensive SSOT Configuration Hierarchy | ~182 |
+| #20 | 8:04 AM | 🔵 | Comprehensive Default Configuration Module Implements SSOT Principle | ~405 |
 </claude-mem-context>

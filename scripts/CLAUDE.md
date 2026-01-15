@@ -7,5 +7,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #478 | 11:31 PM | 🔴 | Completed output file redirection to output folder | ~337 |
+| #472 | 11:30 PM | 🟣 | NIST LUT script saves output files to data/nist_lut/ directory | ~201 |
 | #147 | 11:21 AM | 🟣 | Phase B-1: Tier-1 Scattering LUT Implementation Complete | ~303 |
 </claude-mem-context>

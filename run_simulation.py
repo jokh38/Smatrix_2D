@@ -383,7 +383,7 @@ def export_summary_csv(deposited_dose, grid, z_peak, d_peak, fwhm,
 
 def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
                           grid, z_peak, d_peak, idx_peak, history,
-                          config, dpi=150):
+                          config, output_dir=None, dpi=150):
     """Save separate PNG figures for each plot.
 
     Args:
@@ -396,16 +396,22 @@ def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
         idx_peak: Index of Bragg peak
         history: Conservation history
         config: Configuration dictionary
+        output_dir: Output directory for figures (defaults to 'output')
         dpi: Figure DPI
     """
+    if output_dir is None:
+        output_dir = Path('output')
+    output_dir = Path(output_dir)
+    output_dir.mkdir(exist_ok=True, parents=True)
+
     output_cfg = config.get('output', {})
     figure_cfg = output_cfg.get('figures', {})
     fig_cfg = figure_cfg.get('files', {})
 
-    # Extract filenames from config or use defaults
-    pdd_file = fig_cfg.get('depth_dose', {}).get('filename', 'proton_pdd.png')
-    dose_map_file = fig_cfg.get('dose_map_2d', {}).get('filename', 'proton_dose_map_2d.png')
-    lateral_file = fig_cfg.get('lateral_spreading', {}).get('filename', 'lateral_spreading_analysis.png')
+    # Extract filenames from config or use defaults, and place in output directory
+    pdd_file = output_dir / Path(fig_cfg.get('depth_dose', {}).get('filename', 'proton_pdd.png')).name
+    dose_map_file = output_dir / Path(fig_cfg.get('dose_map_2d', {}).get('filename', 'proton_dose_map_2d.png')).name
+    lateral_file = output_dir / Path(fig_cfg.get('lateral_spreading', {}).get('filename', 'lateral_spreading_analysis.png')).name
 
     x_min, x_max = grid.x_edges[0], grid.x_edges[-1]
     z_min, z_max = grid.z_edges[0], grid.z_edges[-1]
@@ -503,6 +509,15 @@ def main():
     print("=" * 70)
     print("SPEC v2.1 PROTON TRANSPORT SIMULATION")
     print("=" * 70)
+
+    # ========================================================================
+    # 0. Create Output Directory
+    # ========================================================================
+    output_dir = Path("output")
+    output_dir.mkdir(exist_ok=True, parents=True)
+    print(f"\n[0] OUTPUT DIRECTORY")
+    print("-" * 70)
+    print(f"  Output directory: {output_dir.absolute()}")
 
     # ========================================================================
     # 1. Configuration
@@ -871,7 +886,7 @@ def main():
     ax4.legend()
 
     plt.tight_layout()
-    output_file = 'simulation_v2_results.png'
+    output_file = output_dir / 'simulation_v2_results.png'
     plt.savefig(output_file, dpi=150)
     print(f"  ✓ Saved: {output_file}")
 
@@ -886,33 +901,34 @@ def main():
 
     # Check if CSV export is enabled
     if csv_cfg.get('enabled', True):
-        # Get filenames from config or use defaults
-        detailed_file = csv_cfg.get('detailed_file', 'proton_transport_steps.csv')
-        summary_file = csv_cfg.get('summary_file', 'proton_transport_summary.csv')
-        centroids_file = 'proton_transport_centroids.csv'
-        profile_file = 'proton_transport_profiles.csv'
+        # Get filenames from config or use defaults, and place in output directory
+        detailed_file = output_dir / Path(csv_cfg.get('detailed_file', 'proton_transport_steps.csv')).name
+        summary_file = output_dir / Path(csv_cfg.get('summary_file', 'proton_transport_summary.csv')).name
+        centroids_file = output_dir / 'proton_transport_centroids.csv'
+        profile_file = output_dir / 'proton_transport_profiles.csv'
+        analysis_file = output_dir / 'profile_analysis.txt'
 
         # Export detailed step-by-step data
-        export_detailed_csv(history, deposited_dose, grid, config, filename=detailed_file)
+        export_detailed_csv(history, deposited_dose, grid, config, filename=str(detailed_file))
         print(f"  ✓ Saved: {detailed_file}")
 
         # Export centroid tracking data
-        export_centroid_tracking(centroid_tracking, filename=centroids_file)
+        export_centroid_tracking(centroid_tracking, filename=str(centroids_file))
         print(f"  ✓ Saved: {centroids_file}")
 
         # Export profile data (z,x weights for each step)
-        export_profile_data(profile_tracking, grid, filename=profile_file)
+        export_profile_data(profile_tracking, grid, filename=str(profile_file))
         print(f"  ✓ Saved: {profile_file}")
 
         # Analyze profile data
-        analysis_file = analyze_profile_data(profile_tracking, grid, output_file="profile_analysis.txt")
+        analyze_profile_data(profile_tracking, grid, output_file=str(analysis_file))
         print(f"  ✓ Saved: {analysis_file}")
 
         # Export summary statistics
         export_summary_csv(
             deposited_dose, grid, z_peak, d_peak, fwhm,
             final_weight, weight_init, final_dose,
-            E_init, config, filename=summary_file
+            E_init, config, filename=str(summary_file)
         )
         print(f"  ✓ Saved: {summary_file}")
     else:
@@ -928,7 +944,7 @@ def main():
         save_separate_figures(
             depth_dose, deposited_dose, lateral_profile,
             grid, z_peak, d_peak, idx_peak, history,
-            config, dpi=150
+            config, output_dir=output_dir, dpi=150
         )
     else:
         print("  Figure export disabled in configuration")

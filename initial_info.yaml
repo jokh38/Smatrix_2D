@@ -162,11 +162,14 @@ gpu:
 # OUTPUT CONFIGURATION
 # =============================================================================
 output:
+  # Output directory for all generated files
+  directory: "output"
+
   # CSV data files
   csv:
     enabled: true
-    detailed_file: "proton_transport_steps.csv"
-    summary_file: "proton_transport_summary.csv"
+    detailed_file: "output/proton_transport_steps.csv"
+    summary_file: "output/proton_transport_summary.csv"
     description: "Save particle distribution data for each transport step"
 
   # Figures
@@ -176,15 +179,15 @@ output:
     dpi: 150
     files:
       depth_dose:
-        filename: "proton_pdd.png"
+        filename: "output/proton_pdd.png"
         title: "Proton Percentage Depth Dose (PDD)"
         description: "Depth-dose curve showing Bragg peak"
       dose_map_2d:
-        filename: "proton_dose_map_2d.png"
+        filename: "output/proton_dose_map_2d.png"
         title: "2D Dose Distribution"
         description: "2D spatial dose distribution map"
       lateral_spreading:
-        filename: "lateral_spreading_analysis.png"
+        filename: "output/lateral_spreading_analysis.png"
         title: "Lateral Spreading Analysis"
         description: "Analysis of lateral beam spreading with depth"
 

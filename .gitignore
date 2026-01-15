@@ -47,6 +47,9 @@ htmlcov/
 *.jpg
 *.svg
 output/
+proton_transport_*.csv
+profile_analysis.txt
+multi_energy_results/
 
 # Development artifacts
 *.toon
