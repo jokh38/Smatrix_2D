@@ -1,5 +1,4 @@
-"""
-Simulation Configuration - Single Source of Truth (SSOT)
+"""Simulation Configuration - Single Source of Truth (SSOT)
 
 This module provides the central configuration dataclasses for the entire simulation.
 ALL simulation parameters must flow through these configuration classes.
@@ -11,45 +10,15 @@ DO NOT use: from smatrix_2d.config.simulation_config import *
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, Literal
+from typing import Literal
 
+from smatrix_2d.config.yaml_loader import get_default
 from smatrix_2d.config.enums import (
-    EnergyGridType,
-    BoundaryPolicy,
-    SplittingType,
     BackwardTransportPolicy,
+    BoundaryPolicy,
     DeterminismLevel,
-)
-from smatrix_2d.config.defaults import (
-    DEFAULT_E_MIN,
-    DEFAULT_E_CUTOFF,
-    DEFAULT_E_MAX,
-    DEFAULT_E_BUFFER_MIN,
-    DEFAULT_SPATIAL_HALF_SIZE,
-    DEFAULT_DELTA_X,
-    DEFAULT_DELTA_Z,
-    DEFAULT_NX,
-    DEFAULT_NZ,
-    DEFAULT_THETA_MIN,
-    DEFAULT_THETA_MAX,
-    DEFAULT_NTHETA,
-    DEFAULT_NE,
-    DEFAULT_DELTA_S,
-    DEFAULT_MAX_STEPS,
-    DEFAULT_SUB_STEPS,
-    DEFAULT_WEIGHT_THRESHOLD,
-    DEFAULT_BETA_SQ_MIN,
-    PSI_DTYPE,
-    DOSE_DTYPE,
-    ACC_DTYPE,
-    DEFAULT_N_BUCKETS,
-    DEFAULT_THETA_CUTOFF_DEG,
-    DEFAULT_SYNC_INTERVAL,
-    DEFAULT_DETERMINISM_LEVEL,
-    DEFAULT_SPATIAL_BOUNDARY_POLICY,
-    DEFAULT_ANGULAR_BOUNDARY_POLICY,
-    DEFAULT_SPLITTING_TYPE,
-    DEFAULT_BACKWARD_TRANSPORT_POLICY,
+    EnergyGridType,
+    SplittingType,
 )
 
 
@@ -70,26 +39,27 @@ class GridConfig:
         E_min, E_max, E_cutoff: Energy grid boundaries (MeV)
             CRITICAL: E_cutoff must be > E_min to avoid numerical instability
         energy_grid_type: How energy bins are distributed
+
     """
 
     # Spatial grid
-    Nx: int = DEFAULT_NX
-    Nz: int = DEFAULT_NZ
-    x_min: float = -DEFAULT_SPATIAL_HALF_SIZE
-    x_max: float = DEFAULT_SPATIAL_HALF_SIZE
-    z_min: float = -DEFAULT_SPATIAL_HALF_SIZE
-    z_max: float = DEFAULT_SPATIAL_HALF_SIZE
+    Nx: int = field(default_factory=lambda: get_default('spatial_grid.nx'))
+    Nz: int = field(default_factory=lambda: get_default('spatial_grid.nz'))
+    x_min: float = field(default_factory=lambda: -get_default('spatial_grid.half_size'))
+    x_max: float = field(default_factory=lambda: get_default('spatial_grid.half_size'))
+    z_min: float = field(default_factory=lambda: -get_default('spatial_grid.half_size'))
+    z_max: float = field(default_factory=lambda: get_default('spatial_grid.half_size'))
 
     # Angular grid
-    Ntheta: int = DEFAULT_NTHETA
-    theta_min: float = DEFAULT_THETA_MIN
-    theta_max: float = DEFAULT_THETA_MAX
+    Ntheta: int = field(default_factory=lambda: get_default('angular_grid.ntheta'))
+    theta_min: float = field(default_factory=lambda: get_default('angular_grid.theta_min'))
+    theta_max: float = field(default_factory=lambda: get_default('angular_grid.theta_max'))
 
     # Energy grid
-    Ne: int = DEFAULT_NE
-    E_min: float = DEFAULT_E_MIN
-    E_max: float = DEFAULT_E_MAX
-    E_cutoff: float = DEFAULT_E_CUTOFF
+    Ne: int = field(default_factory=lambda: get_default('energy_grid.ne'))
+    E_min: float = field(default_factory=lambda: get_default('energy_grid.e_min'))
+    E_max: float = field(default_factory=lambda: get_default('energy_grid.e_max'))
+    E_cutoff: float = field(default_factory=lambda: get_default('energy_grid.e_cutoff'))
     energy_grid_type: EnergyGridType = EnergyGridType.UNIFORM
 
     def validate(self) -> list[str]:
@@ -97,6 +67,7 @@ class GridConfig:
 
         Returns:
             List of error messages (empty if valid)
+
         """
         errors = []
 
@@ -126,21 +97,22 @@ class GridConfig:
         if self.E_cutoff <= self.E_min:
             errors.append(
                 f"E_cutoff ({self.E_cutoff}) must be > E_min ({self.E_min}) "
-                "to avoid numerical instability at grid edges"
+                "to avoid numerical instability at grid edges",
             )
 
         # Buffer enforcement
         buffer = self.E_cutoff - self.E_min
-        if buffer < DEFAULT_E_BUFFER_MIN:
+        _buffer_min = get_default('energy_grid.e_buffer_min')
+        if buffer < _buffer_min:
             errors.append(
                 f"E_cutoff - E_min buffer ({buffer} MeV) is below minimum "
-                f"({DEFAULT_E_BUFFER_MIN} MeV). This causes numerical instability."
+                f"({_buffer_min} MeV). This causes numerical instability.",
             )
 
         # E_cutoff must be < E_max
         if self.E_cutoff >= self.E_max:
             errors.append(
-                f"E_cutoff ({self.E_cutoff}) must be < E_max ({self.E_max})"
+                f"E_cutoff ({self.E_cutoff}) must be < E_max ({self.E_max})",
             )
 
         return errors
@@ -157,16 +129,19 @@ class TransportConfig:
         sub_steps: Number of sub-steps per operator (stability)
         n_buckets: Number of sigma buckets for angular scattering
         k_cutoff: Angular scattering cutoff (degrees)
+
     """
 
-    delta_s: float = DEFAULT_DELTA_S
-    max_steps: int = DEFAULT_MAX_STEPS
-    splitting_type: SplittingType = SplittingType(DEFAULT_SPLITTING_TYPE)
-    sub_steps: int = DEFAULT_SUB_STEPS
+    delta_s: float = field(default_factory=lambda: get_default('transport.delta_s'))
+    max_steps: int = field(default_factory=lambda: get_default('transport.max_steps'))
+    splitting_type: SplittingType = field(
+        default_factory=lambda: SplittingType(get_default('transport.splitting_type'))
+    )
+    sub_steps: int = field(default_factory=lambda: get_default('transport.sub_steps'))
 
     # Angular scattering parameters
-    n_buckets: int = DEFAULT_N_BUCKETS
-    k_cutoff_deg: float = DEFAULT_THETA_CUTOFF_DEG
+    n_buckets: int = field(default_factory=lambda: get_default('sigma_buckets.n_buckets'))
+    k_cutoff_deg: float = field(default_factory=lambda: get_default('sigma_buckets.theta_cutoff_deg'))
 
     def validate(self, grid: GridConfig) -> list[str]:
         """Validate transport configuration.
@@ -176,6 +151,7 @@ class TransportConfig:
 
         Returns:
             List of error messages (empty if valid)
+
         """
         errors = []
 
@@ -193,7 +169,7 @@ class TransportConfig:
         if self.delta_s > min_delta:
             errors.append(
                 f"delta_s ({self.delta_s}) should be <= min(delta_x, delta_z) ({min_delta}) "
-                "to avoid bin-skipping artifacts"
+                "to avoid bin-skipping artifacts",
             )
 
         if self.sub_steps <= 0:
@@ -220,27 +196,37 @@ class NumericsConfig:
         acc_dtype: Data type for accumulators (MUST be float64 for conservation)
         sync_interval: GPU->CPU sync interval (0=end only, N=every N steps)
         determinism_level: Trade-off between performance and reproducibility
+
     """
 
-    weight_threshold: float = DEFAULT_WEIGHT_THRESHOLD
-    beta_sq_min: float = DEFAULT_BETA_SQ_MIN
+    weight_threshold: float = field(default_factory=lambda: get_default('numerical.weight_threshold'))
+    beta_sq_min: float = field(default_factory=lambda: get_default('numerical.beta_sq_min'))
 
     # Data type policies
-    psi_dtype: Literal["float32", "float64"] = PSI_DTYPE
-    dose_dtype: Literal["float32", "float64"] = DOSE_DTYPE
-    acc_dtype: Literal["float32", "float64"] = ACC_DTYPE
+    psi_dtype: Literal["float32", "float64"] = field(
+        default_factory=lambda: get_default('dtypes.psi')
+    )
+    dose_dtype: Literal["float32", "float64"] = field(
+        default_factory=lambda: get_default('dtypes.dose')
+    )
+    acc_dtype: Literal["float32", "float64"] = field(
+        default_factory=lambda: get_default('dtypes.acc')
+    )
 
     # Synchronization
-    sync_interval: int = DEFAULT_SYNC_INTERVAL
+    sync_interval: int = field(default_factory=lambda: get_default('synchronization.sync_interval'))
 
     # Determinism
-    determinism_level: DeterminismLevel = DeterminismLevel(DEFAULT_DETERMINISM_LEVEL)
+    determinism_level: DeterminismLevel = field(
+        default_factory=lambda: DeterminismLevel(get_default('determinism.level'))
+    )
 
     def validate(self) -> list[str]:
         """Validate numerical configuration.
 
         Returns:
             List of error messages (empty if valid)
+
         """
         errors = []
 
@@ -253,7 +239,7 @@ class NumericsConfig:
         # Accumulator MUST be float64 for conservation
         if self.acc_dtype != "float64":
             errors.append(
-                f"acc_dtype must be float64 for accurate mass conservation, got {self.acc_dtype}"
+                f"acc_dtype must be float64 for accurate mass conservation, got {self.acc_dtype}",
             )
 
         if self.sync_interval < 0:
@@ -270,12 +256,19 @@ class BoundaryConfig:
         spatial: How to handle spatial boundary crossings
         angular: How to handle angular boundary crossings
         backward_transport: How to handle backward-traveling particles
+
     """
 
-    spatial: BoundaryPolicy = BoundaryPolicy(DEFAULT_SPATIAL_BOUNDARY_POLICY)
-    angular: BoundaryPolicy = BoundaryPolicy(DEFAULT_ANGULAR_BOUNDARY_POLICY)
-    backward_transport: BackwardTransportPolicy = BackwardTransportPolicy(
-        DEFAULT_BACKWARD_TRANSPORT_POLICY
+    spatial: BoundaryPolicy = field(
+        default_factory=lambda: BoundaryPolicy(get_default('spatial_grid.boundary_policy'))
+    )
+    angular: BoundaryPolicy = field(
+        default_factory=lambda: BoundaryPolicy(get_default('angular_grid.boundary_policy'))
+    )
+    backward_transport: BackwardTransportPolicy = field(
+        default_factory=lambda: BackwardTransportPolicy(
+            get_default('transport.backward_transport_policy')
+        )
     )
 
     def validate(self) -> list[str]:
@@ -283,6 +276,7 @@ class BoundaryConfig:
 
         Returns:
             List of error messages (empty if valid)
+
         """
         errors = []
 
@@ -290,7 +284,7 @@ class BoundaryConfig:
         if self.spatial == BoundaryPolicy.PERIODIC:
             errors.append(
                 "PERIODIC spatial boundaries are not physically meaningful. "
-                "Use ABSORB for production simulations."
+                "Use ABSORB for production simulations.",
             )
 
         return errors
@@ -318,6 +312,7 @@ class SimulationConfig:
         transport: Transport step configuration
         numerics: Numerical precision configuration
         boundary: Boundary condition configuration
+
     """
 
     grid: GridConfig = field(default_factory=GridConfig)
@@ -333,6 +328,7 @@ class SimulationConfig:
 
         Returns:
             List of error messages (empty if valid)
+
         """
         errors = []
 
@@ -349,20 +345,13 @@ class SimulationConfig:
 
         Returns:
             Dictionary representation of configuration
+
         """
         from dataclasses import asdict
 
         def convert_enum(obj):
             """Convert enums to strings for JSON serialization."""
-            if isinstance(obj, EnergyGridType):
-                return obj.value
-            elif isinstance(obj, BoundaryPolicy):
-                return obj.value
-            elif isinstance(obj, SplittingType):
-                return obj.value
-            elif isinstance(obj, BackwardTransportPolicy):
-                return obj.value
-            elif isinstance(obj, DeterminismLevel):
+            if isinstance(obj, EnergyGridType) or isinstance(obj, BoundaryPolicy) or isinstance(obj, SplittingType) or isinstance(obj, BackwardTransportPolicy) or isinstance(obj, DeterminismLevel):
                 return obj.value
             return obj
 
@@ -387,6 +376,7 @@ class SimulationConfig:
 
         Returns:
             SimulationConfig instance
+
         """
         # Helper to convert strings to enums
         def parse_enum(enum_cls, value):
@@ -400,57 +390,57 @@ class SimulationConfig:
         boundary_data = data.get("boundary", {})
 
         grid = GridConfig(
-            Nx=grid_data.get("Nx", DEFAULT_NX),
-            Nz=grid_data.get("Nz", DEFAULT_NZ),
-            x_min=grid_data.get("x_min", -DEFAULT_SPATIAL_HALF_SIZE),
-            x_max=grid_data.get("x_max", DEFAULT_SPATIAL_HALF_SIZE),
-            z_min=grid_data.get("z_min", -DEFAULT_SPATIAL_HALF_SIZE),
-            z_max=grid_data.get("z_max", DEFAULT_SPATIAL_HALF_SIZE),
-            Ntheta=grid_data.get("Ntheta", DEFAULT_NTHETA),
-            theta_min=grid_data.get("theta_min", DEFAULT_THETA_MIN),
-            theta_max=grid_data.get("theta_max", DEFAULT_THETA_MAX),
-            Ne=grid_data.get("Ne", DEFAULT_NE),
-            E_min=grid_data.get("E_min", DEFAULT_E_MIN),
-            E_max=grid_data.get("E_max", DEFAULT_E_MAX),
-            E_cutoff=grid_data.get("E_cutoff", DEFAULT_E_CUTOFF),
+            Nx=grid_data.get("Nx", get_default('spatial_grid.nx')),
+            Nz=grid_data.get("Nz", get_default('spatial_grid.nz')),
+            x_min=grid_data.get("x_min", -get_default('spatial_grid.half_size')),
+            x_max=grid_data.get("x_max", get_default('spatial_grid.half_size')),
+            z_min=grid_data.get("z_min", -get_default('spatial_grid.half_size')),
+            z_max=grid_data.get("z_max", get_default('spatial_grid.half_size')),
+            Ntheta=grid_data.get("Ntheta", get_default('angular_grid.ntheta')),
+            theta_min=grid_data.get("theta_min", get_default('angular_grid.theta_min')),
+            theta_max=grid_data.get("theta_max", get_default('angular_grid.theta_max')),
+            Ne=grid_data.get("Ne", get_default('energy_grid.ne')),
+            E_min=grid_data.get("E_min", get_default('energy_grid.e_min')),
+            E_max=grid_data.get("E_max", get_default('energy_grid.e_max')),
+            E_cutoff=grid_data.get("E_cutoff", get_default('energy_grid.e_cutoff')),
             energy_grid_type=parse_enum(
-                EnergyGridType, grid_data.get("energy_grid_type", "uniform")
+                EnergyGridType, grid_data.get("energy_grid_type", "uniform"),
             ),
         )
 
         transport = TransportConfig(
-            delta_s=transport_data.get("delta_s", DEFAULT_DELTA_S),
-            max_steps=transport_data.get("max_steps", DEFAULT_MAX_STEPS),
+            delta_s=transport_data.get("delta_s", get_default('transport.delta_s')),
+            max_steps=transport_data.get("max_steps", get_default('transport.max_steps')),
             splitting_type=parse_enum(
-                SplittingType, transport_data.get("splitting_type", "first_order")
+                SplittingType, transport_data.get("splitting_type", "first_order"),
             ),
-            sub_steps=transport_data.get("sub_steps", DEFAULT_SUB_STEPS),
-            n_buckets=transport_data.get("n_buckets", DEFAULT_N_BUCKETS),
-            k_cutoff_deg=transport_data.get("k_cutoff_deg", DEFAULT_THETA_CUTOFF_DEG),
+            sub_steps=transport_data.get("sub_steps", get_default('transport.sub_steps')),
+            n_buckets=transport_data.get("n_buckets", get_default('sigma_buckets.n_buckets')),
+            k_cutoff_deg=transport_data.get("k_cutoff_deg", get_default('sigma_buckets.theta_cutoff_deg')),
         )
 
         numerics = NumericsConfig(
-            weight_threshold=numerics_data.get("weight_threshold", DEFAULT_WEIGHT_THRESHOLD),
-            beta_sq_min=numerics_data.get("beta_sq_min", DEFAULT_BETA_SQ_MIN),
-            psi_dtype=numerics_data.get("psi_dtype", PSI_DTYPE),
-            dose_dtype=numerics_data.get("dose_dtype", DOSE_DTYPE),
-            acc_dtype=numerics_data.get("acc_dtype", ACC_DTYPE),
-            sync_interval=numerics_data.get("sync_interval", DEFAULT_SYNC_INTERVAL),
+            weight_threshold=numerics_data.get("weight_threshold", get_default('numerical.weight_threshold')),
+            beta_sq_min=numerics_data.get("beta_sq_min", get_default('numerical.beta_sq_min')),
+            psi_dtype=numerics_data.get("psi_dtype", get_default('dtypes.psi')),
+            dose_dtype=numerics_data.get("dose_dtype", get_default('dtypes.dose')),
+            acc_dtype=numerics_data.get("acc_dtype", get_default('dtypes.acc')),
+            sync_interval=numerics_data.get("sync_interval", get_default('synchronization.sync_interval')),
             determinism_level=DeterminismLevel(
-                numerics_data.get("determinism_level", DEFAULT_DETERMINISM_LEVEL)
+                numerics_data.get("determinism_level", get_default('determinism.level')),
             ),
         )
 
         boundary = BoundaryConfig(
             spatial=parse_enum(
-                BoundaryPolicy, boundary_data.get("spatial", DEFAULT_SPATIAL_BOUNDARY_POLICY)
+                BoundaryPolicy, boundary_data.get("spatial", get_default('spatial_grid.boundary_policy')),
             ),
             angular=parse_enum(
-                BoundaryPolicy, boundary_data.get("angular", DEFAULT_ANGULAR_BOUNDARY_POLICY)
+                BoundaryPolicy, boundary_data.get("angular", get_default('angular_grid.boundary_policy')),
             ),
             backward_transport=parse_enum(
                 BackwardTransportPolicy,
-                boundary_data.get("backward_transport", DEFAULT_BACKWARD_TRANSPORT_POLICY),
+                boundary_data.get("backward_transport", get_default('transport.backward_transport_policy')),
             ),
         )
 
@@ -465,11 +455,12 @@ def create_default_config() -> SimulationConfig:
 
     Returns:
         Valid SimulationConfig instance
+
     """
     config = SimulationConfig()
     errors = config.validate()
 
     if errors:
-        raise ValueError(f"Default configuration is invalid:\n" + "\n".join(errors))
+        raise ValueError("Default configuration is invalid:\n" + "\n".join(errors))
 
     return config

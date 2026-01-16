@@ -1,5 +1,4 @@
-"""
-Configuration Validation Utilities
+"""Configuration Validation Utilities
 
 This module provides validation functions for simulation configurations.
 It includes invariant checking, cross-validation, and safety checks.
@@ -17,22 +16,20 @@ DO NOT use: from smatrix_2d.config.validation import *
 """
 
 import warnings
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
+from smatrix_2d.config.yaml_loader import get_default
 from smatrix_2d.config.simulation_config import SimulationConfig
-from smatrix_2d.config.defaults import DEFAULT_E_BUFFER_MIN
 
 
 class ConfigurationError(Exception):
     """Raised when configuration validation fails."""
 
-    pass
 
 
 class ConfigurationWarning(Warning):
     """Warning for potentially unsafe configuration choices."""
 
-    pass
 
 
 class ConfigValidationError(Exception):
@@ -46,6 +43,7 @@ class ConfigValidationError(Exception):
 
         Args:
             errors: List of error messages
+
         """
         self.errors = errors
         message = "Configuration validation failed:\n" + "\n".join(f"  - {err}" for err in errors)
@@ -66,8 +64,112 @@ class ConfigValidator:
         ...     raise ConfigValidationError(errors)
     """
 
+    # =========================================================================
+    # Common Validation Helpers (SSOT for validation patterns)
+    # =========================================================================
+
+    def _validate_positive(
+        self, value: float, name: str, allow_zero: bool = False,
+    ) -> list[str]:
+        """Validate that a numeric value is positive.
+
+        Args:
+            value: Value to validate
+            name: Parameter name for error messages
+            allow_zero: If True, zero is allowed (default: False)
+
+        Returns:
+            List of error messages (empty if valid)
+
+        """
+        errors = []
+        if allow_zero:
+            if value < 0:
+                errors.append(f"{name} must be >= 0, got {value}")
+        elif value <= 0:
+            errors.append(f"{name} must be > 0, got {value}")
+        return errors
+
+    def _validate_range(
+        self,
+        value: float,
+        name: str,
+        min_val: float | None = None,
+        max_val: float | None = None,
+        min_exclusive: bool = False,
+        max_exclusive: bool = False,
+    ) -> list[str]:
+        """Validate that a numeric value is within a specified range.
+
+        Args:
+            value: Value to validate
+            name: Parameter name for error messages
+            min_val: Minimum allowed value (None for no minimum)
+            max_val: Maximum allowed value (None for no maximum)
+            min_exclusive: If True, minimum is exclusive (value > min_val)
+            max_exclusive: If True, maximum is exclusive (value < max_val)
+
+        Returns:
+            List of error messages (empty if valid)
+
+        """
+        errors = []
+
+        if min_val is not None:
+            if min_exclusive:
+                if value <= min_val:
+                    errors.append(f"{name} ({value}) must be > {min_val}")
+            elif value < min_val:
+                errors.append(f"{name} ({value}) must be >= {min_val}")
+
+        if max_val is not None:
+            if max_exclusive:
+                if value >= max_val:
+                    errors.append(f"{name} ({value}) must be < {max_val}")
+            elif value > max_val:
+                errors.append(f"{name} ({value}) must be <= {max_val}")
+
+        return errors
+
+    def _validate_ordering(
+        self,
+        smaller: float,
+        larger: float,
+        smaller_name: str,
+        larger_name: str,
+        allow_equal: bool = False,
+    ) -> list[str]:
+        """Validate that two values are in the correct order.
+
+        Args:
+            smaller: Value that should be smaller
+            larger: Value that should be larger
+            smaller_name: Name of the smaller parameter
+            larger_name: Name of the larger parameter
+            allow_equal: If True, values can be equal
+
+        Returns:
+            List of error messages (empty if valid)
+
+        """
+        errors = []
+        if allow_equal:
+            if smaller > larger:
+                errors.append(
+                    f"{smaller_name} ({smaller}) must be <= {larger_name} ({larger})",
+                )
+        elif smaller >= larger:
+            errors.append(
+                f"{smaller_name} ({smaller}) must be < {larger_name} ({larger})",
+            )
+        return errors
+
+    # =========================================================================
+    # Configuration-Specific Validation Methods
+    # =========================================================================
+
     def validate_energy_config(
-        self, E_min: float, E_cutoff: float, E_max: float
+        self, E_min: float, E_cutoff: float, E_max: float,
     ) -> list[str]:
         """Validate energy grid configuration.
 
@@ -83,6 +185,7 @@ class ConfigValidator:
 
         Returns:
             List of error messages (empty if valid)
+
         """
         errors = []
 
@@ -90,28 +193,29 @@ class ConfigValidator:
         if E_cutoff <= E_min:
             errors.append(
                 f"E_cutoff ({E_cutoff} MeV) must be > E_min ({E_min} MeV) "
-                "to avoid numerical instability at grid edges"
+                "to avoid numerical instability at grid edges",
             )
 
         # Check 2: E_cutoff must be < E_max
         if E_cutoff >= E_max:
             errors.append(
-                f"E_cutoff ({E_cutoff} MeV) must be < E_max ({E_max} MeV)"
+                f"E_cutoff ({E_cutoff} MeV) must be < E_max ({E_max} MeV)",
             )
 
         # Check 3: Minimum buffer enforcement
         buffer = E_cutoff - E_min
-        if buffer < DEFAULT_E_BUFFER_MIN:
+        _buffer_min = get_default('energy_grid.e_buffer_min')
+        if buffer < _buffer_min:
             errors.append(
                 f"E_cutoff - E_min buffer ({buffer:.2f} MeV) is below minimum "
-                f"({DEFAULT_E_BUFFER_MIN} MeV). This causes numerical instability "
-                "at grid edges. Increase E_cutoff or decrease E_min."
+                f"({_buffer_min} MeV). This causes numerical instability "
+                "at grid edges. Increase E_cutoff or decrease E_min.",
             )
 
         return errors
 
     def validate_spatial_config(
-        self, delta_s: float, delta_x: float, delta_z: float
+        self, delta_s: float, delta_x: float, delta_z: float,
     ) -> list[str]:
         """Validate spatial and transport step configuration.
 
@@ -128,6 +232,7 @@ class ConfigValidator:
 
         Returns:
             List of error messages (empty if valid)
+
         """
         errors = []
 
@@ -138,13 +243,13 @@ class ConfigValidator:
         if delta_s > min_delta:
             errors.append(
                 f"delta_s ({delta_s} mm) should be <= min(delta_x, delta_z) ({min_delta} mm) "
-                "to avoid bin-skipping artifacts. Decrease delta_s or increase spatial resolution."
+                "to avoid bin-skipping artifacts. Decrease delta_s or increase spatial resolution.",
             )
 
         return errors
 
     def validate_grid_dimensions(
-        self, Nx: int, Nz: int, Ntheta: int, Ne: int
+        self, Nx: int, Nz: int, Ntheta: int, Ne: int,
     ) -> list[str]:
         """Validate grid dimension parameters.
 
@@ -159,6 +264,7 @@ class ConfigValidator:
 
         Returns:
             List of error messages (empty if valid)
+
         """
         errors = []
 
@@ -214,6 +320,7 @@ class ConfigValidator:
 
         Raises:
             ConfigValidationError: If any validation fails
+
         """
         errors = []
 
@@ -225,7 +332,7 @@ class ConfigValidator:
         return errors
 
 
-def validate_config(config: SimulationConfig, raise_on_error: bool = True) -> Tuple[bool, List[str]]:
+def validate_config(config: SimulationConfig, raise_on_error: bool = True) -> tuple[bool, list[str]]:
     """Validate a simulation configuration.
 
     This is the main validation entry point. It checks all invariants
@@ -240,6 +347,7 @@ def validate_config(config: SimulationConfig, raise_on_error: bool = True) -> Tu
 
     Raises:
         ConfigurationError: If validation fails and raise_on_error=True
+
     """
     errors = config.validate()
 
@@ -247,7 +355,7 @@ def validate_config(config: SimulationConfig, raise_on_error: bool = True) -> Tu
         if raise_on_error:
             raise ConfigurationError(
                 f"Configuration validation failed with {len(errors)} error(s):\n"
-                + "\n".join(f"  - {err}" for err in errors)
+                + "\n".join(f"  - {err}" for err in errors),
             )
         return False, errors
 
@@ -273,12 +381,13 @@ def check_invariants(config: SimulationConfig) -> bool:
 
     Returns:
         True if all invariants are satisfied
+
     """
     is_valid, errors = validate_config(config, raise_on_error=False)
     return is_valid
 
 
-def warn_if_unsafe(config: SimulationConfig) -> List[str]:
+def warn_if_unsafe(config: SimulationConfig) -> list[str]:
     """Check for potentially unsafe configuration choices.
 
     These are not errors, but choices that may lead to:
@@ -294,15 +403,17 @@ def warn_if_unsafe(config: SimulationConfig) -> List[str]:
 
     Returns:
         List of warning messages (empty if no warnings)
+
     """
     warnings_list = []
 
     # Check 1: E_cutoff close to E_min
     buffer = config.grid.E_cutoff - config.grid.E_min
-    if buffer < DEFAULT_E_BUFFER_MIN * 2:
+    _buffer_min = get_default('energy_grid.e_buffer_min')
+    if buffer < _buffer_min * 2:
         warnings_list.append(
             f"E_cutoff - E_min buffer ({buffer:.2f} MeV) is close to minimum. "
-            f"Recommend at least {DEFAULT_E_BUFFER_MIN * 2:.1f} MeV buffer for safety."
+            f"Recommend at least {_buffer_min * 2:.1f} MeV buffer for safety.",
         )
 
     # Check 2: Delta_s too large (bin-skipping risk)
@@ -314,20 +425,20 @@ def warn_if_unsafe(config: SimulationConfig) -> List[str]:
         warnings_list.append(
             f"delta_s ({config.transport.delta_s:.3f}) is close to grid resolution "
             f"(min(delta_x, delta_z) = {min_delta:.3f}). "
-            "This may cause bin-skipping artifacts. Recommend delta_s <= 0.5 * min_resolution."
+            "This may cause bin-skipping artifacts. Recommend delta_s <= 0.5 * min_resolution.",
         )
 
     # Check 3: Very small grid (may not capture physics)
     if config.grid.Ne < 50:
         warnings_list.append(
             f"Ne ({config.grid.Ne}) is small. Energy discretization may be too coarse "
-            "for accurate Bragg peak resolution."
+            "for accurate Bragg peak resolution.",
         )
 
     if config.grid.Ntheta < 90:
         warnings_list.append(
             f"Ntheta ({config.grid.Ntheta}) is small. Angular resolution may be too coarse "
-            "for accurate scattering simulation."
+            "for accurate scattering simulation.",
         )
 
     # Check 4: Large sync interval (performance warning)
@@ -335,21 +446,21 @@ def warn_if_unsafe(config: SimulationConfig) -> List[str]:
         warnings_list.append(
             f"sync_interval ({config.numerics.sync_interval}) is large. "
             "Frequent GPU->CPU transfers will significantly impact performance. "
-            "Consider sync_interval=0 for production runs."
+            "Consider sync_interval=0 for production runs.",
         )
 
     # Check 5: Wrong accumulator dtype (critical warning)
     if config.numerics.acc_dtype != "float64":
         warnings_list.append(
             f"acc_dtype is {config.numerics.acc_dtype}, MUST be float64 for mass conservation. "
-            "This will cause conservation violations!"
+            "This will cause conservation violations!",
         )
 
     # Check 6: Debug determinism level in production
     if config.numerics.determinism_level.value == 2:
         warnings_list.append(
             "DETERMINISM_LEVEL=DEBUG is enabled. This will severely impact performance. "
-            "Use LEVEL=FAST for production runs."
+            "Use LEVEL=FAST for production runs.",
         )
 
     # Issue warnings
@@ -374,20 +485,21 @@ def auto_fix_config(config: SimulationConfig) -> SimulationConfig:
 
     Note:
         This function modifies the input config in place and also returns it.
+
     """
     from copy import deepcopy
-    import dataclasses
 
     # Create a deep copy to avoid modifying the original
     fixed = deepcopy(config)
 
     # Fix 1: E_cutoff too close to E_min
     buffer = fixed.grid.E_cutoff - fixed.grid.E_min
-    if buffer < DEFAULT_E_BUFFER_MIN:
-        fixed.grid.E_cutoff = fixed.grid.E_min + DEFAULT_E_BUFFER_MIN
+    _buffer_min = get_default('energy_grid.e_buffer_min')
+    if buffer < _buffer_min:
+        fixed.grid.E_cutoff = fixed.grid.E_min + _buffer_min
         warnings.warn(
             f"Auto-fixed E_cutoff from {config.grid.E_cutoff:.2f} to {fixed.grid.E_cutoff:.2f} "
-            f"to satisfy minimum buffer requirement ({DEFAULT_E_BUFFER_MIN} MeV)",
+            f"to satisfy minimum buffer requirement ({_buffer_min} MeV)",
             ConfigurationWarning,
             stacklevel=2,
         )
@@ -448,6 +560,7 @@ def validate_and_fix(config: SimulationConfig, auto_fix: bool = False) -> Simula
     Example:
         >>> config = SimulationConfig()
         >>> valid_config = validate_and_fix(config, auto_fix=True)
+
     """
     if auto_fix:
         config = auto_fix_config(config)
@@ -456,8 +569,8 @@ def validate_and_fix(config: SimulationConfig, auto_fix: bool = False) -> Simula
 
     if not is_valid:
         raise ConfigurationError(
-            f"Configuration validation failed. Errors cannot be auto-fixed:\n"
-            + "\n".join(f"  - {err}" for err in errors)
+            "Configuration validation failed. Errors cannot be auto-fixed:\n"
+            + "\n".join(f"  - {err}" for err in errors),
         )
 
     # Still issue warnings for less critical issues
@@ -487,6 +600,7 @@ def create_validated_config(**kwargs) -> SimulationConfig:
         ...     Nx=200, Nz=200, Ne=150,
         ...     E_cutoff=3.0
         ... )
+
     """
     from smatrix_2d.config.simulation_config import create_default_config
 

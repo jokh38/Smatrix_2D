@@ -13,4 +13,10 @@
 | #171 | 11:27 AM | 🔵 | Energy loss operator implements CSDA with conservative bin splitting and block-local reduction | ~306 |
 | #168 | 11:26 AM | 🔵 | Angular scattering operator implements gather formulation with normalized kernel and explicit escape accounting | ~319 |
 | #147 | 11:21 AM | 🟣 | Phase B-1: Tier-1 Scattering LUT Implementation Complete | ~303 |
+
+### Jan 16, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #874 | 4:11 AM | 🔄 | Code consolidation and deprecated module removal completed | ~586 |
 </claude-mem-context>

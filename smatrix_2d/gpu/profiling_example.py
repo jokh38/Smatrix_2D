@@ -1,12 +1,11 @@
-"""
-Example: GPU Profiling Integration
+"""Example: GPU Profiling Integration
 
 This module demonstrates how to integrate the GPU profiling infrastructure
 with the existing transport kernels in kernels.py.
 """
 
-from smatrix_2d.gpu.profiling import Profiler, profile_kernel
 from smatrix_2d.gpu.kernels import GPUTransportStepV3
+from smatrix_2d.gpu.profiling import Profiler, profile_kernel
 
 
 class ProfiledGPUTransportStep(GPUTransportStepV3):
@@ -28,6 +27,7 @@ class ProfiledGPUTransportStep(GPUTransportStepV3):
         >>>
         >>> # View results
         >>> print(profiler.get_full_report())
+
     """
 
     def __init__(
@@ -46,6 +46,7 @@ class ProfiledGPUTransportStep(GPUTransportStepV3):
             stopping_power_lut: StoppingPowerLUT for energy loss
             delta_s: Step length [mm]
             profiler: Profiler instance (creates new one if None)
+
         """
         super().__init__(grid, sigma_buckets, stopping_power_lut, delta_s)
 
@@ -91,6 +92,7 @@ class ProfiledGPUTransportStep(GPUTransportStepV3):
 
         Returns:
             Formatted profiling report
+
         """
         return self.profiler.get_full_report()
 
@@ -122,6 +124,7 @@ def manual_profiling_example(
 
     Returns:
         Final phase space state
+
     """
     profiler = Profiler(enabled=True)
 
@@ -223,6 +226,7 @@ class DecoratorProfiledTransportStep(GPUTransportStepV3):
 
         Returns:
             Final phase space state
+
         """
         # Track tensors
         self.profiler.track_tensor("psi", psi)

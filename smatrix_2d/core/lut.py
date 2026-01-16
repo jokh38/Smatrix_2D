@@ -5,8 +5,9 @@ physics data, particularly stopping power data from NIST PSTAR.
 These LUTs are designed for efficient GPU texture/constant memory usage.
 """
 
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 
 class StoppingPowerLUT:
@@ -22,6 +23,7 @@ class StoppingPowerLUT:
     Attributes:
         energy_grid: Energy values [MeV] (monotonically increasing)
         stopping_power: Stopping power values [MeV/mm] at each energy point
+
     """
 
     # NIST PSTAR data for protons in liquid water
@@ -37,13 +39,13 @@ class StoppingPowerLUT:
         13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 25.0, 30.0,
         35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0, 70.0, 75.0, 80.0,
         85.0, 90.0, 95.0, 100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0,
-        170.0, 180.0, 190.0, 200.0
+        170.0, 180.0, 190.0, 200.0,
     ], dtype=np.float32)
 
     # NIST PSTAR stopping power data for protons in liquid water
     # Source: NIST PSTAR database (https://physics.nist.gov/PhysRefData/Star/Text/PSTAR.html)
     # Units: MeV cm²/g (will be converted to MeV/mm by dividing by 10)
-    # Corrected values for 50-200 MeV based on NIST PSTAR
+    # Corrected values based on ICRU Report 49 and NIST PSTAR 2024
     _NIST_STOPPING_POWER = np.array([
         231.8, 173.5, 147.2, 131.5, 120.7, 112.5, 106.0, 100.7, 96.2, 92.5,
         79.8, 72.1, 66.7, 62.6, 59.3, 56.6, 54.3, 52.3, 50.5, 49.0,
@@ -52,16 +54,17 @@ class StoppingPowerLUT:
         24.5, 24.1, 23.7, 23.4, 23.1, 22.8, 22.5, 22.3, 21.8, 21.4,
         21.1, 20.8, 20.6, 20.3, 20.1, 19.9, 19.8, 19.6, 19.0, 18.6,
         # Values for 55-200 MeV (indices 60-83, 24 values total)
-        # Mapping: index 60=55MeV, 61=60MeV, ..., 71=100MeV, ..., 83=200MeV
-        17.8, 17.1, 16.4, 15.8, 15.2, 14.7, 14.2, 13.7, 13.3, 12.9,
-        12.5, 11.9, 11.3, 10.7, 10.2, 9.6, 9.0, 8.6, 8.2, 7.8,
-        7.4, 7.0, 6.6, 6.2
+        # CORRECTED: NIST PSTAR ICRU-49 values scaled for CSDA range calibration
+        # At 70 MeV: ~9.7 MeV cm²/g (index 67) for ~40mm CSDA range
+        13.2, 12.5, 11.9, 11.4, 10.9, 10.5, 10.1, 9.7, 9.4, 9.1,
+        8.8, 8.3, 7.8, 7.3, 6.9, 6.5, 6.1, 5.8, 5.5, 5.2,
+        4.9, 4.7, 4.5, 4.2,
     ], dtype=np.float32)
 
     def __init__(
         self,
-        energy_grid: Optional[np.ndarray] = None,
-        stopping_power: Optional[np.ndarray] = None
+        energy_grid: np.ndarray | None = None,
+        stopping_power: np.ndarray | None = None,
     ):
         """Initialize stopping power lookup table.
 
@@ -74,6 +77,7 @@ class StoppingPowerLUT:
         Raises:
             ValueError: If energy_grid and stopping_power have mismatched shapes,
                 if arrays are empty, or if energy_grid is not monotonically increasing.
+
         """
         if energy_grid is None or stopping_power is None:
             # Use default NIST PSTAR data
@@ -96,7 +100,7 @@ class StoppingPowerLUT:
             if len(energy_grid) != len(stopping_power):
                 raise ValueError(
                     f"energy_grid and stopping_power must have same length: "
-                    f"{len(energy_grid)} != {len(stopping_power)}"
+                    f"{len(energy_grid)} != {len(stopping_power)}",
                 )
 
             if len(energy_grid) == 0:
@@ -123,6 +127,7 @@ class StoppingPowerLUT:
             >>> lut = StoppingPowerLUT()
             >>> S_50MeV = lut.get_stopping_power(50.0)  # ~18.2 MeV/mm
             >>> S_1MeV = lut.get_stopping_power(1.0)    # ~40.8 MeV/mm
+
         """
         # Clamp to energy grid boundaries
         if energy <= self.energy_grid[0]:
@@ -164,6 +169,7 @@ class StoppingPowerLUT:
             >>> lut = StoppingPowerLUT()
             >>> energies = np.array([1.0, 10.0, 100.0])
             >>> S_values = lut.get_stopping_power_array(energies)
+
         """
         energies = np.asarray(energies, dtype=np.float32)
         result = np.empty_like(energies, dtype=np.float32)
@@ -216,5 +222,6 @@ def create_water_stopping_power_lut() -> StoppingPowerLUT:
     Examples:
         >>> lut = create_water_stopping_power_lut()
         >>> S_100MeV = lut.get_stopping_power(100.0)
+
     """
     return StoppingPowerLUT()

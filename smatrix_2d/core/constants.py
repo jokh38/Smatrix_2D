@@ -1,6 +1,53 @@
-"""Physics constants for 2D transport system."""
+"""Physics constants for 2D transport system.
+
+This module is the Single Source of Truth (SSOT) for all physics constants
+used in the simulation. Import from here rather than defining constants locally.
+
+Import Policy:
+    from smatrix_2d.core.constants import DEFAULT_CONSTANTS, AVOGADRO, WATER_RADIATION_LENGTH
+
+DO NOT use: from smatrix_2d.core.constants import *
+"""
 
 from dataclasses import dataclass
+
+# =============================================================================
+# Fundamental Physical Constants
+# =============================================================================
+
+# Avogadro's number [mol⁻¹]
+# Exact as defined by SI 2019 redefinition
+AVOGADRO = 6.02214076e23
+
+# Speed of light [mm/µs]
+# Exact value: c = 299,792,458 m/s = 299,792.458 mm/µs
+C_LIGHT_MM_US = 299792.458
+
+# Elementary charge [C]
+E_CHARGE = 1.602176634e-19
+
+# =============================================================================
+# Material Constants - Water (SSOT)
+# =============================================================================
+
+# Water (H2O) properties - liquid at room temperature
+# These are the authoritative values for all water material calculations
+WATER_DENSITY = 1.0  # [g/cm³]
+WATER_RADIATION_LENGTH = 36.08  # [mm] at unit density
+WATER_MEAN_EXCITATION_ENERGY = 75.0e-6  # [MeV] (75 eV)
+WATER_EFFECTIVE_Z = 7.42  # Effective atomic number for liquid water
+WATER_ATOMIC_MASS = 18.015  # [g/mol] Effective atomic mass
+
+# Water density for reference (kept for compatibility)
+DEFAULT_WATER_DENSITY = WATER_DENSITY
+DEFAULT_WATER_RADIATION_LENGTH = WATER_RADIATION_LENGTH
+DEFAULT_WATER_MEAN_EXCITATION_ENERGY = WATER_MEAN_EXCITATION_ENERGY
+DEFAULT_WATER_Z = WATER_EFFECTIVE_Z
+DEFAULT_WATER_A = WATER_ATOMIC_MASS
+
+# =============================================================================
+# Simulation Physics Constants
+# =============================================================================
 
 @dataclass
 class PhysicsConstants2D:
@@ -41,3 +88,13 @@ class PhysicsConstants2D:
 
 
 DEFAULT_CONSTANTS = PhysicsConstants2D()
+
+# =============================================================================
+# Re-exports for backward compatibility
+# =============================================================================
+
+# These aliases are provided for backward compatibility during refactoring.
+# New code should use the named constants above.
+PROTON_MASS_MEV = DEFAULT_CONSTANTS.m_p
+ELECTRON_MASS_MEV = DEFAULT_CONSTANTS.m_e
+C_LIGHT_MM = C_LIGHT_MM_US * 1e6  # Convert to mm/s for legacy code

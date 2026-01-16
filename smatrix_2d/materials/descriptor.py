@@ -3,9 +3,12 @@
 Implements R-MAT-001 and R-MAT-002 from DOC-2_PHASE_B1_SPEC_v2.1.md
 """
 
+import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
-import math
+
+# Import physics constants from core.constants (SSOT)
+from smatrix_2d.core.constants import AVOGADRO
 
 
 @dataclass
@@ -17,6 +20,7 @@ class ElementComponent:
         Z: Atomic number
         A: Atomic mass [g/mol]
         weight_fraction: Mass fraction in compound (0-1)
+
     """
 
     symbol: str
@@ -34,7 +38,7 @@ class ElementComponent:
 
         if not (0 < self.weight_fraction <= 1):
             raise ValueError(
-                f"Weight fraction must be in (0, 1]: {self.weight_fraction}"
+                f"Weight fraction must be in (0, 1]: {self.weight_fraction}",
             )
 
 
@@ -60,11 +64,11 @@ class MaterialDescriptor:
 
     name: str
     rho: float
-    X0: Optional[float] = None
-    composition: Optional[List[ElementComponent]] = None
-    I_mean: Optional[float] = None
-    X0_derived: Optional[float] = field(init=False, default=None)
-    rho_e: Optional[float] = field(init=False, default=None)
+    X0: float | None = None
+    composition: list[ElementComponent] | None = None
+    I_mean: float | None = None
+    X0_derived: float | None = field(init=False, default=None)
+    rho_e: float | None = field(init=False, default=None)
 
     def __post_init__(self):
         """Validate and compute derived properties."""
@@ -76,13 +80,12 @@ class MaterialDescriptor:
         if self.X0 is None:
             if self.composition is None:
                 raise ValueError(
-                    f"Material '{self.name}': must provide either X0 or composition"
+                    f"Material '{self.name}': must provide either X0 or composition",
                 )
             self.X0_derived = self._compute_X0_from_composition()
             self.X0 = self.X0_derived
-        else:
-            if self.X0 <= 0:
-                raise ValueError(f"Radiation length must be positive: X0={self.X0}")
+        elif self.X0 <= 0:
+            raise ValueError(f"Radiation length must be positive: X0={self.X0}")
 
         # Compute electron density
         self.rho_e = self._compute_electron_density()
@@ -102,6 +105,7 @@ class MaterialDescriptor:
 
         Returns:
             X0 [mm] for unit density (rho=1 g/cm³)
+
         """
         if Z <= 0:
             raise ValueError(f"Atomic number must be positive: Z={Z}")
@@ -123,6 +127,7 @@ class MaterialDescriptor:
 
         Returns:
             X0 [mm] at material density
+
         """
         if not self.composition:
             raise ValueError("Composition required for X0 calculation")
@@ -154,8 +159,10 @@ class MaterialDescriptor:
 
         Returns:
             Electron density [electrons/cm³]
+
         """
-        N_A = 6.02214076e23  # Avogadro's number [mol⁻¹]
+        # Use AVOGADRO from core.constants (SSOT)
+        N_A = AVOGADRO  # Avogadro's number [mol⁻¹]
 
         if self.composition:
             # Compound: weighted average
@@ -174,6 +181,7 @@ class MaterialDescriptor:
 
         Returns:
             (Z_eff, A_eff) weighted by mass fraction
+
         """
         if not self.composition:
             raise ValueError("Composition required for effective Z/A calculation")
@@ -183,11 +191,12 @@ class MaterialDescriptor:
 
         return Z_eff, A_eff
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert descriptor to dictionary for serialization.
 
         Returns:
             Dictionary representation
+
         """
         data = {
             "name": self.name,
@@ -218,7 +227,7 @@ class MaterialDescriptor:
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "MaterialDescriptor":
+    def from_dict(cls, data: dict) -> "MaterialDescriptor":
         """Create descriptor from dictionary.
 
         Args:
@@ -226,6 +235,7 @@ class MaterialDescriptor:
 
         Returns:
             MaterialDescriptor instance
+
         """
         composition = None
         if "composition" in data:

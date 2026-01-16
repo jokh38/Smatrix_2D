@@ -70,3 +70,7 @@ update
 # Analysis cache
 .complexipy_cache/
 proton_transport_steps.csv
+smatrix_2d/data/raw/
+smatrix_2d/data/processed/*.npy
+smatrix_2d/data/processed/*.json
+data/

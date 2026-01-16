@@ -6,13 +6,14 @@ Precomputes scattering kernels for each bucket to avoid per-bin kernel generatio
 
 from __future__ import annotations
 
-import numpy as np
-from typing import TYPE_CHECKING, Tuple, Optional
-from dataclasses import dataclass
 import warnings
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Optional
 
-from smatrix_2d.core.grid import PhaseSpaceGrid2D
+import numpy as np
+
 from smatrix_2d.core.constants import PhysicsConstants2D
+from smatrix_2d.core.grid import PhaseSpaceGrid2D
 
 if TYPE_CHECKING:
     from smatrix_2d.core.materials import MaterialProperties2D
@@ -30,7 +31,9 @@ class SigmaBucketInfo:
         half_width_bins: Half-width of kernel support in bins
         kernel: Precomputed sparse kernel [2*half_width_bins + 1]
         kernel_sum: Sum of full kernel (for escape accounting)
+
     """
+
     bucket_id: int
     sigma: float
     sigma_squared: float
@@ -64,12 +67,12 @@ class SigmaBuckets:
     def __init__(
         self,
         grid: PhaseSpaceGrid2D,
-        material: 'MaterialProperties2D',
+        material: MaterialProperties2D,
         constants: PhysicsConstants2D,
         n_buckets: int = 32,
         k_cutoff: float = 5.0,
         delta_s: float = 1.0,
-        scattering_lut: Optional['ScatteringLUT'] = None,
+        scattering_lut: ScatteringLUT | None = None,
         use_lut: bool = True,
     ):
         """Initialize sigma bucketing system.
@@ -85,6 +88,7 @@ class SigmaBuckets:
             delta_s: Step length [mm] for sigma calculation (default: 1.0)
             scattering_lut: Optional scattering LUT (if None, attempts auto-load)
             use_lut: Whether to use LUT (default: True). Falls back to Highland if unavailable.
+
         """
         self.grid = grid
         self.material = material
@@ -107,12 +111,12 @@ class SigmaBuckets:
             except ImportError:
                 warnings.warn(
                     "Scattering LUT module not available, falling back to Highland formula",
-                    UserWarning, stacklevel=2
+                    UserWarning, stacklevel=2,
                 )
             except Exception as e:
                 warnings.warn(
                     f"Failed to load scattering LUT, falling back to Highland formula: {e}",
-                    UserWarning, stacklevel=2
+                    UserWarning, stacklevel=2,
                 )
         elif use_lut and self.sigma_lut is not None:
             self._using_lut = True
@@ -138,6 +142,7 @@ class SigmaBuckets:
 
         Returns:
             sigma_norm: Normalized scattering [rad/√mm]
+
         """
         if self.sigma_lut is None:
             raise RuntimeError("LUT not available, cannot lookup sigma_norm")
@@ -152,6 +157,7 @@ class SigmaBuckets:
 
         Returns:
             sigma_theta [radians] (RMS scattering angle)
+
         """
         gamma = (E_MeV + self.constants.m_p) / self.constants.m_p
         beta_sq = 1.0 - 1.0 / (gamma * gamma)
@@ -223,7 +229,7 @@ class SigmaBuckets:
         # Divide into percentile-based buckets
         bucket_edges = np.percentile(
             sorted_sigma_squared,
-            np.linspace(0, 100, self.n_buckets + 1)
+            np.linspace(0, 100, self.n_buckets + 1),
         )
 
         # Ensure edges are unique
@@ -265,7 +271,7 @@ class SigmaBuckets:
                 sigma_squared=mean_sigma_squared if len(sigma_squared_values) > 0 else sigma_b ** 2,
                 half_width_bins=0,
                 kernel=np.array([]),
-                kernel_sum=0.0
+                kernel_sum=0.0,
             ))
 
     def _compute_kernels(self):
@@ -331,6 +337,7 @@ class SigmaBuckets:
 
         Returns:
             bucket_id: Bucket index [0, n_buckets-1]
+
         """
         return self.bucket_idx_map[iE, iz]
 
@@ -343,6 +350,7 @@ class SigmaBuckets:
         Returns:
             kernel: Precomputed kernel [2*half_width_bins + 1]
                     kernel[half_width_bins] corresponds to delta_ith = 0
+
         """
         return self.buckets[bucket_id].kernel
 
@@ -354,6 +362,7 @@ class SigmaBuckets:
 
         Returns:
             sigma: Representative sigma value [rad]
+
         """
         return self.buckets[bucket_id].sigma
 
@@ -365,6 +374,7 @@ class SigmaBuckets:
 
         Returns:
             sigma_squared: Mean sigma² value in bucket [rad²]
+
         """
         return self.buckets[bucket_id].sigma_squared
 
@@ -376,6 +386,7 @@ class SigmaBuckets:
 
         Returns:
             half_width_bins: Half-width of kernel [bins]
+
         """
         return self.buckets[bucket_id].half_width_bins
 
@@ -387,6 +398,7 @@ class SigmaBuckets:
 
         Returns:
             kernel_sum: Sum of kernel over all delta_ith
+
         """
         return self.buckets[bucket_id].kernel_sum
 
@@ -398,6 +410,7 @@ class SigmaBuckets:
 
         Returns:
             bucket_info: Complete SigmaBucketInfo object
+
         """
         return self.buckets[bucket_id]
 
@@ -413,6 +426,7 @@ class SigmaBuckets:
 
         Returns:
             sigma: RMS scattering angle [rad]
+
         """
         sigma_squared = self.sigma_squared_map[iE, iz]
         return np.sqrt(sigma_squared)
@@ -422,6 +436,7 @@ class SigmaBuckets:
 
         Returns:
             summary: Formatted string with bucket statistics
+
         """
         lines = [
             "Sigma Buckets Summary",
@@ -443,7 +458,7 @@ class SigmaBuckets:
                 f"sigma={bucket.sigma*1000:.3f} mrad, "
                 f"half_width={bucket.half_width_bins} bins, "
                 f"count={count:5d} "
-                f"({100*count/self.sigma_squared_map.size:.1f}%)"
+                f"({100*count/self.sigma_squared_map.size:.1f}%)",
             )
 
         lines.append("-" * 50)
@@ -462,6 +477,7 @@ class SigmaBuckets:
 
         Returns:
             True if using LUT, False if using Highland formula
+
         """
         return self._using_lut
 
@@ -472,11 +488,12 @@ class SigmaBuckets:
 
         Returns:
             gpu_array: CuPy array on GPU, or None if LUT unavailable
+
         """
         if self.sigma_lut is None:
             warnings.warn(
                 "No scattering LUT available, cannot upload to GPU",
-                UserWarning, stacklevel=2
+                UserWarning, stacklevel=2,
             )
             return None
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Example usage of R-CFG-003: SimulationConfig <-> GridSpecsV2 factory functions
+"""Example usage of R-CFG-003: SimulationConfig <-> GridSpecsV2 factory functions
 
 This example demonstrates the bidirectional conversion between SimulationConfig
 and GridSpecsV2 using the factory methods implemented in R-CFG-003.
@@ -22,7 +21,7 @@ def example_1_basic_conversion():
     # Convert to GridSpecsV2
     grid_specs = GridSpecsV2.from_simulation_config(config)
 
-    print(f"Grid configuration extracted:")
+    print("Grid configuration extracted:")
     print(f"  Spatial: {grid_specs.Nx}x{grid_specs.Nz} bins")
     print(f"  Domain: x=[{grid_specs.x_min}, {grid_specs.x_max}] mm, "
           f"z=[{grid_specs.z_min}, {grid_specs.z_max}] mm")
@@ -39,21 +38,21 @@ def example_2_custom_config():
 
     # Define custom simulation parameters
     custom_dict = {
-        'grid': {
-            'Nx': 200,          # Higher spatial resolution in x
-            'Nz': 150,          # Higher spatial resolution in z
-            'Ntheta': 90,       # Coarser angular resolution
-            'Ne': 50,           # Coarser energy resolution
-            'x_min': -30.0,
-            'x_max': 30.0,
-            'z_min': -40.0,
-            'z_max': 40.0,
-            'theta_min': 0.0,
-            'theta_max': 90.0,
-            'E_min': 5.0,
-            'E_max': 200.0,
-            'E_cutoff': 10.0,
-        }
+        "grid": {
+            "Nx": 200,          # Higher spatial resolution in x
+            "Nz": 150,          # Higher spatial resolution in z
+            "Ntheta": 90,       # Coarser angular resolution
+            "Ne": 50,           # Coarser energy resolution
+            "x_min": -30.0,
+            "x_max": 30.0,
+            "z_min": -40.0,
+            "z_max": 40.0,
+            "theta_min": 0.0,
+            "theta_max": 90.0,
+            "E_min": 5.0,
+            "E_max": 200.0,
+            "E_cutoff": 10.0,
+        },
     }
 
     # Create SimulationConfig from dictionary
@@ -62,7 +61,7 @@ def example_2_custom_config():
     # Convert to GridSpecsV2
     grid_specs = GridSpecsV2.from_simulation_config(config)
 
-    print(f"Custom grid configuration:")
+    print("Custom grid configuration:")
     print(f"  Spatial: {grid_specs.Nx}x{grid_specs.Nz} bins")
     print(f"  Domain: x=[{grid_specs.x_min}, {grid_specs.x_max}] mm, "
           f"z=[{grid_specs.z_min}, {grid_specs.z_max}] mm")
@@ -135,7 +134,7 @@ def example_4_direct_gridspecs():
         E_cutoff=3.0,
     )
 
-    print(f"Direct GridSpecsV2 created:")
+    print("Direct GridSpecsV2 created:")
     print(f"  Spatial: {grid_specs.Nx}x{grid_specs.Nz} bins")
     print(f"  Domain: x=[{grid_specs.x_min}, {grid_specs.x_max}] mm, "
           f"z=[{grid_specs.z_min}, {grid_specs.z_max}] mm")
@@ -144,7 +143,7 @@ def example_4_direct_gridspecs():
     # Convert to SimulationConfig
     config = grid_specs.to_simulation_config()
 
-    print(f"\nConverted to SimulationConfig:")
+    print("\nConverted to SimulationConfig:")
     print(f"  GridConfig.Nx: {config.grid.Nx}")
     print(f"  GridConfig.Nz: {config.grid.Nz}")
     print(f"  GridConfig.x_min: {config.grid.x_min}")
@@ -155,7 +154,7 @@ def example_4_direct_gridspecs():
     if errors:
         print(f"\n  Validation errors: {errors}")
     else:
-        print(f"\n  Configuration is valid!")
+        print("\n  Configuration is valid!")
 
 
 def example_5_workflow():
@@ -166,15 +165,15 @@ def example_5_workflow():
 
     # Step 1: Load configuration from file (simulated with dict)
     config_dict = {
-        'grid': {
-            'Nx': 150,
-            'Nz': 150,
-            'Ntheta': 180,
-            'Ne': 100,
-            'E_min': 1.0,
-            'E_max': 100.0,
-            'E_cutoff': 2.0,
-        }
+        "grid": {
+            "Nx": 150,
+            "Nz": 150,
+            "Ntheta": 180,
+            "Ne": 100,
+            "E_min": 1.0,
+            "E_max": 100.0,
+            "E_cutoff": 2.0,
+        },
     }
 
     # Step 2: Create SimulationConfig
@@ -193,9 +192,9 @@ def example_5_workflow():
     phase_space = create_phase_space_grid(grid_specs)
 
     print("Workflow complete:")
-    print(f"  1. Configuration loaded and validated")
-    print(f"  2. GridSpecsV2 created from configuration")
-    print(f"  3. PhaseSpaceGrid created from GridSpecsV2")
+    print("  1. Configuration loaded and validated")
+    print("  2. GridSpecsV2 created from configuration")
+    print("  3. PhaseSpaceGrid created from GridSpecsV2")
     print(f"  4. Ready for simulation with shape: {phase_space.shape}")
 
 
