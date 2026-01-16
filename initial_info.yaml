@@ -97,6 +97,15 @@ transport:
   max_steps: 100          # Maximum number of transport steps
 
 # ==============================================================================
+# RESOLUTION CONFIGURATION
+# ==============================================================================
+resolution:
+  propagation:
+    mode: "auto"          # Options: auto, fixed
+    multiplier: 0.5       # Used when mode=auto: delta_s = multiplier * min(delta_x, delta_z)
+    value: 0.5            # Used when mode=fixed: fixed step size in mm
+
+# ==============================================================================
 # CONVERGENCE CRITERIA
 # ==============================================================================
 convergence:
