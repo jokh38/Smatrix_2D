@@ -7,5 +7,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #695 | 3:15 AM | 🔵 | Sisyphus test suite infrastructure discovered for GPU kernel benchmarking | ~344 |
+| #976 | 9:41 AM | 🔵 | Physics data module exports core fetching and processing functions | ~246 |
+| #975 | " | 🔵 | CLI provides physics data fetching and LUT generation commands | ~287 |
 </claude-mem-context>

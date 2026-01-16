@@ -1,14 +1,32 @@
+# ==============================================================================
 # Default Configuration for Smatrix_2D Simulation
-# This file contains ALL default values used throughout the simulation.
-# This is the Single Source of Truth (SSOT) for default configuration.
+# ==============================================================================
+# This file contains CODE-LEVEL defaults used throughout the simulation.
+# This is the Single Source of Truth (SSOT) for internal configuration.
 #
-# To modify defaults, edit this YAML file. The Python module (defaults.py)
+# IMPORTANT: This file is for DEVELOPERS, not users.
+# - User-facing scenario configuration goes in: initial_info.yaml (project root)
+# - Code-level internal defaults go here: defaults.yaml (smatrix_2d/config/)
+#
+# Configuration Split:
+# -----------------------------------------------------------------------------
+# initial_info.yaml (User-Facing):           defaults.yaml (Code-Level):
+# -----------------------------------------------------------------------------
+# - Particle beam settings                   - Data type policies
+# - Grid domain (min, max, delta)            - Validation tolerances
+# - Material selection                       - Internal algorithm settings
+# - Numerical safeguards                     - GPU kernel defaults
+# - Transport step size                      - Debug/profiling settings
+# - Convergence criteria                     - Boundary policies
+# - Output settings                          - Synchronization
+#
+# To modify defaults, edit this YAML file. The Python module (yaml_loader.py)
 # loads these values at runtime and exposes them as constants.
 #
 # Modification Policy:
-# - All defaults must be in this file
+# - All code-level defaults must be in this file
 # - Do not hardcode default values elsewhere in the codebase
-# - Use explicit imports: from smatrix_2d.config.defaults import DEFAULT_E_MIN, DEFAULT_E_CUTOFF
+# - Use explicit imports: from smatrix_2d.config.defaults import DEFAULT_E_MIN
 
 # =============================================================================
 # Energy Grid Defaults
@@ -73,40 +91,37 @@ angular_grid:
   boundary_policy: absorb
 
 # =============================================================================
-# Transport Defaults
+# Transport Defaults (Code-Level)
 # =============================================================================
 transport:
-  # Transport step size (mm)
-  # Should be <= min(delta_x, delta_z) to avoid bin-skipping artifacts
-  delta_s: 1.0
-
-  # Maximum number of transport steps
-  max_steps: 100
-
   # Default number of sub-steps per operator
   # Increasing this improves stability at the cost of performance
   sub_steps: 1
 
-  # Default operator splitting method
+  # Default operator splitting method (internal algorithm choice)
+  # Options: first_order, strang_splitting
   splitting_type: first_order
 
   # Default policy for handling backward-traveling particles
+  # Options: hard_reject, soft_absorb
   backward_transport_policy: hard_reject
 
 # =============================================================================
-# Numerical Defaults
+# Numerical Defaults (Code-Level Fallbacks)
 # =============================================================================
+# Note: User-adjustable safeguards are in initial_info.yaml
+# These are code-level fallbacks when user config is not provided
 numerical:
-  # Weight threshold for particle tracking
+  # Weight threshold for particle tracking (code-level fallback)
   # Particles with weight below this are not tracked (variance reduction)
   weight_threshold: 1.0e-10
 
-  # Minimum beta squared for Highland formula
+  # Minimum beta squared for scattering calculations
   # Prevents numerical issues at very low energies
   beta_sq_min: 0.01
 
 # =============================================================================
-# Data Type Policies
+# Data Type Policies (Code-Level)
 # =============================================================================
 dtypes:
   # Primary phase space tensor dtype
@@ -129,7 +144,7 @@ dtypes:
   lut: float32
 
 # =============================================================================
-# Sigma Bucket Defaults (Angular Scattering)
+# Sigma Bucket Defaults (Angular Scattering - Internal)
 # =============================================================================
 sigma_buckets:
   # Number of sigma buckets for angular scattering kernel
@@ -141,20 +156,39 @@ sigma_buckets:
   theta_cutoff_deg: 45.0
 
 # =============================================================================
-# GPU Kernel Defaults
+# GPU Configuration Defaults (Code-Level)
 # =============================================================================
-gpu_kernels:
-  # CUDA block size for 1D kernels
-  block_size_1d: 256
+# These are code-level GPU settings. Users typically don't need to change these.
+gpu:
+  # CUDA kernel block sizes
+  kernels:
+    # 1D kernel block size
+    block_size_1d: 256
 
-  # CUDA block size for 2D kernels (x, y dimensions)
-  block_size_2d: [16, 16]
+    # 2D kernel block sizes (x, y dimensions)
+    block_size_2d: [16, 16]
 
-  # CUDA block size for 3D kernels (x, y, z dimensions)
-  block_size_3d: [8, 8, 8]
+    # 3D kernel block sizes (x, y, z dimensions)
+    block_size_3d: [8, 8, 8]
+
+  # Early exit threshold for GPU kernels
+  early_exit_threshold: 1.0e-12
+
+  # Accumulation mode for atomic operations
+  # Options: FAST (non-deterministic order), DETERMINISTIC (slower)
+  accumulation_mode: "FAST"
+
+  # Memory pool configuration
+  memory_pool:
+    # Fraction of available VRAM to use for CuPy memory pool
+    fraction: 0.8
+
+  # Profiling settings (for performance analysis)
+  profiling:
+    enabled: true
 
 # =============================================================================
-# Synchronization Defaults
+# Synchronization Defaults (Debug/Development)
 # =============================================================================
 synchronization:
   # Default sync interval for GPU->CPU data transfer
@@ -163,8 +197,9 @@ synchronization:
   sync_interval: 0
 
 # =============================================================================
-# Tolerance Defaults (Validation)
+# Tolerance Defaults (Validation/Testing)
 # =============================================================================
+# These are used for automated testing, not user simulations
 tolerances:
   # Mass conservation tolerance (relative error)
   # Mass balance should be satisfied within this fraction
@@ -181,11 +216,13 @@ tolerances:
   escape_abs: 1.0e-10
 
 # =============================================================================
-# Determinism Level Defaults
+# Determinism Level Defaults (Debug/Development)
 # =============================================================================
 determinism:
   # Default determinism level (see enums.py for details)
   # 0 (FAST): Best performance, tolerance-based testing
+  # 1 (SAFE): Deterministic atomic operations
+  # 2 (VALIDATION): Full determinism for validation
   level: 0
 
 # =============================================================================

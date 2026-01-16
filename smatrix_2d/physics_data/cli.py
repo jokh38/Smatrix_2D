@@ -26,9 +26,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Default paths
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-DATA_DIR = PROJECT_ROOT / "smatrix_2d" / "data"
+# Default paths - data is stored within the package at smatrix_2d/data/
+PACKAGE_ROOT = Path(__file__).parent.parent  # smatrix_2d/
+DATA_DIR = PACKAGE_ROOT / "data"
 RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
 METADATA_DIR = DATA_DIR / "metadata"
