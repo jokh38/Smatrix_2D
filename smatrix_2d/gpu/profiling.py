@@ -1,5 +1,4 @@
-"""
-GPU Profiling Infrastructure
+"""GPU Profiling Infrastructure
 
 This module provides profiling tools for GPU kernels using CUDA events and memory tracking.
 
@@ -16,13 +15,14 @@ Example:
     >>> with profiler.profile_kernel("angular_scattering"):
     ...     step.apply_angular_scattering(psi_in, psi_out, escapes)
     >>> print(profiler.get_full_report())
+
 """
 
-import time
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
-from collections import defaultdict
 import json
+import time
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 
 # Import GPU utilities from utils module (SSOT)
 from smatrix_2d.gpu.utils import get_cupy, gpu_available
@@ -58,6 +58,7 @@ class KernelTimer:
         >>> # ... launch kernel ...
         >>> timer.stop("angular_scattering")
         >>> print(timer.get_report())
+
     """
 
     def __init__(self):
@@ -65,9 +66,9 @@ class KernelTimer:
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy not available - GPU profiling requires CUDA")
 
-        self.timings: Dict[str, List[float]] = defaultdict(list)
-        self._start_events: Dict[str, cp.cuda.Event] = {}
-        self._stop_events: Dict[str, cp.cuda.Event] = {}
+        self.timings: dict[str, list[float]] = defaultdict(list)
+        self._start_events: dict[str, cp.cuda.Event] = {}
+        self._stop_events: dict[str, cp.cuda.Event] = {}
 
     def start(self, kernel_name: str) -> None:
         """Record the start event for a kernel.
@@ -77,6 +78,7 @@ class KernelTimer:
 
         Example:
             >>> timer.start("angular_scattering")
+
         """
         event = cp.cuda.Event()
         event.record()
@@ -97,6 +99,7 @@ class KernelTimer:
         Example:
             >>> elapsed = timer.stop("angular_scattering")
             >>> print(f"Kernel took {elapsed:.3f} ms")
+
         """
         if kernel_name not in self._start_events:
             raise ValueError(f"No start event for kernel '{kernel_name}'")
@@ -119,7 +122,7 @@ class KernelTimer:
 
         return elapsed_ms
 
-    def get_timing(self, kernel_name: str) -> Optional[Dict[str, float]]:
+    def get_timing(self, kernel_name: str) -> dict[str, float] | None:
         """Get timing statistics for a specific kernel.
 
         Args:
@@ -128,17 +131,18 @@ class KernelTimer:
         Returns:
             Dictionary with 'count', 'total', 'mean', 'min', 'max' in milliseconds,
             or None if kernel has no timings
+
         """
         if kernel_name not in self.timings or not self.timings[kernel_name]:
             return None
 
         times = self.timings[kernel_name]
         return {
-            'count': len(times),
-            'total_ms': sum(times),
-            'mean_ms': sum(times) / len(times),
-            'min_ms': min(times),
-            'max_ms': max(times),
+            "count": len(times),
+            "total_ms": sum(times),
+            "mean_ms": sum(times) / len(times),
+            "min_ms": min(times),
+            "max_ms": max(times),
         }
 
     def get_report(self) -> str:
@@ -146,6 +150,7 @@ class KernelTimer:
 
         Returns:
             Multi-line string with timing statistics for each kernel
+
         """
         if not self.timings:
             return "No kernel timings recorded."
@@ -163,9 +168,9 @@ class KernelTimer:
                 lines.append(
                     f"{kernel_name:<30} {stats['count']:<8} "
                     f"{stats['total_ms']:<12.3f} {stats['mean_ms']:<12.3f} "
-                    f"{stats['min_ms']:<12.3f} {stats['max_ms']:<12.3f}"
+                    f"{stats['min_ms']:<12.3f} {stats['max_ms']:<12.3f}",
                 )
-                total_time += stats['total_ms']
+                total_time += stats["total_ms"]
 
         lines.append("-" * 70)
         lines.append(f"{'TOTAL':<30} {'':<8} {total_time:<12.3f}")
@@ -195,6 +200,7 @@ class MemoryTracker:
         >>> tracker.track_tensor("psi", psi_gpu)
         >>> tracker.track_tensor("dose", dose_gpu)
         >>> print(tracker.get_memory_report())
+
     """
 
     def __init__(self):
@@ -202,7 +208,7 @@ class MemoryTracker:
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy not available - GPU profiling requires CUDA")
 
-        self.tensors: Dict[str, Tuple[cp.ndarray, int]] = {}
+        self.tensors: dict[str, tuple[cp.ndarray, int]] = {}
         self._peak_memory = 0
 
     def track_tensor(self, name: str, tensor: cp.ndarray) -> None:
@@ -214,6 +220,7 @@ class MemoryTracker:
 
         Example:
             >>> tracker.track_tensor("phase_space", psi)
+
         """
         if not isinstance(tensor, cp.ndarray):
             raise TypeError(f"Expected cupy.ndarray, got {type(tensor)}")
@@ -230,11 +237,12 @@ class MemoryTracker:
 
         Args:
             name: Identifier of the tensor to untrack
+
         """
         if name in self.tensors:
             del self.tensors[name]
 
-    def get_tensor_info(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_tensor_info(self, name: str) -> dict[str, Any] | None:
         """Get information about a tracked tensor.
 
         Args:
@@ -243,16 +251,17 @@ class MemoryTracker:
         Returns:
             Dictionary with 'size_bytes', 'size_mb', 'shape', 'dtype'
             or None if tensor not tracked
+
         """
         if name not in self.tensors:
             return None
 
         tensor, size_bytes = self.tensors[name]
         return {
-            'size_bytes': size_bytes,
-            'size_mb': size_bytes / (1024 * 1024),
-            'shape': tensor.shape,
-            'dtype': str(tensor.dtype),
+            "size_bytes": size_bytes,
+            "size_mb": size_bytes / (1024 * 1024),
+            "shape": tensor.shape,
+            "dtype": str(tensor.dtype),
         }
 
     def get_total_memory(self) -> int:
@@ -260,6 +269,7 @@ class MemoryTracker:
 
         Returns:
             Total memory in bytes
+
         """
         return sum(size for _, size in self.tensors.values())
 
@@ -268,6 +278,7 @@ class MemoryTracker:
 
         Returns:
             Multi-line string with memory statistics for each tensor
+
         """
         if not self.tensors:
             return "No tensors tracked."
@@ -329,6 +340,7 @@ class Profiler:
         ...     step.apply_angular_scattering(psi_in, psi_out, escapes)
         >>>
         >>> print(profiler.get_full_report())
+
     """
 
     def __init__(self, enabled: bool = True):
@@ -336,6 +348,7 @@ class Profiler:
 
         Args:
             enabled: Whether profiling is active (default: True)
+
         """
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy not available - GPU profiling requires CUDA")
@@ -356,6 +369,7 @@ class Profiler:
         Example:
             >>> with profiler.profile_kernel("angular_scattering"):
             ...     step.apply_angular_scattering(psi_in, psi_out, escapes)
+
         """
         class _KernelProfileContext:
             def __init__(self, profiler_instance, name):
@@ -380,6 +394,7 @@ class Profiler:
         Args:
             name: Identifier for the tensor
             tensor: CuPy array to track
+
         """
         if self.enabled:
             self.memory.track_tensor(name, tensor)
@@ -389,6 +404,7 @@ class Profiler:
 
         Returns:
             Formatted timing report
+
         """
         return self.timer.get_report()
 
@@ -397,6 +413,7 @@ class Profiler:
 
         Returns:
             Formatted memory report
+
         """
         return self.memory.get_memory_report()
 
@@ -405,6 +422,7 @@ class Profiler:
 
         Returns:
             Multi-line string with both timing and memory statistics
+
         """
         lines = []
         lines.append(self.get_timing_report())
@@ -442,11 +460,12 @@ def profile_kernel(kernel_name: str):
         ... def my_gpu_function(arr):
         ...     # GPU computation
         ...     return result
+
     """
     def decorator(func):
         def wrapper(*args, **kwargs):
             # Get profiler from kwargs or use a default
-            profiler = kwargs.pop('profiler', None)
+            profiler = kwargs.pop("profiler", None)
 
             if profiler is None:
                 # No profiler, just call function
@@ -464,12 +483,12 @@ def profile_kernel(kernel_name: str):
 
 
 __all__ = [
+    "GPUMetrics",
+    "GPUProfiler",
     "KernelTimer",
     "MemoryTracker",
     "Profiler",
     "profile_kernel",
-    "GPUMetrics",
-    "GPUProfiler",
 ]
 
 
@@ -510,34 +529,37 @@ class GPUMetrics:
         ...     theoretical_occupancy=75.0
         ... )
         >>> print(metrics.to_dict())
+
     """
+
     kernel_name: str
-    sm_efficiency: Optional[float] = None  # %
-    warp_efficiency: Optional[float] = None  # %
-    memory_bandwidth_utilization: Optional[float] = None  # GB/s
-    l2_cache_hit_rate: Optional[float] = None  # %
-    theoretical_occupancy: Optional[float] = None  # %
-    dram_throughput: Optional[float] = None  # bytes/s
-    hbm_throughput: Optional[float] = None  # bytes/s
-    registers_per_thread: Optional[int] = None
-    shared_memory_per_block: Optional[int] = None  # bytes
-    blocks_per_sm: Optional[int] = None
-    threads_per_block: Optional[int] = None
-    active_warps_per_sm: Optional[int] = None
+    sm_efficiency: float | None = None  # %
+    warp_efficiency: float | None = None  # %
+    memory_bandwidth_utilization: float | None = None  # GB/s
+    l2_cache_hit_rate: float | None = None  # %
+    theoretical_occupancy: float | None = None  # %
+    dram_throughput: float | None = None  # bytes/s
+    hbm_throughput: float | None = None  # bytes/s
+    registers_per_thread: int | None = None
+    shared_memory_per_block: int | None = None  # bytes
+    blocks_per_sm: int | None = None
+    threads_per_block: int | None = None
+    active_warps_per_sm: int | None = None
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert metrics to a dictionary.
 
         Returns:
             Dictionary representation of metrics, excluding None values
+
         """
         return {
             k: v for k, v in self.__dict__.items()
-            if v is not None and not k.startswith('_')
+            if v is not None and not k.startswith("_")
         }
 
-    def to_json(self, indent: Optional[int] = None) -> str:
+    def to_json(self, indent: int | None = None) -> str:
         """Convert metrics to JSON string.
 
         Args:
@@ -545,11 +567,12 @@ class GPUMetrics:
 
         Returns:
             JSON string representation
+
         """
         return json.dumps(self.to_dict(), indent=indent)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'GPUMetrics':
+    def from_dict(cls, data: dict[str, Any]) -> "GPUMetrics":
         """Create GPUMetrics from a dictionary.
 
         Args:
@@ -557,6 +580,7 @@ class GPUMetrics:
 
         Returns:
             GPUMetrics instance
+
         """
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
@@ -581,6 +605,7 @@ class GPUMetricsCollector:
         ...     blocks_per_sm=4
         ... )
         >>> print(metrics.theoretical_occupancy)
+
     """
 
     # CUDA architecture constants for occupancy calculation
@@ -622,13 +647,14 @@ class GPUMetricsCollector:
 
         self.device = cp.cuda.Device()
         self.device_properties = self._get_device_properties()
-        self.metrics_history: List[GPUMetrics] = []
+        self.metrics_history: list[GPUMetrics] = []
 
-    def _get_device_properties(self) -> Dict[str, Any]:
+    def _get_device_properties(self) -> dict[str, Any]:
         """Get CUDA device properties.
 
         Returns:
             Dictionary with device properties
+
         """
         props = self.device.attributes
 
@@ -639,25 +665,25 @@ class GPUMetricsCollector:
         compute_capability = (cc_int // 10, cc_int % 10)
 
         return {
-            'name': f"CUDA Device {cc_str}",  # CuPy doesn't expose device name
-            'compute_capability': compute_capability,
-            'total_memory': self.device.mem_info[1],
-            'multiprocessor_count': props.get('MultiProcessorCount', 0),
-            'max_threads_per_multiprocessor': props.get('MaxThreadsPerMultiProcessor', 2048),
-            'max_threads_per_block': props.get('MaxThreadsPerBlock', 1024),
-            'warp_size': props.get('WarpSize', 32),
-            'regs_per_block': props.get('MaxRegistersPerBlock', 65536),
-            'clock_rate_khz': props.get('ClockRate', 0),
-            'memory_clock_rate_khz': props.get('MemoryClockRate', 0),
-            'memory_bus_width': props.get('GlobalMemoryBusWidth', 0),
-            'l2_cache_size': props.get('L2CacheSize', 0),
+            "name": f"CUDA Device {cc_str}",  # CuPy doesn't expose device name
+            "compute_capability": compute_capability,
+            "total_memory": self.device.mem_info[1],
+            "multiprocessor_count": props.get("MultiProcessorCount", 0),
+            "max_threads_per_multiprocessor": props.get("MaxThreadsPerMultiProcessor", 2048),
+            "max_threads_per_block": props.get("MaxThreadsPerBlock", 1024),
+            "warp_size": props.get("WarpSize", 32),
+            "regs_per_block": props.get("MaxRegistersPerBlock", 65536),
+            "clock_rate_khz": props.get("ClockRate", 0),
+            "memory_clock_rate_khz": props.get("MemoryClockRate", 0),
+            "memory_bus_width": props.get("GlobalMemoryBusWidth", 0),
+            "l2_cache_size": props.get("L2CacheSize", 0),
         }
 
     def calculate_theoretical_occupancy(
         self,
         threads_per_block: int,
         registers_per_thread: int = 32,
-        shared_memory_per_block: int = 0
+        shared_memory_per_block: int = 0,
     ) -> float:
         """Calculate theoretical occupancy for a kernel configuration.
 
@@ -671,8 +697,9 @@ class GPUMetricsCollector:
 
         Returns:
             Theoretical occupancy as a percentage (0-100)
+
         """
-        cc = self.device_properties['compute_capability']
+        cc = self.device_properties["compute_capability"]
         max_threads_per_sm = self.MAX_THREADS_PER_SM.get(cc, 2048)
         max_shared_mem = self.MAX_SHARED_MEMORY_PER_BLOCK.get(cc, 65536)
 
@@ -683,7 +710,7 @@ class GPUMetricsCollector:
         registers_per_block = registers_per_thread * threads_per_block
         blocks_by_registers = min(
             self.MAX_REGISTERS_PER_BLOCK // registers_per_block,
-            blocks_by_threads
+            blocks_by_threads,
         )
 
         # Calculate blocks limited by shared memory
@@ -710,8 +737,8 @@ class GPUMetricsCollector:
         self,
         bytes_read: int,
         bytes_written: int,
-        execution_time_ms: float
-    ) -> Optional[float]:
+        execution_time_ms: float,
+    ) -> float | None:
         """Estimate memory bandwidth utilization.
 
         Args:
@@ -721,6 +748,7 @@ class GPUMetricsCollector:
 
         Returns:
             Bandwidth utilization in GB/s, or None if cannot calculate
+
         """
         if execution_time_ms <= 0:
             return None
@@ -736,12 +764,12 @@ class GPUMetricsCollector:
         self,
         kernel_name: str,
         threads_per_block: int,
-        blocks_per_sm: Optional[int] = None,
+        blocks_per_sm: int | None = None,
         registers_per_thread: int = 32,
         shared_memory_per_block: int = 0,
         bytes_read: int = 0,
         bytes_written: int = 0,
-        execution_time_ms: Optional[float] = None
+        execution_time_ms: float | None = None,
     ) -> GPUMetrics:
         """Estimate GPU metrics for a kernel.
 
@@ -761,12 +789,13 @@ class GPUMetricsCollector:
 
         Returns:
             GPUMetrics instance with estimated values
+
         """
         # Calculate theoretical occupancy
         theoretical_occupancy = self.calculate_theoretical_occupancy(
             threads_per_block=threads_per_block,
             registers_per_thread=registers_per_thread,
-            shared_memory_per_block=shared_memory_per_block
+            shared_memory_per_block=shared_memory_per_block,
         )
 
         # Estimate memory bandwidth if timing available
@@ -775,7 +804,7 @@ class GPUMetricsCollector:
             memory_bandwidth = self.estimate_memory_bandwidth_utilization(
                 bytes_read=bytes_read,
                 bytes_written=bytes_written,
-                execution_time_ms=execution_time_ms
+                execution_time_ms=execution_time_ms,
             )
 
         # Estimate SM and warp efficiency from occupancy
@@ -796,31 +825,32 @@ class GPUMetricsCollector:
             registers_per_thread=registers_per_thread,
             shared_memory_per_block=shared_memory_per_block if shared_memory_per_block > 0 else None,
             threads_per_block=threads_per_block,
-            blocks_per_sm=blocks_per_sm
+            blocks_per_sm=blocks_per_sm,
         )
 
         self.metrics_history.append(metrics)
         return metrics
 
-    def get_device_info(self) -> Dict[str, Any]:
+    def get_device_info(self) -> dict[str, Any]:
         """Get formatted device information.
 
         Returns:
             Dictionary with device information
+
         """
         props = self.device_properties
-        total_mem_gb = props['total_memory'] / (1024**3)
-        clock_rate_ghz = props['clock_rate_khz'] / (1000**2)
+        total_mem_gb = props["total_memory"] / (1024**3)
+        clock_rate_ghz = props["clock_rate_khz"] / (1000**2)
 
         return {
-            'name': props['name'],
-            'compute_capability': f"{props['compute_capability'][0]}.{props['compute_capability'][1]}",
-            'total_memory_gb': round(total_mem_gb, 2),
-            'multiprocessor_count': props['multiprocessor_count'],
-            'max_threads_per_block': props['max_threads_per_block'],
-            'clock_rate_ghz': round(clock_rate_ghz, 2),
-            'warp_size': props['warp_size'],
-            'l2_cache_size_kb': props.get('l2_cache_size', 0) // 1024,
+            "name": props["name"],
+            "compute_capability": f"{props['compute_capability'][0]}.{props['compute_capability'][1]}",
+            "total_memory_gb": round(total_mem_gb, 2),
+            "multiprocessor_count": props["multiprocessor_count"],
+            "max_threads_per_block": props["max_threads_per_block"],
+            "clock_rate_ghz": round(clock_rate_ghz, 2),
+            "warp_size": props["warp_size"],
+            "l2_cache_size_kb": props.get("l2_cache_size", 0) // 1024,
         }
 
     def get_peak_memory_bandwidth(self) -> float:
@@ -828,10 +858,11 @@ class GPUMetricsCollector:
 
         Returns:
             Peak bandwidth in GB/s
+
         """
         props = self.device_properties
-        memory_clock_rate = props.get('memory_clock_rate_khz', 0) / (1000**2)  # GHz
-        bus_width = props.get('memory_bus_width', 0)  # bits
+        memory_clock_rate = props.get("memory_clock_rate_khz", 0) / (1000**2)  # GHz
+        bus_width = props.get("memory_bus_width", 0)  # bits
 
         # Bandwidth = clock_rate * bus_width / 8 (for bytes)
         bandwidth_gbps = (memory_clock_rate * bus_width) / 8.0
@@ -859,6 +890,7 @@ class GPUProfiler(Profiler):
         ...     step.apply_angular_scattering(psi_in, psi_out, escapes)
         >>>
         >>> print(profiler.get_full_report())
+
     """
 
     def __init__(self, enabled: bool = True, track_bandwidth: bool = True):
@@ -867,6 +899,7 @@ class GPUProfiler(Profiler):
         Args:
             enabled: Whether profiling is active (default: True)
             track_bandwidth: Whether to estimate memory bandwidth (default: True)
+
         """
         super().__init__(enabled=enabled)
 
@@ -874,12 +907,12 @@ class GPUProfiler(Profiler):
             raise RuntimeError("CuPy not available - GPU profiling requires CUDA")
 
         self.metrics_collector = GPUMetricsCollector()
-        self.kernel_metrics: Dict[str, GPUMetrics] = {}
+        self.kernel_metrics: dict[str, GPUMetrics] = {}
         self.track_bandwidth = track_bandwidth
 
         # Track kernel I/O for bandwidth estimation
-        self._kernel_io: Dict[str, Dict[str, int]] = defaultdict(
-            lambda: {'bytes_read': 0, 'bytes_written': 0}
+        self._kernel_io: dict[str, dict[str, int]] = defaultdict(
+            lambda: {"bytes_read": 0, "bytes_written": 0},
         )
 
     def profile_kernel(
@@ -889,7 +922,7 @@ class GPUProfiler(Profiler):
         registers_per_thread: int = 32,
         shared_memory_per_block: int = 0,
         bytes_read: int = 0,
-        bytes_written: int = 0
+        bytes_written: int = 0,
     ):
         """Context manager for profiling a kernel with GPU metrics.
 
@@ -912,6 +945,7 @@ class GPUProfiler(Profiler):
             ...     bytes_written=psi_out.nbytes
             ... ):
             ...     step.apply_angular_scattering(psi_in, psi_out, escapes)
+
         """
         class _GPUKernelProfileContext:
             def __init__(self, profiler_instance, name, config):
@@ -931,12 +965,12 @@ class GPUProfiler(Profiler):
                     # Collect GPU metrics
                     metrics = self.profiler.metrics_collector.estimate_metrics(
                         kernel_name=self.name,
-                        threads_per_block=self.config['threads_per_block'],
-                        registers_per_thread=self.config['registers_per_thread'],
-                        shared_memory_per_block=self.config['shared_memory_per_block'],
-                        bytes_read=self.config['bytes_read'],
-                        bytes_written=self.config['bytes_written'],
-                        execution_time_ms=elapsed_ms
+                        threads_per_block=self.config["threads_per_block"],
+                        registers_per_thread=self.config["registers_per_thread"],
+                        shared_memory_per_block=self.config["shared_memory_per_block"],
+                        bytes_read=self.config["bytes_read"],
+                        bytes_written=self.config["bytes_written"],
+                        execution_time_ms=elapsed_ms,
                     )
 
                     self.profiler.kernel_metrics[self.name] = metrics
@@ -944,11 +978,11 @@ class GPUProfiler(Profiler):
                 return False
 
         config = {
-            'threads_per_block': threads_per_block,
-            'registers_per_thread': registers_per_thread,
-            'shared_memory_per_block': shared_memory_per_block,
-            'bytes_read': bytes_read,
-            'bytes_written': bytes_written,
+            "threads_per_block": threads_per_block,
+            "registers_per_thread": registers_per_thread,
+            "shared_memory_per_block": shared_memory_per_block,
+            "bytes_read": bytes_read,
+            "bytes_written": bytes_written,
         }
 
         return _GPUKernelProfileContext(self, kernel_name, config)
@@ -958,6 +992,7 @@ class GPUProfiler(Profiler):
 
         Returns:
             Multi-line string with GPU metrics for each profiled kernel
+
         """
         if not self.kernel_metrics:
             return "No GPU metrics collected."
@@ -976,7 +1011,7 @@ class GPUProfiler(Profiler):
                 f"{metrics.warp_efficiency or 'N/A':<11} "
                 f"{metrics.l2_cache_hit_rate or 'N/A':<9} "
                 f"{metrics.theoretical_occupancy or 'N/A':<7} "
-                f"{metrics.memory_bandwidth_utilization or 'N/A':<11}"
+                f"{metrics.memory_bandwidth_utilization or 'N/A':<11}",
             )
 
         lines.append("=" * 100)
@@ -987,6 +1022,7 @@ class GPUProfiler(Profiler):
 
         Returns:
             Multi-line string with detailed GPU metrics
+
         """
         if not self.kernel_metrics:
             return "No GPU metrics collected."
@@ -1002,13 +1038,11 @@ class GPUProfiler(Profiler):
             lines.append("-" * 100)
 
             for key, value in metrics.to_dict().items():
-                if key == 'kernel_name':
+                if key == "kernel_name":
                     continue
                 if isinstance(value, float):
                     lines.append(f"  {key:<30}: {value:.2f}")
-                elif isinstance(value, int):
-                    lines.append(f"  {key:<30}: {value}")
-                elif value is not None:
+                elif isinstance(value, int) or value is not None:
                     lines.append(f"  {key:<30}: {value}")
 
             lines.append("")
@@ -1021,6 +1055,7 @@ class GPUProfiler(Profiler):
 
         Returns:
             Multi-line string with GPU device information
+
         """
         device_info = self.metrics_collector.get_device_info()
         peak_bandwidth = self.metrics_collector.get_peak_memory_bandwidth()
@@ -1046,6 +1081,7 @@ class GPUProfiler(Profiler):
 
         Returns:
             Multi-line string with timing, metrics, memory, and device info
+
         """
         lines = []
         lines.append(self.get_timing_report())
@@ -1065,17 +1101,18 @@ class GPUProfiler(Profiler):
 
         Example:
             >>> profiler.export_metrics_json("gpu_metrics.json")
+
         """
         data = {
-            'device_info': self.metrics_collector.get_device_info(),
-            'peak_bandwidth_gbps': self.metrics_collector.get_peak_memory_bandwidth(),
-            'kernel_metrics': {
+            "device_info": self.metrics_collector.get_device_info(),
+            "peak_bandwidth_gbps": self.metrics_collector.get_peak_memory_bandwidth(),
+            "kernel_metrics": {
                 name: metrics.to_dict()
                 for name, metrics in self.kernel_metrics.items()
-            }
+            },
         }
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(data, f, indent=2)
 
     def reset(self) -> None:

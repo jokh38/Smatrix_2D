@@ -1,5 +1,4 @@
-"""
-Default Configuration Constants for Smatrix_2D Simulation
+"""Default Configuration Constants for Smatrix_2D Simulation
 
 This module contains ALL default values used throughout the simulation.
 This is the Single Source of Truth (SSOT) for default configuration.

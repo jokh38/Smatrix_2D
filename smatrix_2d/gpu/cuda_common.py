@@ -97,12 +97,12 @@ KERNEL_HEADER_DOC = """
 # =============================================================================
 
 __all__ = [
-    "GRID_CENTER_CALCULATION",
-    "FORWARD_ADVECTION_TARGET",
     "BACKWARD_ADVECTION_TARGET",
-    "SPATIAL_BOUNDARY_CHECK",
-    "KERNEL_SIGNATURE_2D",
-    "THREAD_INDEX_2D",
-    "LINEAR_INDEX_4D",
+    "FORWARD_ADVECTION_TARGET",
+    "GRID_CENTER_CALCULATION",
     "KERNEL_HEADER_DOC",
+    "KERNEL_SIGNATURE_2D",
+    "LINEAR_INDEX_4D",
+    "SPATIAL_BOUNDARY_CHECK",
+    "THREAD_INDEX_2D",
 ]

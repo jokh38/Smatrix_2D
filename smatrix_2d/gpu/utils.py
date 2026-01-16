@@ -9,17 +9,18 @@ Import Policy:
 DO NOT use: from smatrix_2d.gpu.utils import *
 """
 
-from typing import Optional, Any, Callable
-from functools import wraps
 import warnings
+from collections.abc import Callable
+from functools import wraps
+from typing import Any, Optional
 
 # =============================================================================
 # GPU Availability and CuPy Import (SSOT)
 # =============================================================================
 
 # Cached CuPy module reference
-_cupy_module: Optional[Any] = None
-_gpu_available_cached: Optional[bool] = None
+_cupy_module: Any | None = None
+_gpu_available_cached: bool | None = None
 
 
 def get_cupy() -> Any:
@@ -35,6 +36,7 @@ def get_cupy() -> Any:
         >>> cp = get_cupy()
         >>> if cp is not None:
         ...     arr = cp.array([1, 2, 3])
+
     """
     global _cupy_module, _gpu_available_cached
 
@@ -65,6 +67,7 @@ def gpu_available() -> bool:
         ...     # Use GPU code path
         ... else:
         ...     # Use CPU fallback
+
     """
     global _gpu_available_cached
 
@@ -97,6 +100,7 @@ def require_gpu(message: str = "GPU/CuPy is required for this operation") -> Non
     Example:
         >>> require_gpu("This function requires CUDA")
         >>> # Proceed with GPU code...
+
     """
     if not gpu_available():
         raise RuntimeError(f"GPU/CuPy not available: {message}")
@@ -112,6 +116,7 @@ def require_gpu_decorator(message: str = "This function requires GPU/CuPy"):
         >>> @require_gpu_decorator("Kernel compilation requires GPU")
         ... def compile_kernel():
         ...     # GPU-specific code
+
     """
     def decorator(func: Callable) -> Callable:
         @wraps(func)
@@ -134,6 +139,7 @@ def optional_gpu(message: str = "GPU operation requested but CuPy not available"
     Example:
         >>> optional_gpu("GPU acceleration requested but unavailable")
         >>> # Continue with CPU fallback...
+
     """
     if not gpu_available():
         warnings.warn(f"{message} - falling back to CPU", ImportWarning, stacklevel=2)
@@ -157,7 +163,7 @@ GPU_AVAILABLE = property(lambda self: gpu_available())
 __all__ = [
     "get_cupy",
     "gpu_available",
+    "optional_gpu",
     "require_gpu",
     "require_gpu_decorator",
-    "optional_gpu",
 ]

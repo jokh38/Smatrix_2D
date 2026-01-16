@@ -1,5 +1,4 @@
-"""
-GPU-Resident Operators with Direct Escape Tracking
+"""GPU-Resident Operators with Direct Escape Tracking
 
 This module wraps the existing CUDA kernels with the new GPU-resident API.
 It provides the apply_gpu_resident pattern that eliminates host-device sync.
@@ -56,6 +55,7 @@ class AngularScatteringGPU:
             sigma_buckets: SigmaBuckets instance with precomputed kernels
             n_buckets: Number of sigma buckets
             k_cutoff: Kernel cutoff in units of sigma
+
         """
         if not CUPY_AVAILABLE:
             raise RuntimeError("CuPy required for GPU operators")
@@ -85,6 +85,7 @@ class AngularScatteringGPU:
         Note:
             This is a GPU-resident operation - no CPU sync occurs.
             Escapes are accumulated directly to escapes_gpu via atomicAdd.
+
         """
         if not self._kernel_compiled:
             self._compile_kernel()
@@ -99,7 +100,6 @@ class AngularScatteringGPU:
         #     atomicAdd(&escapes_gpu[THETA_CUTOFF], weight);
 
         # Placeholder: no-op for now
-        pass
 
     def _compile_kernel(self):
         """Compile CUDA kernel with new escape API."""
@@ -130,6 +130,7 @@ class EnergyLossGPU:
             grid: Phase space grid
             stopping_power_lut: StoppingPowerLUT instance
             E_cutoff: Energy cutoff threshold (MeV)
+
         """
         if not CUPY_AVAILABLE:
             raise RuntimeError("CuPy required for GPU operators")
@@ -159,6 +160,7 @@ class EnergyLossGPU:
         Note:
             This is a GPU-resident operation - no CPU sync occurs.
             Escapes accumulated via atomicAdd to escapes_gpu[ENERGY_STOPPED].
+
         """
         if not self._kernel_compiled:
             self._compile_kernel()
@@ -175,7 +177,6 @@ class EnergyLossGPU:
         #     }
 
         # Placeholder: no-op for now
-        pass
 
     def _compile_kernel(self):
         """Compile CUDA kernel."""
@@ -203,6 +204,7 @@ class SpatialStreamingGPU:
         Args:
             grid: Phase space grid
             boundary_mode: Boundary policy ("absorb", "reflect")
+
         """
         if not CUPY_AVAILABLE:
             raise RuntimeError("CuPy required for GPU operators")
@@ -229,6 +231,7 @@ class SpatialStreamingGPU:
         Note:
             This is a GPU-resident operation - no CPU sync occurs.
             Leaked weight accumulated via atomicAdd to escapes_gpu[SPATIAL_LEAK].
+
         """
         if not self._kernel_compiled:
             self._compile_kernel()
@@ -245,7 +248,6 @@ class SpatialStreamingGPU:
         #     }
 
         # Placeholder: no-op for now
-        pass
 
     def _compile_kernel(self):
         """Compile CUDA kernel."""
@@ -274,14 +276,15 @@ class GPUOperatorChain:
             angular: Angular scattering operator
             energy: Energy loss operator
             spatial: Spatial streaming operator
+
         """
         self.angular = angular
         self.energy = energy
         self.spatial = spatial
 
         # Temporary arrays for intermediate results
-        self._psi_tmp1: Optional[cp.ndarray] = None
-        self._psi_tmp2: Optional[cp.ndarray] = None
+        self._psi_tmp1: cp.ndarray | None = None
+        self._psi_tmp2: cp.ndarray | None = None
 
     def apply(
         self,
@@ -301,6 +304,7 @@ class GPUOperatorChain:
             CRITICAL: This is a zero-sync operation!
             All escapes and dose are accumulated directly in GPU memory.
             Only call .get() on accumulators at simulation end.
+
         """
         # Allocate temporary arrays if needed
         if self._psi_tmp1 is None or self._psi_tmp1.shape != psi_in.shape:
@@ -340,7 +344,7 @@ def create_gpu_operators(
     grid,
     sigma_buckets=None,
     stopping_power_lut=None,
-    config: Optional[object] = None,
+    config: object | None = None,
 ) -> GPUOperatorChain:
     """Factory function to create GPU operator chain.
 
@@ -359,16 +363,17 @@ def create_gpu_operators(
         >>> from smatrix_2d.gpu.operators import create_gpu_operators
         >>> operators = create_gpu_operators(grid, sigma_buckets, stopping_power_lut)
         >>> psi_out = operators.apply(psi_in, accumulators)
+
     """
     if not CUPY_AVAILABLE:
         raise RuntimeError("CuPy required for GPU operators")
 
     # Get parameters from config or use defaults from config SSOT
     from smatrix_2d.config.defaults import (
-        DEFAULT_N_BUCKETS,
-        DEFAULT_THETA_CUTOFF_DEG,
         DEFAULT_E_CUTOFF,
+        DEFAULT_N_BUCKETS,
         DEFAULT_SPATIAL_BOUNDARY_POLICY,
+        DEFAULT_THETA_CUTOFF_DEG,
     )
 
     if config is not None:
@@ -408,7 +413,7 @@ def create_gpu_operators(
 __all__ = [
     "AngularScatteringGPU",
     "EnergyLossGPU",
-    "SpatialStreamingGPU",
     "GPUOperatorChain",
+    "SpatialStreamingGPU",
     "create_gpu_operators",
 ]

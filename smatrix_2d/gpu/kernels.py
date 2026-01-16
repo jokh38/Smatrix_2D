@@ -1,5 +1,4 @@
-"""
-Consolidated GPU Kernels Module
+"""Consolidated GPU Kernels Module
 
 This module provides all GPU transport kernel variants in a single unified
 implementation, eliminating code duplication through a base class architecture.
@@ -42,7 +41,7 @@ except ImportError:
 # BASELINE KERNEL SOURCES
 # ============================================================================
 
-_angular_scattering_kernel_v2_src = r'''
+_angular_scattering_kernel_v2_src = r"""
 extern "C" __global__
 void angular_scattering_kernel_v2(
     const float* __restrict__ psi_in,
@@ -109,9 +108,9 @@ void angular_scattering_kernel_v2(
         atomicAdd(&escapes_gpu[1], local_theta_cutoff);
     }
 }
-'''
+"""
 
-_energy_loss_kernel_v2_src = r'''
+_energy_loss_kernel_v2_src = r"""
 extern "C" __global__
 void energy_loss_kernel_v2(
     const float* __restrict__ psi_in,
@@ -216,9 +215,9 @@ void energy_loss_kernel_v2(
         atomicAdd(&escapes_gpu[2], local_energy_stopped);
     }
 }
-'''
+"""
 
-_spatial_streaming_kernel_v2_src = r'''
+_spatial_streaming_kernel_v2_src = r"""
 extern "C" __global__
 void spatial_streaming_kernel_v2(
     const float* __restrict__ psi_in,
@@ -307,7 +306,7 @@ void spatial_streaming_kernel_v2(
         atomicAdd(&escapes_gpu[3], local_spatial_leak);
     }
 }
-'''
+"""
 
 
 # ============================================================================
@@ -315,7 +314,7 @@ void spatial_streaming_kernel_v2(
 # ============================================================================
 
 # Shared memory variant only differs in spatial kernel (caches sin/cos in shared mem)
-_spatial_streaming_kernel_v3_src = r'''
+_spatial_streaming_kernel_v3_src = r"""
 extern "C" __global__
 void spatial_streaming_kernel_v3(
     const float* __restrict__ psi_in,
@@ -414,14 +413,14 @@ void spatial_streaming_kernel_v3(
         atomicAdd(&escapes_gpu[3], local_spatial_leak);
     }
 }
-'''
+"""
 
 
 # ============================================================================
 # WARP OPTIMIZED KERNEL SOURCES
 # ============================================================================
 
-_warp_reduce_sum_src = r'''
+_warp_reduce_sum_src = r"""
 __inline__ __device__
 float warp_reduce_sum(float val) {
     for (int offset = 16; offset > 0; offset /= 2) {
@@ -437,9 +436,9 @@ double warp_reduce_sum_double(double val) {
     }
     return val;
 }
-'''
+"""
 
-_angular_scattering_warp_src = r'''
+_angular_scattering_warp_src = r"""
 extern "C" __global__
 void angular_scattering_kernel_warp(
     const float* __restrict__ psi_in,
@@ -512,9 +511,9 @@ void angular_scattering_kernel_warp(
         }
     }
 }
-'''
+"""
 
-_energy_loss_warp_src = r'''
+_energy_loss_warp_src = r"""
 extern "C" __global__
 void energy_loss_kernel_warp(
     const float* __restrict__ psi_in,
@@ -624,9 +623,9 @@ void energy_loss_kernel_warp(
         }
     }
 }
-'''
+"""
 
-_spatial_streaming_warp_src = r'''
+_spatial_streaming_warp_src = r"""
 extern "C" __global__
 void spatial_streaming_kernel_warp(
     const float* __restrict__ psi_in,
@@ -720,7 +719,7 @@ void spatial_streaming_kernel_warp(
         }
     }
 }
-'''
+"""
 
 
 # ============================================================================
@@ -756,6 +755,7 @@ class GPUTransportStepBase:
             sigma_buckets: SigmaBuckets with precomputed kernels
             stopping_power_lut: StoppingPowerLUT for energy loss
             delta_s: Step length [mm]
+
         """
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy not available")
@@ -817,17 +817,17 @@ class GPUTransportStepBase:
         # Bucket index map
         self.bucket_idx_map_gpu = cp.asarray(
             self.sigma_buckets.bucket_idx_map,
-            dtype=cp.int32
+            dtype=cp.int32,
         )
 
         # Stopping power LUT
         self.stopping_power_gpu = cp.asarray(
             self.stopping_power_lut.stopping_power,
-            dtype=cp.float32
+            dtype=cp.float32,
         )
         self.E_grid_lut_gpu = cp.asarray(
             self.stopping_power_lut.energy_grid,
-            dtype=cp.float32
+            dtype=cp.float32,
         )
         self.lut_size = len(self.stopping_power_lut.energy_grid)
 
@@ -860,6 +860,7 @@ class GPUTransportStepBase:
             psi_in: Input phase space [Ne, Ntheta, Nz, Nx]
             psi_out: Output phase space [Ne, Ntheta, Nz, Nx]
             escapes_gpu: Escape accumulator [NUM_CHANNELS] (modified in-place)
+
         """
         threads_per_block = 256
         total_elements = self.Ne * self.Ntheta * self.Nz * self.Nx
@@ -884,7 +885,7 @@ class GPUTransportStepBase:
                 self.kernel_lut_gpu.shape[1],
                 np.float32(self.Ntheta - 1),
                 np.int32(self.Ntheta),
-            )
+            ),
         )
 
     def apply_energy_loss(
@@ -901,6 +902,7 @@ class GPUTransportStepBase:
             psi_out: Output phase space [Ne, Ntheta, Nz, Nx]
             dose_gpu: Dose accumulator [Nz, Nx] (modified in-place)
             escapes_gpu: Escape accumulator [NUM_CHANNELS] (modified in-place)
+
         """
         threads_per_block = 256
         total_threads = self.Nx * self.Nz * self.Ntheta
@@ -924,7 +926,7 @@ class GPUTransportStepBase:
                 np.float32(self.E_cutoff),
                 self.Ne, self.Ntheta, self.Nz, self.Nx,
                 self.lut_size,
-            )
+            ),
         )
 
     def apply_spatial_streaming(
@@ -939,6 +941,7 @@ class GPUTransportStepBase:
             psi_in: Input phase space [Ne, Ntheta, Nz, Nx]
             psi_out: Output phase space [Ne, Ntheta, Nz, Nx]
             escapes_gpu: Escape accumulator [NUM_CHANNELS] (modified in-place)
+
         """
         block_dim = (16, 16, 1)
         grid_dim = (
@@ -963,7 +966,7 @@ class GPUTransportStepBase:
                 np.float32(self.x_min),
                 np.float32(self.z_min),
                 np.int32(0),
-            )
+            ),
         )
 
     def apply(
@@ -983,6 +986,7 @@ class GPUTransportStepBase:
         Note:
             This applies: psi_new = A_s(A_E(A_theta(psi)))
             All escapes accumulated to accumulators.escapes_gpu
+
         """
         psi_tmp1 = cp.zeros_like(psi)
         psi_tmp2 = cp.zeros_like(psi)
@@ -1013,20 +1017,20 @@ class GPUTransportStepV3(GPUTransportStepBase):
         """Compile baseline CUDA kernels."""
         self.angular_scattering_kernel = cp.RawKernel(
             _angular_scattering_kernel_v2_src,
-            'angular_scattering_kernel_v2',
-            options=('--use_fast_math',)
+            "angular_scattering_kernel_v2",
+            options=("--use_fast_math",),
         )
 
         self.energy_loss_kernel = cp.RawKernel(
             _energy_loss_kernel_v2_src,
-            'energy_loss_kernel_v2',
-            options=('--use_fast_math',)
+            "energy_loss_kernel_v2",
+            options=("--use_fast_math",),
         )
 
         self.spatial_streaming_kernel = cp.RawKernel(
             _spatial_streaming_kernel_v2_src,
-            'spatial_streaming_kernel_v2',
-            options=('--use_fast_math',)
+            "spatial_streaming_kernel_v2",
+            options=("--use_fast_math",),
         )
 
 
@@ -1045,21 +1049,21 @@ class GPUTransportStepV3_SharedMem(GPUTransportStepBase):
         # Angular and energy use baseline kernels
         self.angular_scattering_kernel = cp.RawKernel(
             _angular_scattering_kernel_v2_src,
-            'angular_scattering_kernel_v2',
-            options=('--use_fast_math',)
+            "angular_scattering_kernel_v2",
+            options=("--use_fast_math",),
         )
 
         self.energy_loss_kernel = cp.RawKernel(
             _energy_loss_kernel_v2_src,
-            'energy_loss_kernel_v2',
-            options=('--use_fast_math',)
+            "energy_loss_kernel_v2",
+            options=("--use_fast_math",),
         )
 
         # Spatial uses shared memory variant
         self.spatial_streaming_kernel = cp.RawKernel(
             _spatial_streaming_kernel_v3_src,
-            'spatial_streaming_kernel_v3',
-            options=('--use_fast_math',)
+            "spatial_streaming_kernel_v3",
+            options=("--use_fast_math",),
         )
 
 
@@ -1083,22 +1087,22 @@ class GPUTransportStepWarp(GPUTransportStepBase):
         angular_src = warp_primitives + _angular_scattering_warp_src
         self.angular_scattering_kernel = cp.RawKernel(
             angular_src,
-            'angular_scattering_kernel_warp',
-            options=('--use_fast_math',)
+            "angular_scattering_kernel_warp",
+            options=("--use_fast_math",),
         )
 
         energy_src = warp_primitives + _energy_loss_warp_src
         self.energy_loss_kernel = cp.RawKernel(
             energy_src,
-            'energy_loss_kernel_warp',
-            options=('--use_fast_math',)
+            "energy_loss_kernel_warp",
+            options=("--use_fast_math",),
         )
 
         spatial_src = warp_primitives + _spatial_streaming_warp_src
         self.spatial_streaming_kernel = cp.RawKernel(
             spatial_src,
-            'spatial_streaming_kernel_warp',
-            options=('--use_fast_math',)
+            "spatial_streaming_kernel_warp",
+            options=("--use_fast_math",),
         )
 
 
@@ -1126,6 +1130,7 @@ def create_gpu_transport_step_v3(
     Example:
         >>> step = create_gpu_transport_step_v3(grid, sigma_buckets, lut)
         >>> psi_out = step.apply(psi, accumulators)
+
     """
     return GPUTransportStepV3(grid, sigma_buckets, stopping_power_lut, delta_s)
 
@@ -1146,6 +1151,7 @@ def create_gpu_transport_step_v3_sharedmem(
 
     Returns:
         GPUTransportStepV3_SharedMem instance
+
     """
     return GPUTransportStepV3_SharedMem(grid, sigma_buckets, stopping_power_lut, delta_s)
 
@@ -1166,6 +1172,7 @@ def create_gpu_transport_step_warp(
 
     Returns:
         GPUTransportStepWarp instance
+
     """
     return GPUTransportStepWarp(grid, sigma_buckets, stopping_power_lut, delta_s)
 

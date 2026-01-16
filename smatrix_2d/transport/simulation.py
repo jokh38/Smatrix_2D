@@ -1,5 +1,4 @@
-"""
-GPU-Only Transport Simulation with Zero-Sync Architecture
+"""GPU-Only Transport Simulation with Zero-Sync Architecture
 
 This module implements the main GPU-only transport simulation loop.
 It eliminates per-step host-device synchronization by using GPU-resident
@@ -22,9 +21,9 @@ DO NOT use: from smatrix_2d.transport.simulation import *
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
 import warnings
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 try:
     import cupy as cp
@@ -63,26 +62,28 @@ class SimulationResult:
         runtime_seconds: Wall-clock runtime
         n_steps: Number of transport steps executed
         conservation_valid: Whether final conservation check passed
+
     """
+
     psi_final: np.ndarray
     dose_final: np.ndarray
     escapes: np.ndarray
-    reports: List[ConservationReport]
+    reports: list[ConservationReport]
     config: SimulationConfig
     runtime_seconds: float
     n_steps: int
     conservation_valid: bool = True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary for serialization."""
         return {
-            'psi_final': self.psi_final,
-            'dose_final': self.dose_final,
-            'escapes': {ch.name: self.escapes[ch] for ch in range(len(self.escapes))},
-            'conservation_valid': self.conservation_valid,
-            'runtime_seconds': self.runtime_seconds,
-            'n_steps': self.n_steps,
-            'config': self.config.to_dict(),
+            "psi_final": self.psi_final,
+            "dose_final": self.dose_final,
+            "escapes": {ch.name: self.escapes[ch] for ch in range(len(self.escapes))},
+            "conservation_valid": self.conservation_valid,
+            "runtime_seconds": self.runtime_seconds,
+            "n_steps": self.n_steps,
+            "config": self.config.to_dict(),
         }
 
 
@@ -104,12 +105,13 @@ class TransportSimulation:
         >>> sim = create_simulation(Nx=100, Nz=100, Ne=100)
         >>> result = sim.run(n_steps=100)
         >>> print(f"Conservation valid: {result.conservation_valid}")
+
     """
 
     def __init__(
         self,
-        config: Optional[SimulationConfig] = None,
-        psi_init: Optional[np.ndarray] = None,
+        config: SimulationConfig | None = None,
+        psi_init: np.ndarray | None = None,
     ):
         """Initialize GPU-only transport simulation.
 
@@ -121,6 +123,7 @@ class TransportSimulation:
         Raises:
             ConfigurationError: If config validation fails
             RuntimeError: If GPU is not available
+
         """
         if not CUPY_AVAILABLE:
             raise RuntimeError("CuPy is required for GPU-only simulation")
@@ -153,17 +156,17 @@ class TransportSimulation:
 
         # Simulation state
         self.current_step = 0
-        self.reports: List[ConservationReport] = []
+        self.reports: list[ConservationReport] = []
 
     def _initialize_kernels(self):
         """Initialize GPU transport kernels with new accumulator API.
 
         Uses GPUTransportStepV3 which integrates with GPUAccumulators.
         """
-        from smatrix_2d.gpu.kernels import create_gpu_transport_step_v3
         from smatrix_2d.core.grid import GridSpecsV2, create_phase_space_grid
-        from smatrix_2d.operators.sigma_buckets import SigmaBuckets
         from smatrix_2d.core.lut import StoppingPowerLUT
+        from smatrix_2d.gpu.kernels import create_gpu_transport_step_v3
+        from smatrix_2d.operators.sigma_buckets import SigmaBuckets
 
         # Create grid specs (calculate spacing)
         delta_x = (self.config.grid.x_max - self.config.grid.x_min) / self.config.grid.Nx
@@ -191,8 +194,8 @@ class TransportSimulation:
         grid = create_phase_space_grid(specs)
 
         # Create sigma buckets
-        from smatrix_2d.core.materials import create_water_material
         from smatrix_2d.core.constants import PhysicsConstants2D
+        from smatrix_2d.core.materials import create_water_material
 
         material = create_water_material()
         constants = PhysicsConstants2D()
@@ -229,6 +232,7 @@ class TransportSimulation:
 
         Returns:
             GPU array with initial psi [Ne, Ntheta, Nz, Nx]
+
         """
         shape = (
             self.config.grid.Ne,
@@ -276,10 +280,11 @@ class TransportSimulation:
 
         Raises:
             RuntimeError: If kernels not initialized
+
         """
         if not self._kernels_initialized:
             raise RuntimeError(
-                "GPU kernels not initialized. Call _initialize_kernels() first."
+                "GPU kernels not initialized. Call _initialize_kernels() first.",
             )
 
         # Record mass before step
@@ -325,7 +330,7 @@ class TransportSimulation:
 
         return report
 
-    def _sync_to_cpu(self, report: Optional[ConservationReport] = None) -> None:
+    def _sync_to_cpu(self, report: ConservationReport | None = None) -> None:
         """Sync accumulators to CPU (causes GPU synchronization).
 
         This is called:
@@ -334,6 +339,7 @@ class TransportSimulation:
 
         Args:
             report: Optional report to update with synced data
+
         """
         # Fetch escapes and dose
         escapes_cpu, dose_cpu, history = sync_accumulators_to_cpu(
@@ -348,7 +354,7 @@ class TransportSimulation:
             }
             report.deposited_energy = float(cp.sum(self.accumulators.dose_gpu))
 
-    def run(self, n_steps: Optional[int] = None) -> SimulationResult:
+    def run(self, n_steps: int | None = None) -> SimulationResult:
         """Run the complete simulation.
 
         This is the main entry point for executing simulations.
@@ -363,6 +369,7 @@ class TransportSimulation:
             >>> result = sim.run(n_steps=100)
             >>> print(f"Dose max: {result.dose_final.max()}")
             >>> print(f"Conservation: {result.conservation_valid}")
+
         """
         if n_steps is None:
             n_steps = self.config.transport.max_steps
@@ -375,7 +382,7 @@ class TransportSimulation:
         for step in range(n_steps):
             if self.current_step >= self.config.transport.max_steps:
                 warnings.warn(
-                    f"Reached max_steps={self.config.transport.max_steps}, stopping early."
+                    f"Reached max_steps={self.config.transport.max_steps}, stopping early.",
                 )
                 break
 
@@ -390,7 +397,7 @@ class TransportSimulation:
                 if not report.is_valid:
                     warnings.warn(
                         f"Conservation violation at step {step}: "
-                        f"relative_error={report.relative_error:.2e}"
+                        f"relative_error={report.relative_error:.2e}",
                     )
 
         # End timer
@@ -444,9 +451,9 @@ class TransportSimulation:
 
 
 def create_simulation(
-    config: Optional[SimulationConfig] = None,
-    psi_init: Optional[np.ndarray] = None,
-    **kwargs
+    config: SimulationConfig | None = None,
+    psi_init: np.ndarray | None = None,
+    **kwargs,
 ) -> TransportSimulation:
     """Create a transport simulation (convenience function).
 
@@ -470,6 +477,7 @@ def create_simulation(
         >>> # Use custom config
         >>> config = SimulationConfig(grid=GridConfig(Nx=100))
         >>> sim = create_simulation(config=config)
+
     """
     if config is None and kwargs:
         # Create config from defaults with overrides
@@ -481,15 +489,9 @@ def create_simulation(
     return TransportSimulation(config=config, psi_init=psi_init)
 
 
-# Legacy compatibility: re-export old classes
-from smatrix_2d.transport.transport import TransportStepV2, TransportSimulationV2
-
 __all__ = [
     # New API (recommended)
     "TransportSimulation",
     "SimulationResult",
     "create_simulation",
-    # Legacy API (backward compatibility)
-    "TransportStepV2",
-    "TransportSimulationV2",
 ]

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Example usage of R-CFG-003: SimulationConfig <-> GridSpecsV2 factory functions
+"""Example usage of R-CFG-003: SimulationConfig <-> GridSpecsV2 factory functions
 
 This example demonstrates the bidirectional conversion between SimulationConfig
 and GridSpecsV2 using the factory methods implemented in R-CFG-003.
@@ -39,21 +38,21 @@ def example_2_custom_config():
 
     # Define custom simulation parameters
     custom_dict = {
-        'grid': {
-            'Nx': 200,          # Higher spatial resolution in x
-            'Nz': 150,          # Higher spatial resolution in z
-            'Ntheta': 90,       # Coarser angular resolution
-            'Ne': 50,           # Coarser energy resolution
-            'x_min': -30.0,
-            'x_max': 30.0,
-            'z_min': -40.0,
-            'z_max': 40.0,
-            'theta_min': 0.0,
-            'theta_max': 90.0,
-            'E_min': 5.0,
-            'E_max': 200.0,
-            'E_cutoff': 10.0,
-        }
+        "grid": {
+            "Nx": 200,          # Higher spatial resolution in x
+            "Nz": 150,          # Higher spatial resolution in z
+            "Ntheta": 90,       # Coarser angular resolution
+            "Ne": 50,           # Coarser energy resolution
+            "x_min": -30.0,
+            "x_max": 30.0,
+            "z_min": -40.0,
+            "z_max": 40.0,
+            "theta_min": 0.0,
+            "theta_max": 90.0,
+            "E_min": 5.0,
+            "E_max": 200.0,
+            "E_cutoff": 10.0,
+        },
     }
 
     # Create SimulationConfig from dictionary
@@ -166,15 +165,15 @@ def example_5_workflow():
 
     # Step 1: Load configuration from file (simulated with dict)
     config_dict = {
-        'grid': {
-            'Nx': 150,
-            'Nz': 150,
-            'Ntheta': 180,
-            'Ne': 100,
-            'E_min': 1.0,
-            'E_max': 100.0,
-            'E_cutoff': 2.0,
-        }
+        "grid": {
+            "Nx": 150,
+            "Nz": 150,
+            "Ntheta": 180,
+            "Ne": 100,
+            "E_min": 1.0,
+            "E_max": 100.0,
+            "E_cutoff": 2.0,
+        },
     }
 
     # Step 2: Create SimulationConfig

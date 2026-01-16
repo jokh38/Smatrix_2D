@@ -1,5 +1,4 @@
-"""
-Non-Uniform Grid Generation for Phase C-3
+"""Non-Uniform Grid Generation for Phase C-3
 
 This module implements non-uniform energy and angular grids as specified
 in DOC-3 Phase C SPEC (R-GRID-E-001, R-GRID-T-001).
@@ -12,15 +11,16 @@ Design Principles:
 
 from dataclasses import dataclass
 from typing import Tuple
+
 import numpy as np
 
 # SSOT: Import default spatial grid values from defaults.py
 from smatrix_2d.config.defaults import (
+    DEFAULT_DELTA_X,
+    DEFAULT_DELTA_Z,
     DEFAULT_NX,
     DEFAULT_NZ,
     DEFAULT_SPATIAL_HALF_SIZE,
-    DEFAULT_DELTA_X,
-    DEFAULT_DELTA_Z,
 )
 
 try:
@@ -61,7 +61,9 @@ class NonUniformGridSpecs:
         theta_core_spacing: Angular spacing in core region (degrees)
         theta_wing_spacing: Angular spacing in wing regions (degrees)
         theta_tail_spacing: Angular spacing in tail regions (degrees)
+
     """
+
     # Basic ranges
     E_min: float = 1.0
     E_max: float = 70.0
@@ -99,7 +101,7 @@ def create_non_uniform_energy_grid(
     spacing_low: float = 0.2,
     spacing_mid: float = 0.5,
     spacing_high: float = 2.0,
-) -> Tuple[np.ndarray, np.ndarray, int]:
+) -> tuple[np.ndarray, np.ndarray, int]:
     """Create non-uniform energy grid.
 
     Energy grid is finer near the cutoff (Bragg peak region) and coarser
@@ -123,6 +125,7 @@ def create_non_uniform_energy_grid(
         - E_edges: Array of bin edges [Ne+1]
         - E_centers: Array of bin centers [Ne]
         - Ne: Number of energy bins
+
     """
     # Define region boundaries
     if E_cutoff < 2.0:
@@ -187,7 +190,7 @@ def create_non_uniform_angular_grid(
     core_spacing: float = 0.2,
     wing_spacing: float = 0.5,
     tail_spacing: float = 1.0,
-) -> Tuple[np.ndarray, np.ndarray, int]:
+) -> tuple[np.ndarray, np.ndarray, int]:
     """Create non-uniform angular grid.
 
     Angular grid is finer in the forward direction (beam core) where
@@ -212,6 +215,7 @@ def create_non_uniform_angular_grid(
         - theta_edges: Array of bin edges [Ntheta+1]
         - theta_centers: Array of bin centers [Ntheta]
         - Ntheta: Number of angle bins
+
     """
     # Define region boundaries
     theta_core_min = theta0 - core_range / 2.0
@@ -288,6 +292,7 @@ def create_non_uniform_grids(
         - theta_edges, theta_centers, Ntheta
         - Nx, Nz, x_edges, z_edges
         - delta_x, delta_z
+
     """
     # Create energy grid
     E_edges, E_centers, Ne = create_non_uniform_energy_grid(
@@ -318,35 +323,35 @@ def create_non_uniform_grids(
     z_centers = (z_edges[:-1] + z_edges[1:]) / 2.0
 
     return {
-        'E_edges': E_edges.astype(np.float32),
-        'E_centers': E_centers.astype(np.float32),
-        'Ne': Ne,
-        'theta_edges': theta_edges.astype(np.float32),
-        'theta_centers': theta_centers.astype(np.float32),
-        'Ntheta': Ntheta,
-        'x_edges': x_edges.astype(np.float32),
-        'x_centers': x_centers.astype(np.float32),
-        'z_edges': z_edges.astype(np.float32),
-        'z_centers': z_centers.astype(np.float32),
-        'Nx': specs.Nx,
-        'Nz': specs.Nz,
-        'delta_x': specs.delta_x,
-        'delta_z': specs.delta_z,
-        'x_min': specs.x_min,
-        'x_max': specs.x_max,
-        'z_min': specs.z_min,
-        'z_max': specs.z_max,
-        'E_min': specs.E_min,
-        'E_max': specs.E_max,
-        'E_cutoff': specs.E_cutoff,
-        'theta_min': specs.theta_min,
-        'theta_max': specs.theta_max,
+        "E_edges": E_edges.astype(np.float32),
+        "E_centers": E_centers.astype(np.float32),
+        "Ne": Ne,
+        "theta_edges": theta_edges.astype(np.float32),
+        "theta_centers": theta_centers.astype(np.float32),
+        "Ntheta": Ntheta,
+        "x_edges": x_edges.astype(np.float32),
+        "x_centers": x_centers.astype(np.float32),
+        "z_edges": z_edges.astype(np.float32),
+        "z_centers": z_centers.astype(np.float32),
+        "Nx": specs.Nx,
+        "Nz": specs.Nz,
+        "delta_x": specs.delta_x,
+        "delta_z": specs.delta_z,
+        "x_min": specs.x_min,
+        "x_max": specs.x_max,
+        "z_min": specs.z_min,
+        "z_max": specs.z_max,
+        "E_min": specs.E_min,
+        "E_max": specs.E_max,
+        "E_cutoff": specs.E_cutoff,
+        "theta_min": specs.theta_min,
+        "theta_max": specs.theta_max,
     }
 
 
 __all__ = [
     "NonUniformGridSpecs",
-    "create_non_uniform_energy_grid",
     "create_non_uniform_angular_grid",
+    "create_non_uniform_energy_grid",
     "create_non_uniform_grids",
 ]

@@ -1,5 +1,4 @@
-"""
-Configuration Enums for Smatrix_2D Simulation
+"""Configuration Enums for Smatrix_2D Simulation
 
 This module defines all enumeration types used throughout the simulation configuration.
 These enums provide type-safe configuration options and improve code documentation.
@@ -25,7 +24,9 @@ class EnergyGridType(Enum):
     Note:
         RANGE_BASED requires residual range data from stopping power tables.
         NON_UNIFORM uses the Phase C-3 adaptive grid algorithm.
+
     """
+
     UNIFORM = "uniform"
     LOGARITHMIC = "logarithmic"
     RANGE_BASED = "range_based"
@@ -42,7 +43,9 @@ class AngularGridType(Enum):
     Note:
         NON_UNIFORM provides finer resolution in forward direction (beam core)
         and coarser resolution in the tails.
+
     """
+
     UNIFORM = "uniform"
     NON_UNIFORM = "non_uniform"
 
@@ -58,7 +61,9 @@ class BoundaryPolicy(Enum):
     Warning:
         PERIODIC boundaries are not physically meaningful for this type of transport simulation.
         Use only for numerical experiments, never for production runs.
+
     """
+
     ABSORB = "absorb"
     REFLECT = "reflect"
     PERIODIC = "periodic"
@@ -74,7 +79,9 @@ class SplittingType(Enum):
     Note:
         The splitting order is fixed to ensure determinism and reproducibility.
         All operators use the same Δs step size unless sub_steps is configured.
+
     """
+
     FIRST_ORDER = "first_order"
     STRANG = "strang"
 
@@ -90,7 +97,9 @@ class BackwardTransportPolicy(Enum):
     Note:
         In 2D proton therapy, backward transport is generally non-physical.
         HARD_REJECT is the recommended policy for production simulations.
+
     """
+
     HARD_REJECT = "hard_reject"
     SOFT_REJECT = "soft_reject"
     ALLOW = "allow"
@@ -114,6 +123,7 @@ class DeterminismLevel(Enum):
         STABLE tests use tighter tolerances (1e-7 to 1e-5)
         DEBUG tests expect near-exact reproduction (1e-10 to 1e-8)
     """
+
     FAST = 0  # Atomic operations, float32 psi, tolerance tests
     STABLE = 1  # Block-level reduction, tighter tolerances
     DEBUG = 2  # Float64 ops, sync_interval enabled, near-exact reproduction

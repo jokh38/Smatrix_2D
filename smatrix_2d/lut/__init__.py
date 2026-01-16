@@ -13,8 +13,8 @@ from smatrix_2d.lut.scattering import (
 )
 
 __all__ = [
-    'ScatteringLUT',
-    'ScatteringLUTMetadata',
-    'generate_scattering_lut',
-    'load_scattering_lut',
+    "ScatteringLUT",
+    "ScatteringLUTMetadata",
+    "generate_scattering_lut",
+    "load_scattering_lut",
 ]

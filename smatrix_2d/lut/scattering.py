@@ -6,12 +6,13 @@ Following DOC-2 Phase B-1 Specification R-SCAT-T1-001 ~ R-SCAT-T1-003
 
 from __future__ import annotations
 
-import numpy as np
-from typing import Optional, Tuple
-from pathlib import Path
-import warnings
 import json
+import warnings
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional, Tuple
+
+import numpy as np
 
 from smatrix_2d.core.constants import PhysicsConstants2D
 
@@ -26,9 +27,11 @@ class ScatteringLUTMetadata:
         generation_date: ISO 8601 timestamp
         formula_version: Formula identifier (e.g., "Highland_v1")
         checksum: SHA-256 hash of LUT data
+
     """
+
     material_name: str
-    energy_grid: Tuple[float, float, int, str]
+    energy_grid: tuple[float, float, int, str]
     generation_date: str
     formula_version: str
     checksum: str
@@ -49,7 +52,7 @@ class ScatteringLUT:
         material_name: str,
         E_grid: np.ndarray,
         sigma_norm: np.ndarray,
-        metadata: Optional[ScatteringLUTMetadata] = None,
+        metadata: ScatteringLUTMetadata | None = None,
     ):
         """Initialize scattering LUT.
 
@@ -58,11 +61,12 @@ class ScatteringLUT:
             E_grid: Energy grid [MeV], shape (N_points,)
             sigma_norm: Normalized scattering [rad/√mm], shape (N_points,)
             metadata: Optional metadata object
+
         """
         if len(E_grid) != len(sigma_norm):
             raise ValueError(
                 f"E_grid and sigma_norm must have same length: "
-                f"{len(E_grid)} != {len(sigma_norm)}"
+                f"{len(E_grid)} != {len(sigma_norm)}",
             )
 
         if len(E_grid) < 2:
@@ -92,6 +96,7 @@ class ScatteringLUT:
 
         Returns:
             sigma_norm: Normalized scattering [rad/√mm]
+
         """
         # Edge clamping
         if E_MeV <= self.E_grid[0]:
@@ -100,7 +105,7 @@ class ScatteringLUT:
                     f"Energy {E_MeV:.3f} MeV below LUT range "
                     f"[{self.E_grid[0]:.3f}, {self.E_grid[-1]:.3f}] MeV. "
                     f"Clamping to {self.E_grid[0]:.3f} MeV.",
-                    UserWarning, stacklevel=2
+                    UserWarning, stacklevel=2,
                 )
             return self.sigma_norm[0]
 
@@ -110,7 +115,7 @@ class ScatteringLUT:
                     f"Energy {E_MeV:.3f} MeV above LUT range "
                     f"[{self.E_grid[0]:.3f}, {self.E_grid[-1]:.3f}] MeV. "
                     f"Clamping to {self.E_grid[-1]:.3f} MeV.",
-                    UserWarning, stacklevel=2
+                    UserWarning, stacklevel=2,
                 )
             return self.sigma_norm[-1]
 
@@ -122,6 +127,7 @@ class ScatteringLUT:
 
         Returns:
             gpu_array: CuPy array on GPU
+
         """
         try:
             import cupy as cp
@@ -134,7 +140,7 @@ class ScatteringLUT:
         except ImportError:
             warnings.warn(
                 "CuPy not available, scattering LUT will use CPU interpolation",
-                UserWarning, stacklevel=2
+                UserWarning, stacklevel=2,
             )
             return None
 
@@ -143,32 +149,33 @@ class ScatteringLUT:
 
         Args:
             filepath: Output path (e.g., "data/lut/scattering_lut_water.npy")
+
         """
         # Create directory if needed
         filepath.parent.mkdir(parents=True, exist_ok=True)
 
         # Save data
         np.save(filepath, {
-            'material_name': self.material_name,
-            'E_grid': self.E_grid,
-            'sigma_norm': self.sigma_norm,
-            'metadata': self.metadata,
+            "material_name": self.material_name,
+            "E_grid": self.E_grid,
+            "sigma_norm": self.sigma_norm,
+            "metadata": self.metadata,
         })
 
         # Save metadata as JSON
-        metadata_path = filepath.with_suffix('.json')
+        metadata_path = filepath.with_suffix(".json")
         if self.metadata is not None:
-            with open(metadata_path, 'w') as f:
+            with open(metadata_path, "w") as f:
                 json.dump({
-                    'material_name': self.metadata.material_name,
-                    'energy_grid': self.metadata.energy_grid,
-                    'generation_date': self.metadata.generation_date,
-                    'formula_version': self.metadata.formula_version,
-                    'checksum': self.metadata.checksum,
+                    "material_name": self.metadata.material_name,
+                    "energy_grid": self.metadata.energy_grid,
+                    "generation_date": self.metadata.generation_date,
+                    "formula_version": self.metadata.formula_version,
+                    "checksum": self.metadata.checksum,
                 }, f, indent=2)
 
     @classmethod
-    def load(cls, filepath: Path) -> 'ScatteringLUT':
+    def load(cls, filepath: Path) -> ScatteringLUT:
         """Load LUT from NPY file.
 
         Args:
@@ -176,17 +183,18 @@ class ScatteringLUT:
 
         Returns:
             ScatteringLUT object
+
         """
         data = np.load(filepath, allow_pickle=True).item()
 
         metadata = None
-        if 'metadata' in data and data['metadata'] is not None:
-            metadata = ScatteringLUTMetadata(**data['metadata'])
+        if "metadata" in data and data["metadata"] is not None:
+            metadata = ScatteringLUTMetadata(**data["metadata"])
 
         return cls(
-            material_name=data['material_name'],
-            E_grid=data['E_grid'],
-            sigma_norm=data['sigma_norm'],
+            material_name=data["material_name"],
+            E_grid=data["E_grid"],
+            sigma_norm=data["sigma_norm"],
             metadata=metadata,
         )
 
@@ -197,8 +205,8 @@ def generate_scattering_lut(
     E_min: float = 1.0,
     E_max: float = 250.0,
     n_points: int = 200,
-    grid_type: str = 'uniform',
-    constants: Optional[PhysicsConstants2D] = None,
+    grid_type: str = "uniform",
+    constants: PhysicsConstants2D | None = None,
 ) -> ScatteringLUT:
     """Generate scattering LUT from Highland formula.
 
@@ -215,14 +223,15 @@ def generate_scattering_lut(
 
     Returns:
         ScatteringLUT object
+
     """
     if constants is None:
         constants = PhysicsConstants2D()
 
     # Generate energy grid
-    if grid_type == 'uniform':
+    if grid_type == "uniform":
         E_grid = np.linspace(E_min, E_max, n_points)
-    elif grid_type == 'logarithmic':
+    elif grid_type == "logarithmic":
         E_grid = np.logspace(np.log10(E_min), np.log10(E_max), n_points)
     else:
         raise ValueError(f"Invalid grid_type: {grid_type}")
@@ -238,8 +247,8 @@ def generate_scattering_lut(
         sigma_norm[i] = sigma
 
     # Create metadata
-    from datetime import datetime
     import hashlib
+    from datetime import datetime
 
     data_hash = hashlib.sha256(sigma_norm.tobytes()).hexdigest()[:16]
 
@@ -278,6 +287,7 @@ def _highland_formula(
 
     Returns:
         sigma_theta: RMS scattering angle [rad]
+
     """
     gamma = (E_MeV + constants.m_p) / constants.m_p
     beta_sq = 1.0 - 1.0 / (gamma * gamma)
@@ -309,10 +319,10 @@ _lut_cache: dict[str, ScatteringLUT] = {}
 
 
 def load_scattering_lut(
-    material: 'MaterialProperties2D',
-    lut_dir: Optional[Path] = None,
+    material: MaterialProperties2D,
+    lut_dir: Path | None = None,
     regen: bool = False,
-) -> Optional[ScatteringLUT]:
+) -> ScatteringLUT | None:
     """Load scattering LUT for material.
 
     Following DOC-2 R-SCAT-T1-003 (offline generation, runtime load).
@@ -329,16 +339,17 @@ def load_scattering_lut(
 
     Returns:
         ScatteringLUT object, or None if LUT unavailable
+
     """
     if lut_dir is None:
-        lut_dir = Path('data/lut')
+        lut_dir = Path("data/lut")
 
     # Check cache
     if material.name in _lut_cache:
         return _lut_cache[material.name]
 
     # Try to load from file
-    filepath = lut_dir / f'scattering_lut_{material.name}.npy'
+    filepath = lut_dir / f"scattering_lut_{material.name}.npy"
 
     if not regen and filepath.exists():
         try:
@@ -348,7 +359,7 @@ def load_scattering_lut(
         except Exception as e:
             warnings.warn(
                 f"Failed to load scattering LUT from {filepath}: {e}",
-                UserWarning, stacklevel=2
+                UserWarning, stacklevel=2,
             )
 
     # Regenerate if requested
@@ -363,7 +374,7 @@ def load_scattering_lut(
         except Exception as e:
             warnings.warn(
                 f"Failed to generate scattering LUT for {material.name}: {e}",
-                UserWarning, stacklevel=2
+                UserWarning, stacklevel=2,
             )
 
     return None

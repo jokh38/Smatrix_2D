@@ -11,8 +11,9 @@ Implements CSDA (Continuous Slowing Down Approximation) with:
 - Block-local reduction (scatter with block-local accumulation, no global atomics)
 """
 
+from typing import Optional, Tuple
+
 import numpy as np
-from typing import Tuple, Optional
 
 from smatrix_2d.core.grid import PhaseSpaceGridV2
 from smatrix_2d.core.lut import StoppingPowerLUT
@@ -41,7 +42,7 @@ class EnergyLossV2:
         self,
         grid: PhaseSpaceGridV2,
         stopping_power_lut: StoppingPowerLUT,
-        E_cutoff: float = 1.0
+        E_cutoff: float = 1.0,
     ):
         """Initialize energy loss operator.
 
@@ -49,6 +50,7 @@ class EnergyLossV2:
             grid: Phase space grid (v2.1 specification)
             stopping_power_lut: Stopping power lookup table [MeV/mm]
             E_cutoff: Energy cutoff [MeV], particles below this are absorbed
+
         """
         self.grid = grid
         self.stopping_power_lut = stopping_power_lut
@@ -58,15 +60,15 @@ class EnergyLossV2:
         if E_cutoff < grid.E_edges[0]:
             raise ValueError(
                 f"E_cutoff ({E_cutoff} MeV) below grid minimum "
-                f"({grid.E_edges[0]} MeV)"
+                f"({grid.E_edges[0]} MeV)",
             )
 
     def apply(
         self,
         psi: np.ndarray,
         delta_s: float,
-        deposited_energy: Optional[np.ndarray] = None
-    ) -> Tuple[np.ndarray, float]:
+        deposited_energy: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, float]:
         """Apply energy loss operator.
 
         Args:
@@ -79,6 +81,7 @@ class EnergyLossV2:
             (psi_after_E, escape_energy_stopped) tuple where:
             - psi_after_E: State after energy loss [Ne, Ntheta, Nz, Nx]
             - escape_energy_stopped: Total energy of particles stopped at cutoff
+
         """
         Ne, Ntheta, Nz, Nx = psi.shape
 
@@ -134,7 +137,7 @@ class EnergyLossV2:
             # Case 3: Normal energy loss - conservative bin splitting
             # Find target bracket: find i such that E_centers[i] <= E_new < E_centers[i+1]
             # Use E_centers instead of E_edges for correct interpolation
-            iE_out = np.searchsorted(self.grid.E_centers, E_new, side='left') - 1
+            iE_out = np.searchsorted(self.grid.E_centers, E_new, side="left") - 1
 
             # Clamp to valid range
             if iE_out < 0:
@@ -194,13 +197,14 @@ class EnergyLossV2:
 
         Returns:
             Stopping power S(E) [MeV/mm]
+
         """
         return self.stopping_power_lut.get_stopping_power(energy)
 
     def compute_energy_loss(
         self,
         energy: float,
-        delta_s: float
+        delta_s: float,
     ) -> float:
         """Compute energy loss over step length.
 
@@ -212,6 +216,7 @@ class EnergyLossV2:
 
         Returns:
             Energy loss [MeV]
+
         """
         S = self.stopping_power_lut.get_stopping_power(energy)
         return S * delta_s

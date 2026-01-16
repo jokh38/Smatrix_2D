@@ -14,13 +14,11 @@ Memory savings (from SPEC 8.2):
 - With double buffering + halos: ~150-200 MB working memory
 """
 
-import numpy as np
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Optional, Iterator, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-if TYPE_CHECKING:
-    # For type hints only - both grid types are supported at runtime
-    pass
+import numpy as np
 
 # Type alias for either grid type
 PhaseSpaceGrid = object  # Will be duck-typed at runtime
@@ -34,7 +32,9 @@ class TileSpec:
         tile_size_nz: Number of z-slices per tile (default: 10 for ~72 MB tiles)
         halo_size: Halo cells on each side (default: 1 for delta_s=1mm)
         total_tiles: Total number of tiles to cover domain
+
     """
+
     tile_size_nz: int = 10
     halo_size: int = 1
     total_tiles: int = 0
@@ -66,7 +66,9 @@ class TileInfo:
         has_right_halo: Whether right (positive z) halo exists
         halo_left: Left halo data from previous tile [Ne, Ntheta, halo_size, Nx]
         halo_right: Right halo data for next tile [Ne, Ntheta, halo_size, Nx]
+
     """
+
     tile_id: int
     z_start: int
     z_end: int
@@ -75,8 +77,8 @@ class TileInfo:
     halo_size: int
     has_left_halo: bool
     has_right_halo: bool
-    halo_left: Optional[np.ndarray]
-    halo_right: Optional[np.ndarray]
+    halo_left: np.ndarray | None
+    halo_right: np.ndarray | None
 
     @property
     def z_local_core_start(self) -> int:
@@ -141,12 +143,13 @@ class TileManager:
 
         Raises:
             ValueError: If tile parameters are invalid
+
         """
         self.grid = grid
         self.spec = TileSpec(
             tile_size_nz=tile_size_nz,
             halo_size=halo_size,
-            total_tiles=0  # Will be computed
+            total_tiles=0,  # Will be computed
         )
 
         # Compute tile layout
@@ -154,43 +157,38 @@ class TileManager:
 
     def _get_grid_Nz(self) -> int:
         """Get Nz from grid (supports both PhaseSpaceGridV2 and PhaseSpaceGrid2D)."""
-        if hasattr(self.grid, 'Nz'):
+        if hasattr(self.grid, "Nz"):
             return self.grid.Nz
-        else:
-            return len(self.grid.z_centers)
+        return len(self.grid.z_centers)
 
     def _get_grid_Nx(self) -> int:
         """Get Nx from grid (supports both PhaseSpaceGridV2 and PhaseSpaceGrid2D)."""
-        if hasattr(self.grid, 'Nx'):
+        if hasattr(self.grid, "Nx"):
             return self.grid.Nx
-        else:
-            return len(self.grid.x_centers)
+        return len(self.grid.x_centers)
 
     def _get_grid_Ntheta(self) -> int:
         """Get Ntheta from grid (supports both PhaseSpaceGridV2 and PhaseSpaceGrid2D)."""
-        if hasattr(self.grid, 'Ntheta'):
+        if hasattr(self.grid, "Ntheta"):
             return self.grid.Ntheta
-        else:
-            return len(self.grid.th_centers)
+        return len(self.grid.th_centers)
 
     def _get_grid_Ne(self) -> int:
         """Get Ne from grid (supports both PhaseSpaceGridV2 and PhaseSpaceGrid2D)."""
-        if hasattr(self.grid, 'Ne'):
+        if hasattr(self.grid, "Ne"):
             return self.grid.Ne
-        else:
-            return len(self.grid.E_centers)
+        return len(self.grid.E_centers)
 
     def _get_grid_shape(self) -> tuple:
         """Get grid shape (Ne, Ntheta, Nz, Nx)."""
-        if hasattr(self.grid, 'shape'):
+        if hasattr(self.grid, "shape"):
             return self.grid.shape
-        else:
-            return (
-                self._get_grid_Ne(),
-                self._get_grid_Ntheta(),
-                self._get_grid_Nz(),
-                self._get_grid_Nx(),
-            )
+        return (
+            self._get_grid_Ne(),
+            self._get_grid_Ntheta(),
+            self._get_grid_Nz(),
+            self._get_grid_Nx(),
+        )
 
     def _compute_tile_layout(self):
         """Calculate tile boundaries and compute total tiles.
@@ -211,7 +209,7 @@ class TileManager:
 
         if self.spec.total_tiles == 0:
             raise ValueError(
-                f"Grid has Nz={Nz} slices, which is too small for tile_size_nz={tile_size}"
+                f"Grid has Nz={Nz} slices, which is too small for tile_size_nz={tile_size}",
             )
 
     def get_tile(self, tile_id: int) -> TileInfo:
@@ -225,10 +223,11 @@ class TileManager:
 
         Raises:
             ValueError: If tile_id is out of range
+
         """
         if tile_id < 0 or tile_id >= self.spec.total_tiles:
             raise ValueError(
-                f"tile_id={tile_id} out of range [0, {self.spec.total_tiles})"
+                f"tile_id={tile_id} out of range [0, {self.spec.total_tiles})",
             )
 
         Nz = self._get_grid_Nz()
@@ -277,6 +276,7 @@ class TileManager:
             for tile_info in manager.iter_tiles():
                 psi_tile = manager.extract_tile(psi_full, tile_info)
                 # Process tile...
+
         """
         for tile_id in range(self.spec.total_tiles):
             yield self.get_tile(tile_id)
@@ -300,12 +300,13 @@ class TileManager:
 
         Raises:
             ValueError: If psi shape doesn't match grid
+
         """
         # Validate input shape
         expected_shape = self._get_grid_shape()
         if psi.shape != expected_shape:
             raise ValueError(
-                f"psi shape {psi.shape} doesn't match grid shape {expected_shape}"
+                f"psi shape {psi.shape} doesn't match grid shape {expected_shape}",
             )
 
         halo_size = self.spec.halo_size
@@ -358,12 +359,13 @@ class TileManager:
 
         Raises:
             ValueError: If array shapes don't match
+
         """
         # Validate input shapes
         expected_full_shape = self._get_grid_shape()
         if psi_full.shape != expected_full_shape:
             raise ValueError(
-                f"psi_full shape {psi_full.shape} doesn't match grid shape {expected_full_shape}"
+                f"psi_full shape {psi_full.shape} doesn't match grid shape {expected_full_shape}",
             )
 
         # Compute expected tile shape
@@ -371,7 +373,7 @@ class TileManager:
         expected_tile_shape = (self._get_grid_Ne(), self._get_grid_Ntheta(), nz_local, self._get_grid_Nx())
         if psi_tile.shape != expected_tile_shape:
             raise ValueError(
-                f"psi_tile shape {psi_tile.shape} doesn't match expected {expected_tile_shape}"
+                f"psi_tile shape {psi_tile.shape} doesn't match expected {expected_tile_shape}",
             )
 
         # Insert core region only (halos are boundary data, not state)
@@ -385,8 +387,8 @@ class TileManager:
         self,
         psi_tile: np.ndarray,
         tile_info: TileInfo,
-        left_neighbor: Optional[np.ndarray] = None,
-        right_neighbor: Optional[np.ndarray] = None,
+        left_neighbor: np.ndarray | None = None,
+        right_neighbor: np.ndarray | None = None,
     ) -> None:
         """Update halo regions in tile with data from adjacent tiles.
 
@@ -403,6 +405,7 @@ class TileManager:
         Note:
             Halos are boundary data, not part of the solution state.
             They are only needed for streaming gather operations.
+
         """
         halo_size = self.spec.halo_size
 
@@ -439,6 +442,7 @@ class TileManager:
         Example:
             mem = manager.compute_memory_usage()
             print(f"Tile memory: {mem['tile_mb']:.1f} MB")
+
         """
         bytes_per_element = np.dtype(dtype).itemsize
 
@@ -460,16 +464,16 @@ class TileManager:
         multiplier = 2.0 if double_buffered else 1.0
 
         return {
-            'elements_per_tile': elements_core,
-            'elements_with_halos': elements_with_halos,
-            'bytes_per_tile': bytes_core,
-            'bytes_with_halos': bytes_with_halos,
-            'tile_mb': bytes_with_halos * multiplier / (1024 ** 2),
-            'tile_gb': bytes_with_halos * multiplier / (1024 ** 3),
-            'full_domain_mb': (Ne * Ntheta * Nz * Nx * bytes_per_element) / (1024 ** 2),
-            'full_domain_gb': (Ne * Ntheta * Nz * Nx * bytes_per_element) / (1024 ** 3),
-            'num_tiles': self.spec.total_tiles,
-            'double_buffered': double_buffered,
+            "elements_per_tile": elements_core,
+            "elements_with_halos": elements_with_halos,
+            "bytes_per_tile": bytes_core,
+            "bytes_with_halos": bytes_with_halos,
+            "tile_mb": bytes_with_halos * multiplier / (1024 ** 2),
+            "tile_gb": bytes_with_halos * multiplier / (1024 ** 3),
+            "full_domain_mb": (Ne * Ntheta * Nz * Nx * bytes_per_element) / (1024 ** 2),
+            "full_domain_gb": (Ne * Ntheta * Nz * Nx * bytes_per_element) / (1024 ** 3),
+            "num_tiles": self.spec.total_tiles,
+            "double_buffered": double_buffered,
         }
 
     def estimate_tile_size_for_memory(
@@ -494,6 +498,7 @@ class TileManager:
         Example:
             # For ~150 MB working memory per tile
             tile_nz = manager.estimate_tile_size_for_memory(150.0)
+
         """
         bytes_per_element = np.dtype(dtype).itemsize
         target_bytes = target_memory_mb * (1024 ** 2)
@@ -542,5 +547,6 @@ def create_tile_manager(
     Example:
         grid = create_phase_space_grid(specs)
         manager = create_tile_manager(grid, tile_size_nz=10)
+
     """
     return TileManager(grid, tile_size_nz, halo_size)

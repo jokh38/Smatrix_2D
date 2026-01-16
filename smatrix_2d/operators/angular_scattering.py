@@ -22,9 +22,10 @@ where K_b is the precomputed sparse kernel for bucket b corresponding to sigma(i
 
 from __future__ import annotations
 
-import numpy as np
-from typing import TYPE_CHECKING, Tuple
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Tuple
+
+import numpy as np
 
 if TYPE_CHECKING:
     from smatrix_2d.core.grid import PhaseSpaceGridV2
@@ -53,7 +54,9 @@ class AngularEscapeAccounting:
         theta_cutoff: Diagnostic escape from kernel cutoff [Ne, Nz, Nx]
         theta_boundary: Actual escape from boundary truncation [Ne, Nz, Nx]
         total: Boundary escape only (for conservation checking)
+
     """
+
     theta_cutoff: np.ndarray
     theta_boundary: np.ndarray
 
@@ -101,6 +104,7 @@ class AngularScatteringV2:
         Args:
             grid: Phase space grid (SPEC v2.1 compliant)
             sigma_buckets: Precomputed sigma buckets from Phase 4
+
         """
         self.grid = grid
         self.sigma_buckets = sigma_buckets
@@ -108,7 +112,7 @@ class AngularScatteringV2:
         # Validate grid compatibility
         if grid.Ntheta != len(grid.th_centers):
             raise ValueError(
-                f"Grid Ntheta mismatch: {grid.Ntheta} vs {len(grid.th_centers)}"
+                f"Grid Ntheta mismatch: {grid.Ntheta} vs {len(grid.th_centers)}",
             )
 
         # Precompute kernel used sums for each bucket and input angle
@@ -159,7 +163,7 @@ class AngularScatteringV2:
         self,
         psi: np.ndarray,
         delta_s: float,
-    ) -> Tuple[np.ndarray, AngularEscapeAccounting]:
+    ) -> tuple[np.ndarray, AngularEscapeAccounting]:
         """Apply angular scattering operator.
 
         Args:
@@ -169,13 +173,14 @@ class AngularScatteringV2:
         Returns:
             psi_scattered: Scattered phase space [Ne, Ntheta, Nz, Nx]
             escape: Escape accounting (theta_cutoff + theta_boundary)
+
         """
         # Validate input shape
         expected_shape = self.grid.shape
         if psi.shape != expected_shape:
             raise ValueError(
                 f"Input psi shape mismatch: expected {expected_shape}, "
-                f"got {psi.shape}"
+                f"got {psi.shape}",
             )
 
         Ne, Ntheta, Nz, Nx = psi.shape
@@ -217,7 +222,7 @@ class AngularScatteringV2:
         self,
         psi_slice: np.ndarray,
         bucket_id: int,
-    ) -> Tuple[np.ndarray, float, float]:
+    ) -> tuple[np.ndarray, float, float]:
         """Apply convolution for a single (iE, iz, ix) slice.
 
         GATHER formulation:
@@ -232,6 +237,7 @@ class AngularScatteringV2:
             psi_out: Scattered angular distribution [Ntheta]
             escape_cutoff: Escape from kernel truncation
             escape_boundary: Escape from boundary truncation
+
         """
         Ntheta = self.grid.Ntheta
 
@@ -393,7 +399,7 @@ class AngularScatteringV2:
         psi_out: np.ndarray,
         escape: AngularEscapeAccounting,
         tol: float = 1e-6,
-    ) -> Tuple[bool, float]:
+    ) -> tuple[bool, float]:
         """Validate mass conservation for angular scattering.
 
         Conservation law: mass_in = mass_out + escape_cutoff + escape_boundary
@@ -407,6 +413,7 @@ class AngularScatteringV2:
         Returns:
             is_valid: True if mass is conserved within tolerance
             error: Relative error in conservation
+
         """
         mass_in = np.sum(psi_in)
         mass_out = np.sum(psi_out)
@@ -430,6 +437,7 @@ class AngularScatteringV2:
 
         Returns:
             kernel_used: Used kernel sums [Ntheta]
+
         """
         return self._kernel_used_sums[bucket_id, :].copy()
 
@@ -438,6 +446,7 @@ class AngularScatteringV2:
 
         Returns:
             summary: Formatted string with operator statistics
+
         """
         lines = [
             "Angular Scattering Operator V2 Summary",
@@ -460,7 +469,7 @@ class AngularScatteringV2:
             lines.append(
                 f"Bucket {bucket_id}: "
                 f"sigma={bucket.sigma*1000:.3f} mrad, "
-                f"half_width={bucket.half_width_bins} bins"
+                f"half_width={bucket.half_width_bins} bins",
             )
 
         if self.sigma_buckets.n_buckets > 5:

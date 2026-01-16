@@ -3,10 +3,11 @@
 Implements R-MAT-004: Material Registry
 """
 
-import yaml
+import warnings
 from pathlib import Path
 from typing import Dict, List, Optional
-import warnings
+
+import yaml
 
 from .descriptor import MaterialDescriptor
 
@@ -27,13 +28,14 @@ class MaterialRegistry:
         - Duplicate names
     """
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         """Initialize material registry.
 
         Args:
             config_path: Path to materials.yaml config file
+
         """
-        self._materials: Dict[str, MaterialDescriptor] = {}
+        self._materials: dict[str, MaterialDescriptor] = {}
         self._config_path = config_path
 
         if config_path:
@@ -47,6 +49,7 @@ class MaterialRegistry:
 
         Raises:
             ValueError: If duplicate name or validation fails
+
         """
         name = descriptor.name
 
@@ -72,20 +75,22 @@ class MaterialRegistry:
 
         Raises:
             KeyError: If material not found
+
         """
         if name not in self._materials:
             available = ", ".join(self.list_materials())
             raise KeyError(
-                f"Material '{name}' not found. Available: {available}"
+                f"Material '{name}' not found. Available: {available}",
             )
 
         return self._materials[name]
 
-    def list_materials(self) -> List[str]:
+    def list_materials(self) -> list[str]:
         """List all registered material names.
 
         Returns:
             List of material identifiers
+
         """
         return list(self._materials.keys())
 
@@ -113,12 +118,13 @@ class MaterialRegistry:
         Raises:
             FileNotFoundError: If file doesn't exist
             ValueError: If YAML format is invalid
+
         """
         path = Path(yaml_path)
         if not path.exists():
             raise FileNotFoundError(f"Material config not found: {yaml_path}")
 
-        with open(path, "r") as f:
+        with open(path) as f:
             data = yaml.safe_load(f)
 
         if "materials" not in data:
@@ -140,9 +146,10 @@ class MaterialRegistry:
 
         Args:
             yaml_path: Path to output YAML file
+
         """
         data = {
-            "materials": [mat.to_dict() for mat in self._materials.values()]
+            "materials": [mat.to_dict() for mat in self._materials.values()],
         }
 
         path = Path(yaml_path)
@@ -151,11 +158,12 @@ class MaterialRegistry:
         with open(path, "w") as f:
             yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
-    def validate_all(self) -> List[str]:
+    def validate_all(self) -> list[str]:
         """Validate all registered materials.
 
         Returns:
             List of validation error messages (empty if all valid)
+
         """
         errors = []
 
@@ -176,7 +184,7 @@ class MaterialRegistry:
                     total = sum(e.weight_fraction for e in mat.composition)
                     if abs(total - 1.0) > 1e-6:
                         errors.append(
-                            f"{name}: Composition fractions sum to {total}, not 1.0"
+                            f"{name}: Composition fractions sum to {total}, not 1.0",
                         )
 
             except Exception as e:
@@ -186,7 +194,7 @@ class MaterialRegistry:
 
 
 # Global registry instance
-_global_registry: Optional[MaterialRegistry] = None
+_global_registry: MaterialRegistry | None = None
 
 
 def get_global_registry() -> MaterialRegistry:
@@ -194,6 +202,7 @@ def get_global_registry() -> MaterialRegistry:
 
     Returns:
         Global MaterialRegistry instance
+
     """
     global _global_registry
     if _global_registry is None:
@@ -225,15 +234,17 @@ def get_material(name: str) -> MaterialDescriptor:
 
     Raises:
         KeyError: If material not found
+
     """
     return get_global_registry().get_material(name)
 
 
-def list_materials() -> List[str]:
+def list_materials() -> list[str]:
     """List all materials in global registry.
 
     Returns:
         List of material identifiers
+
     """
     return get_global_registry().list_materials()
 
@@ -245,5 +256,6 @@ def register_material(descriptor: MaterialDescriptor) -> None:
 
     Args:
         descriptor: MaterialDescriptor to register
+
     """
     get_global_registry().register_material(descriptor)

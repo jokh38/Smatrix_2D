@@ -1,5 +1,4 @@
-"""
-Block-Sparse Phase Space Management for Phase C-2
+"""Block-Sparse Phase Space Management for Phase C-2
 
 This module implements the Block-Sparse optimization with dual block masks
 for proper particle conservation. The key idea is to only process blocks
@@ -59,7 +58,9 @@ class BlockSparseConfig:
         enable_block_sparse: Master switch for block-sparse (default: True)
         enable_block_level_launch: Use block-level kernel launch for spatial streaming (default: True)
         enable_block_sparse_angular: Use block-sparse angular scattering (dominant operator, default: True)
+
     """
+
     block_size: int = 16
     threshold: float = 1e-10
     update_frequency: int = 10
@@ -105,13 +106,14 @@ class DualBlockMask:
         active_count_in: Number of currently active input blocks
         active_count_out: Number of currently active output blocks
         update_counter: Steps since last mask update
+
     """
 
     def __init__(
         self,
         Nz: int,
         Nx: int,
-        config: Optional[BlockSparseConfig] = None,
+        config: BlockSparseConfig | None = None,
     ):
         """Initialize dual block mask.
 
@@ -119,6 +121,7 @@ class DualBlockMask:
             Nz: Number of spatial bins in z
             Nx: Number of spatial bins in x
             config: Block-sparse configuration (uses defaults if None)
+
         """
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy required for DualBlockMask")
@@ -158,6 +161,7 @@ class DualBlockMask:
 
         Returns:
             Number of blocks in output mask
+
         """
         # Copy input mask to output
         self.mask_out_gpu[:] = self.mask_in_gpu
@@ -197,6 +201,7 @@ class DualBlockMask:
 
         Returns:
             Number of active input blocks after update
+
         """
         # Input validation
         if not isinstance(psi, cp.ndarray):
@@ -209,7 +214,7 @@ class DualBlockMask:
         if Nz != self.Nz or Nx != self.Nx:
             raise ValueError(
                 f"psi spatial dimensions mismatch: expected (..., {self.Nz}, {self.Nx}), "
-                f"got ({Ne}, {Ntheta}, {Nz}, {Nx})"
+                f"got ({Ne}, {Ntheta}, {Nz}, {Nx})",
             )
 
         self.update_counter += 1
@@ -276,7 +281,7 @@ class DualBlockMask:
 
         self.mask_in_gpu |= expanded
 
-    def update_full_step(self, psi: cp.ndarray, force: bool = False) -> Tuple[int, int]:
+    def update_full_step(self, psi: cp.ndarray, force: bool = False) -> tuple[int, int]:
         """Perform complete mask update cycle.
 
         This method:
@@ -289,6 +294,7 @@ class DualBlockMask:
 
         Returns:
             (active_input_count, active_output_count)
+
         """
         self.update_input_from_psi(psi, force)
         self.prepare_output_mask()
@@ -312,11 +318,12 @@ class DualBlockMask:
         """
         return self.active_count_out
 
-    def copy_to_host(self) -> Tuple[np.ndarray, np.ndarray]:
+    def copy_to_host(self) -> tuple[np.ndarray, np.ndarray]:
         """Copy both masks to host for inspection/debugging.
 
         Returns:
             (mask_in, mask_out) as numpy boolean arrays
+
         """
         return (
             cp.asnumpy(self.mask_in_gpu),
@@ -335,6 +342,7 @@ class DualBlockMask:
 
         Returns:
             Flattened boolean array suitable for CUDA kernel
+
         """
         return self.mask_out_gpu.ravel()
 
@@ -343,6 +351,7 @@ class DualBlockMask:
 
         Returns:
             Flattened boolean array suitable for CUDA kernel
+
         """
         return self.mask_in_gpu.ravel()
 
@@ -351,7 +360,7 @@ class DualBlockMask:
 # CUDA Kernels
 # =============================================================================
 
-_update_block_mask_gpu_src = r'''
+_update_block_mask_gpu_src = r"""
 extern "C" __global__
 void update_block_mask_gpu_kernel(
     const float* __restrict__ psi,
@@ -420,9 +429,9 @@ void update_block_mask_gpu_kernel(
         block_active[bz * n_blocks_x + bx] = (s_data[0] > threshold);
     }
 }
-'''
+"""
 
-_spatial_streaming_dual_mask_src = r'''
+_spatial_streaming_dual_mask_src = r"""
 extern "C" __global__
 void spatial_streaming_dual_mask(
     const float* __restrict__ psi_in,
@@ -540,9 +549,9 @@ void spatial_streaming_dual_mask(
         atomicAdd(&escapes_gpu[3], local_spatial_leak);
     }
 }
-'''
+"""
 
-_spatial_streaming_block_level_src = r'''
+_spatial_streaming_block_level_src = r"""
 extern "C" __global__
 void spatial_streaming_block_level(
     const float* __restrict__ psi_in,
@@ -666,9 +675,9 @@ void spatial_streaming_block_level(
         atomicAdd(&escapes_gpu[3], local_spatial_leak);
     }
 }
-'''
+"""
 
-_expand_halo_dual_src = r'''
+_expand_halo_dual_src = r"""
 extern "C" __global__
 void expand_halo_dual_kernel(
     const bool* __restrict__ mask_in,
@@ -692,9 +701,9 @@ void expand_halo_dual_kernel(
 
     mask_out[bz * n_blocks_x + bx] = active;
 }
-'''
+"""
 
-_angular_scattering_block_sparse_src = r'''
+_angular_scattering_block_sparse_src = r"""
 extern "C" __global__
 void angular_scattering_block_sparse(
     const float* __restrict__ psi_in,
@@ -788,7 +797,7 @@ void angular_scattering_block_sparse(
         atomicAdd(&escapes_gpu[1], local_theta_cutoff);    // THETA_CUTOFF
     }
 }
-'''
+"""
 
 
 # =============================================================================
@@ -809,18 +818,20 @@ class BlockSparseGPUTransportStep:
         config: Block-sparse configuration
         dual_mask: DualBlockMask instance for tracking input/output blocks
         step_counter: Number of steps executed
+
     """
 
     def __init__(
         self,
         base_step,
-        config: Optional[BlockSparseConfig] = None,
+        config: BlockSparseConfig | None = None,
     ):
         """Initialize block-sparse transport step.
 
         Args:
             base_step: Base GPUTransportStepV3 instance
             config: Block-sparse configuration
+
         """
         if not GPU_AVAILABLE:
             raise RuntimeError("CuPy required for BlockSparseGPUTransportStep")
@@ -844,43 +855,43 @@ class BlockSparseGPUTransportStep:
         # GPU block mask update
         self.update_block_mask_gpu_kernel = cp.RawKernel(
             _update_block_mask_gpu_src,
-            'update_block_mask_gpu_kernel',
-            options=('--use_fast_math',)
+            "update_block_mask_gpu_kernel",
+            options=("--use_fast_math",),
         )
 
         # Dual mask spatial streaming (original with early exit)
         self.spatial_streaming_dual_kernel = cp.RawKernel(
             _spatial_streaming_dual_mask_src,
-            'spatial_streaming_dual_mask',
-            options=('--use_fast_math',)
+            "spatial_streaming_dual_mask",
+            options=("--use_fast_math",),
         )
 
         # Block-level spatial streaming (optimized - one block per active block)
         self.spatial_streaming_block_level_kernel = cp.RawKernel(
             _spatial_streaming_block_level_src,
-            'spatial_streaming_block_level',
-            options=('--use_fast_math',)
+            "spatial_streaming_block_level",
+            options=("--use_fast_math",),
         )
 
         # Halo expansion
         self.expand_halo_dual_kernel = cp.RawKernel(
             _expand_halo_dual_src,
-            'expand_halo_dual_kernel',
-            options=('--use_fast_math',)
+            "expand_halo_dual_kernel",
+            options=("--use_fast_math",),
         )
 
         # Block-sparse angular scattering
         self.angular_scattering_block_sparse_kernel = cp.RawKernel(
             _angular_scattering_block_sparse_src,
-            'angular_scattering_block_sparse',
-            options=('--use_fast_math',)
+            "angular_scattering_block_sparse",
+            options=("--use_fast_math",),
         )
 
     def update_block_mask_gpu(
         self,
         psi: cp.ndarray,
         force: bool = False,
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         """Update block masks using GPU kernel.
 
         Args:
@@ -889,6 +900,7 @@ class BlockSparseGPUTransportStep:
 
         Returns:
             (active_input_count, active_output_count)
+
         """
         self.step_counter += 1
 
@@ -923,7 +935,7 @@ class BlockSparseGPUTransportStep:
                 self.base_step.Nz,
                 self.base_step.Nx,
                 self.config.block_size,
-            )
+            ),
         )
 
         # Update active count
@@ -942,7 +954,7 @@ class BlockSparseGPUTransportStep:
                         self.dual_mask.mask_in_gpu,
                         n_blocks_z,
                         n_blocks_x,
-                    )
+                    ),
                 )
             self.dual_mask.active_count_in = int(cp.sum(self.dual_mask.mask_in_gpu))
 
@@ -963,6 +975,7 @@ class BlockSparseGPUTransportStep:
             psi_in: Input phase space [Ne, Ntheta, Nz, Nx]
             psi_out: Output phase space [Ne, Ntheta, Nz, Nx]
             escapes_gpu: Escape accumulator [NUM_CHANNELS]
+
         """
         # Block configuration
         block_dim = (16, 16, 1)
@@ -996,7 +1009,7 @@ class BlockSparseGPUTransportStep:
                 np.float32(self.base_step.x_min),
                 np.float32(self.base_step.z_min),
                 np.int32(0),  # ABSORB boundary mode
-            )
+            ),
         )
 
     def _get_active_block_indices_gpu(self) -> cp.ndarray:
@@ -1004,6 +1017,7 @@ class BlockSparseGPUTransportStep:
 
         Returns:
             GPU array [num_active, 2] containing (bz, bx) pairs
+
         """
         mask_out = self.dual_mask.mask_out_gpu
         n_blocks_z, n_blocks_x = mask_out.shape
@@ -1035,6 +1049,7 @@ class BlockSparseGPUTransportStep:
             psi_in: Input phase space [Ne, Ntheta, Nz, Nx]
             psi_out: Output phase space [Ne, Ntheta, Nz, Nx]
             escapes_gpu: Escape accumulator [NUM_CHANNELS]
+
         """
         # Get active block indices
         active_blocks = self._get_active_block_indices_gpu()
@@ -1071,7 +1086,7 @@ class BlockSparseGPUTransportStep:
                 np.float32(self.base_step.z_min),
                 np.int32(0),  # ABSORB boundary mode
                 np.int32(self.config.block_size),
-            )
+            ),
         )
 
     def apply_angular_scattering_block_sparse(
@@ -1089,6 +1104,7 @@ class BlockSparseGPUTransportStep:
             psi_in: Input phase space [Ne, Ntheta, Nz, Nx]
             psi_out: Output phase space [Ne, Ntheta, Nz, Nx]
             escapes_gpu: Escape accumulator [NUM_CHANNELS]
+
         """
         # Get active block indices
         active_blocks = self._get_active_block_indices_gpu()
@@ -1125,7 +1141,7 @@ class BlockSparseGPUTransportStep:
                 np.float32(0.0),  # theta_cutoff_idx (unused in v2)
                 np.int32(0),     # theta_boundary_idx (unused in v2)
                 np.int32(self.config.block_size),
-            )
+            ),
         )
 
     def apply(
@@ -1141,6 +1157,7 @@ class BlockSparseGPUTransportStep:
 
         Returns:
             psi_out: Output phase space after full step
+
         """
         # Update block masks (input + output)
         if self.config.enable_block_sparse:
@@ -1188,11 +1205,12 @@ class BlockSparseGPUTransportStep:
         """Get fraction of blocks that will be processed."""
         return self.dual_mask.get_active_fraction_out()
 
-    def get_dual_active_fractions(self) -> Tuple[float, float]:
+    def get_dual_active_fractions(self) -> tuple[float, float]:
         """Get both input and output active fractions.
 
         Returns:
             (active_in_fraction, active_out_fraction)
+
         """
         return (
             self.dual_mask.get_active_fraction_in(),
@@ -1206,7 +1224,7 @@ class BlockSparseGPUTransportStep:
 
 def compute_block_mask_from_psi(
     psi: cp.ndarray,
-    config: Optional[BlockSparseConfig] = None,
+    config: BlockSparseConfig | None = None,
 ) -> DualBlockMask:
     """Create and update a dual block mask from phase space.
 
@@ -1218,6 +1236,7 @@ def compute_block_mask_from_psi(
 
     Returns:
         DualBlockMask instance updated from psi
+
     """
     Ne, Ntheta, Nz, Nx = psi.shape
     mask = DualBlockMask(Nz, Nx, config)
@@ -1229,7 +1248,7 @@ def get_block_index(
     iz: int,
     ix: int,
     block_size: int = 16,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Get block index from spatial cell index.
 
     Args:
@@ -1239,6 +1258,7 @@ def get_block_index(
 
     Returns:
         (bz, bx) block indices
+
     """
     return iz // block_size, ix // block_size
 

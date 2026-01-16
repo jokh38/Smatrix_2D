@@ -1,5 +1,4 @@
-"""
-High-Level API for Smatrix_2D GPU-Only Transport Simulation
+"""High-Level API for Smatrix_2D GPU-Only Transport Simulation
 
 This module provides a convenient Python API and CLI interface for running
 GPU-only proton transport simulations.
@@ -18,20 +17,20 @@ DO NOT use: from smatrix_2d.transport.api import *
 
 from __future__ import annotations
 
-import sys
-import json
 import argparse
+import json
+import sys
 from pathlib import Path
 from typing import Optional, Union
 
 import numpy as np
 
+from smatrix_2d.config import SimulationConfig, create_validated_config
+from smatrix_2d.config.defaults import DEFAULT_NE, DEFAULT_NX, DEFAULT_NZ
 from smatrix_2d.transport.simulation import (
     SimulationResult,
     create_simulation,
 )
-from smatrix_2d.config import SimulationConfig, create_validated_config
-from smatrix_2d.config.defaults import DEFAULT_NX, DEFAULT_NZ, DEFAULT_NE
 
 
 def run_simulation(
@@ -40,8 +39,8 @@ def run_simulation(
     Ne: int = DEFAULT_NE,
     Ntheta: int = 180,
     E_beam: float = 70.0,
-    n_steps: Optional[int] = None,
-    config: Optional[SimulationConfig] = None,
+    n_steps: int | None = None,
+    config: SimulationConfig | None = None,
     verbose: bool = True,
 ) -> SimulationResult:
     """Run a GPU-only transport simulation with sensible defaults.
@@ -66,6 +65,7 @@ def run_simulation(
         >>> result = run_simulation(Nx=200, Nz=200, Ne=150, E_beam=70.0)
         >>> print(f"Conservation valid: {result.conservation_valid}")
         >>> print(f"Max dose: {result.dose_final.max():.6e}")
+
     """
     # Create config if not provided
     if config is None:
@@ -96,7 +96,7 @@ def run_simulation(
 
         # Print escape summary
         print("\nEscape summary:")
-        from smatrix_2d.core.accounting import EscapeChannel, CHANNEL_NAMES
+        from smatrix_2d.core.accounting import CHANNEL_NAMES, EscapeChannel
         for channel in EscapeChannel:
             if channel < len(result.escapes):
                 weight = result.escapes[channel]
@@ -106,8 +106,8 @@ def run_simulation(
 
 
 def run_from_config(
-    config_path: Union[str, Path],
-    n_steps: Optional[int] = None,
+    config_path: str | Path,
+    n_steps: int | None = None,
     verbose: bool = True,
 ) -> SimulationResult:
     """Run simulation from a configuration file.
@@ -123,16 +123,17 @@ def run_from_config(
     Example:
         >>> from smatrix_2d.transport.api import run_from_config
         >>> result = run_from_config("config/my_simulation.yaml")
+
     """
     config_path = Path(config_path)
 
     # Load config
     if config_path.suffix == ".yaml" or config_path.suffix == ".yml":
         import yaml
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             config_dict = yaml.safe_load(f)
     elif config_path.suffix == ".json":
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             config_dict = json.load(f)
     else:
         raise ValueError(f"Unsupported config format: {config_path.suffix}")
@@ -146,7 +147,7 @@ def run_from_config(
 
 def save_result(
     result: SimulationResult,
-    output_path: Union[str, Path],
+    output_path: str | Path,
     format: str = "npz",
 ) -> None:
     """Save simulation results to file.
@@ -160,6 +161,7 @@ def save_result(
         >>> from smatrix_2d.transport.api import run_simulation, save_result
         >>> result = run_simulation(Nx=100, Nz=100)
         >>> save_result(result, "output/simulation.npz")
+
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -176,24 +178,24 @@ def save_result(
         )
     elif format == "hdf5":
         import h5py
-        with h5py.File(output_path, 'w') as f:
-            f.create_dataset('dose_final', data=result.dose_final)
-            f.create_dataset('escapes', data=result.escapes)
-            f.create_dataset('psi_final', data=result.psi_final)
-            f.attrs['runtime_seconds'] = result.runtime_seconds
-            f.attrs['n_steps'] = result.n_steps
-            f.attrs['conservation_valid'] = result.conservation_valid
+        with h5py.File(output_path, "w") as f:
+            f.create_dataset("dose_final", data=result.dose_final)
+            f.create_dataset("escapes", data=result.escapes)
+            f.create_dataset("psi_final", data=result.psi_final)
+            f.attrs["runtime_seconds"] = result.runtime_seconds
+            f.attrs["n_steps"] = result.n_steps
+            f.attrs["conservation_valid"] = result.conservation_valid
     elif format == "json":
         # Convert numpy arrays to lists for JSON serialization
         result_dict = {
-            'dose_final': result.dose_final.tolist(),
-            'escapes': result.escapes.tolist(),
-            'runtime_seconds': result.runtime_seconds,
-            'n_steps': result.n_steps,
-            'conservation_valid': result.conservation_valid,
-            'config': result.config.to_dict(),
+            "dose_final": result.dose_final.tolist(),
+            "escapes": result.escapes.tolist(),
+            "runtime_seconds": result.runtime_seconds,
+            "n_steps": result.n_steps,
+            "conservation_valid": result.conservation_valid,
+            "config": result.config.to_dict(),
         }
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(result_dict, f, indent=2)
     else:
         raise ValueError(f"Unsupported format: {format}")
@@ -202,7 +204,7 @@ def save_result(
 def compare_with_golden(
     result: SimulationResult,
     snapshot_name: str,
-    snapshot_dir: Optional[Path] = None,
+    snapshot_dir: Path | None = None,
 ) -> bool:
     """Compare simulation result with golden snapshot.
 
@@ -219,11 +221,12 @@ def compare_with_golden(
         >>> result = run_simulation(Nx=32, Nz=32, Ne=32, Ntheta=45)
         >>> passes = compare_with_golden(result, "small_32x32")
         >>> print(f"Regression test: {'PASS' if passes else 'FAIL'}")
+
     """
     if snapshot_dir is None:
         snapshot_dir = Path(__file__).parent.parent.parent / "validation" / "golden_snapshots"
 
-    from validation.compare import GoldenSnapshot, compare_results, ToleranceConfig
+    from validation.compare import GoldenSnapshot, ToleranceConfig, compare_results
 
     # Load golden snapshot
     snapshot = GoldenSnapshot.load(snapshot_dir, snapshot_name)
@@ -260,48 +263,48 @@ Examples:
 
   # Run regression test
   python -m smatrix_2d.transport.api --compare small_32x32
-        """
+        """,
     )
 
     # Grid parameters
-    parser.add_argument('--Nx', type=int, default=DEFAULT_NX,
-                       help=f'Number of x bins (default: {DEFAULT_NX})')
-    parser.add_argument('--Nz', type=int, default=DEFAULT_NZ,
-                       help=f'Number of z bins (default: {DEFAULT_NZ})')
-    parser.add_argument('--Ne', type=int, default=DEFAULT_NE,
-                       help=f'Number of energy bins (default: {DEFAULT_NE})')
-    parser.add_argument('--Ntheta', type=int, default=180,
-                       help='Number of angular bins (default: 180)')
+    parser.add_argument("--Nx", type=int, default=DEFAULT_NX,
+                       help=f"Number of x bins (default: {DEFAULT_NX})")
+    parser.add_argument("--Nz", type=int, default=DEFAULT_NZ,
+                       help=f"Number of z bins (default: {DEFAULT_NZ})")
+    parser.add_argument("--Ne", type=int, default=DEFAULT_NE,
+                       help=f"Number of energy bins (default: {DEFAULT_NE})")
+    parser.add_argument("--Ntheta", type=int, default=180,
+                       help="Number of angular bins (default: 180)")
 
     # Physics parameters
-    parser.add_argument('--E-beam', type=float, default=70.0,
-                       dest='E_beam',
-                       help='Beam energy in MeV (default: 70.0)')
+    parser.add_argument("--E-beam", type=float, default=70.0,
+                       dest="E_beam",
+                       help="Beam energy in MeV (default: 70.0)")
 
     # Simulation parameters
-    parser.add_argument('--n-steps', type=int,
-                       dest='n_steps',
-                       help='Number of transport steps')
+    parser.add_argument("--n-steps", type=int,
+                       dest="n_steps",
+                       help="Number of transport steps")
 
     # Config file
-    parser.add_argument('--config', type=str,
-                       help='Path to configuration file (YAML/JSON)')
+    parser.add_argument("--config", type=str,
+                       help="Path to configuration file (YAML/JSON)")
 
     # Output
-    parser.add_argument('--output', type=str,
-                       help='Output file path (format: .npz, .hdf5, .json)')
-    parser.add_argument('--format', type=str, default='npz',
-                       choices=['npz', 'hdf5', 'json'],
-                       help='Output format (default: npz)')
+    parser.add_argument("--output", type=str,
+                       help="Output file path (format: .npz, .hdf5, .json)")
+    parser.add_argument("--format", type=str, default="npz",
+                       choices=["npz", "hdf5", "json"],
+                       help="Output format (default: npz)")
 
     # Regression testing
-    parser.add_argument('--compare', type=str, metavar='SNAPSHOT',
-                       help='Compare with golden snapshot')
+    parser.add_argument("--compare", type=str, metavar="SNAPSHOT",
+                       help="Compare with golden snapshot")
 
     # Other options
-    parser.add_argument('--quiet', action='store_true',
-                       help='Suppress progress output')
-    parser.add_argument('--version', action='version', version='Smatrix_2D GPU-Only v2.0')
+    parser.add_argument("--quiet", action="store_true",
+                       help="Suppress progress output")
+    parser.add_argument("--version", action="version", version="Smatrix_2D GPU-Only v2.0")
 
     return parser
 
@@ -364,10 +367,10 @@ if __name__ == "__main__":
 
 
 __all__ = [
-    "run_simulation",
-    "run_from_config",
-    "save_result",
     "compare_with_golden",
     "create_cli_parser",
     "main",
+    "run_from_config",
+    "run_simulation",
+    "save_result",
 ]

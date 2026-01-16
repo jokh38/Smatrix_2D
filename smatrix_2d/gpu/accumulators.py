@@ -1,5 +1,4 @@
-"""
-GPU Accumulator System for Zero-Sync Transport
+"""GPU Accumulator System for Zero-Sync Transport
 
 This module provides GPU-resident accumulator arrays to eliminate host-device
 synchronization during transport step loops.
@@ -21,6 +20,7 @@ DO NOT use: from smatrix_2d.gpu.accumulators import *
 
 from dataclasses import dataclass, field
 from typing import Optional, Tuple
+
 import numpy as np
 
 try:
@@ -52,12 +52,14 @@ class GPUAccumulators:
         deposited_step_gpu: Per-step deposited energy [max_steps]
         current_step: Current step index for history arrays
         max_steps: Maximum number of steps (history array size)
+
     """
+
     escapes_gpu: cp.ndarray = field(default_factory=lambda: cp.zeros(NUM_CHANNELS, dtype=cp.float64))
-    dose_gpu: Optional[cp.ndarray] = None
-    mass_in_gpu: Optional[cp.ndarray] = None
-    mass_out_gpu: Optional[cp.ndarray] = None
-    deposited_step_gpu: Optional[cp.ndarray] = None
+    dose_gpu: cp.ndarray | None = None
+    mass_in_gpu: cp.ndarray | None = None
+    mass_out_gpu: cp.ndarray | None = None
+    deposited_step_gpu: cp.ndarray | None = None
     current_step: int = 0
     max_steps: int = 0
 
@@ -75,9 +77,9 @@ class GPUAccumulators:
     @classmethod
     def create(
         cls,
-        spatial_shape: Tuple[int, int, int],  # (Nz, Nx) or (Nz, Nx) for dose
+        spatial_shape: tuple[int, int, int],  # (Nz, Nx) or (Nz, Nx) for dose
         max_steps: int = 0,
-        enable_history: bool = False
+        enable_history: bool = False,
     ) -> "GPUAccumulators":
         """Create GPU accumulators for a simulation.
 
@@ -95,6 +97,7 @@ class GPUAccumulators:
             ...     max_steps=100,
             ...     enable_history=True
             ... )
+
         """
         if not CUPY_AVAILABLE:
             raise RuntimeError("CuPy is required for GPU accumulators")
@@ -147,7 +150,7 @@ class GPUAccumulators:
         self,
         mass_in: float,
         mass_out: float,
-        deposited_energy: float
+        deposited_energy: float,
     ) -> None:
         """Record per-step mass and energy values to history.
 
@@ -155,6 +158,7 @@ class GPUAccumulators:
             mass_in: Mass at start of step
             mass_out: Mass at end of step
             deposited_energy: Energy deposited this step
+
         """
         if self.mass_in_gpu is None:
             return  # History tracking disabled
@@ -176,6 +180,7 @@ class GPUAccumulators:
 
         Returns:
             NumPy array with escape weights [NUM_CHANNELS]
+
         """
         return cp.asnumpy(self.escapes_gpu)
 
@@ -188,16 +193,18 @@ class GPUAccumulators:
 
         Returns:
             NumPy array with deposited energy [Nz, Nx]
+
         """
         return cp.asnumpy(self.dose_gpu)
 
-    def get_history_cpu(self) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[np.ndarray]]:
+    def get_history_cpu(self) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
         """Fetch history arrays from GPU to CPU.
 
         WARNING: This causes GPU synchronization.
 
         Returns:
             Tuple of (mass_in, mass_out, deposited_step) as NumPy arrays
+
         """
         if self.mass_in_gpu is None:
             return None, None, None
@@ -213,6 +220,7 @@ class GPUAccumulators:
 
         Returns:
             CuPy scalar with sum of all escape channels
+
         """
         return cp.sum(self.escapes_gpu)
 
@@ -221,6 +229,7 @@ class GPUAccumulators:
 
         Returns:
             CuPy scalar with sum of physical escapes
+
         """
         total = cp.float64(0.0)
         for channel in EscapeChannel.gpu_accumulated_channels():
@@ -229,9 +238,9 @@ class GPUAccumulators:
 
 
 def create_accumulators(
-    spatial_shape: Tuple[int, int],
+    spatial_shape: tuple[int, int],
     max_steps: int = 0,
-    enable_history: bool = False
+    enable_history: bool = False,
 ) -> GPUAccumulators:
     """Convenience function to create GPU accumulators.
 
@@ -252,11 +261,12 @@ def create_accumulators(
         ...     max_steps=100,
         ...     enable_history=False  # Production mode: no per-step tracking
         ... )
+
     """
     return GPUAccumulators.create(
         spatial_shape=spatial_shape,
         max_steps=max_steps,
-        enable_history=enable_history
+        enable_history=enable_history,
     )
 
 
@@ -268,14 +278,15 @@ def reset_accumulators(accumulators: GPUAccumulators) -> None:
 
     Example:
         >>> reset_accumulators(accum)
+
     """
     accumulators.reset()
 
 
 def sync_accumulators_to_cpu(
     accumulators: GPUAccumulators,
-    fetch_history: bool = False
-) -> Tuple[np.ndarray, np.ndarray, Optional[Tuple]]:
+    fetch_history: bool = False,
+) -> tuple[np.ndarray, np.ndarray, tuple | None]:
     """Fetch all accumulators from GPU to CPU.
 
     This is the main function called at simulation end (or sync_interval).
@@ -291,6 +302,7 @@ def sync_accumulators_to_cpu(
         - escapes: np.ndarray [NUM_CHANNELS]
         - dose: np.ndarray [Nz, Nx]
         - history: Optional tuple of (mass_in, mass_out, deposited_step)
+
     """
     escapes = accumulators.get_escapes_cpu()
     dose = accumulators.get_dose_cpu()
@@ -316,6 +328,7 @@ def get_escapes_pointer(accumulators: GPUAccumulators) -> int:
         >>> In CUDA kernel: atomicAdd(&escapes[channel], weight)
         >>> escapes_ptr = get_escapes_pointer(accum)
         >>> kernel_args = (psi_in, psi_out, escapes_ptr, ...)
+
     """
     return accumulators.escapes_gpu.data.ptr
 
@@ -328,6 +341,7 @@ def get_dose_pointer(accumulators: GPUAccumulators) -> int:
 
     Returns:
         Integer pointer to GPU memory (for RawKernel)
+
     """
     if accumulators.dose_gpu is None:
         raise ValueError("Dose accumulator not initialized")
@@ -337,8 +351,8 @@ def get_dose_pointer(accumulators: GPUAccumulators) -> int:
 __all__ = [
     "GPUAccumulators",
     "create_accumulators",
+    "get_dose_pointer",
+    "get_escapes_pointer",
     "reset_accumulators",
     "sync_accumulators_to_cpu",
-    "get_escapes_pointer",
-    "get_dose_pointer",
 ]

@@ -15,9 +15,10 @@ Key features:
 - Precomputed velocity lookup tables
 """
 
-import numpy as np
-from typing import Tuple
 from dataclasses import dataclass
+from typing import Tuple
+
+import numpy as np
 
 from smatrix_2d.core.grid import PhaseSpaceGridV2
 
@@ -29,7 +30,9 @@ class StreamingResult:
     Attributes:
         psi_streamed: Streamed particle distribution [Ne, Ntheta, Nz, Nx]
         spatial_leaked: Total weight lost through spatial boundaries
+
     """
+
     psi_streamed: np.ndarray
     spatial_leaked: float
 
@@ -64,6 +67,7 @@ class SpatialStreamingV2:
 
         Args:
             grid: Phase space grid following SPEC v2.1
+
         """
         self.grid = grid
 
@@ -98,12 +102,13 @@ class SpatialStreamingV2:
                 - spatial_leaked: Total weight escaped through boundaries
 
         SPEC 6.2: Gather-based streaming with bilinear interpolation
+
         """
         # Validate input shape
         if psi.shape != (self.Ne, self.Ntheta, self.Nz, self.Nx):
             raise ValueError(
                 f"psi shape {psi.shape} does not match grid "
-                f"expected {(self.Ne, self.Ntheta, self.Nz, self.Nx)}"
+                f"expected {(self.Ne, self.Ntheta, self.Nz, self.Nx)}",
             )
 
         # Initialize output array
@@ -122,7 +127,7 @@ class SpatialStreamingV2:
                     psi[iE, ith],
                     delta_s,
                     vx,
-                    vz
+                    vz,
                 )
 
                 psi_streamed[iE, ith] = psi_slice
@@ -130,7 +135,7 @@ class SpatialStreamingV2:
 
         return StreamingResult(
             psi_streamed=psi_streamed,
-            spatial_leaked=spatial_leaked
+            spatial_leaked=spatial_leaked,
         )
 
     def _stream_slice(
@@ -139,7 +144,7 @@ class SpatialStreamingV2:
         delta_s: float,
         vx: float,
         vz: float,
-    ) -> Tuple[np.ndarray, float]:
+    ) -> tuple[np.ndarray, float]:
         """Stream one 2D spatial slice [Nz, Nx].
 
         Args:
@@ -150,6 +155,7 @@ class SpatialStreamingV2:
 
         Returns:
             (psi_out, leaked) tuple
+
         """
         psi_out = np.zeros_like(psi_in)
 
@@ -202,7 +208,7 @@ class SpatialStreamingV2:
                     w00,
                     w10,
                     w01,
-                    w11
+                    w11,
                 )
 
         # For gather formulation, leakage is the weight that leaves the domain
@@ -238,6 +244,7 @@ class SpatialStreamingV2:
             Interpolated value at output cell
 
         SPEC 6.2: Gather from four source cells
+
         """
         total_value = 0.0
 

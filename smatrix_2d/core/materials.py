@@ -7,11 +7,11 @@ from dataclasses import dataclass
 
 # Import water properties from core.constants (SSOT)
 from smatrix_2d.core.constants import (
-    WATER_DENSITY,
-    WATER_RADIATION_LENGTH,
-    WATER_EFFECTIVE_Z,
     WATER_ATOMIC_MASS,
+    WATER_DENSITY,
+    WATER_EFFECTIVE_Z,
     WATER_MEAN_EXCITATION_ENERGY,
+    WATER_RADIATION_LENGTH,
 )
 
 
@@ -26,6 +26,7 @@ class MaterialProperties2D:
         Z: Atomic number
         A: Atomic mass [g/mol]
         I_excitation: Mean excitation energy [MeV] (Bethe formula I parameter)
+
     """
 
     name: str
@@ -54,9 +55,10 @@ def create_water_material() -> MaterialProperties2D:
 
     Returns:
         MaterialProperties2D for liquid water
+
     """
     return MaterialProperties2D(
-        name='water',
+        name="water",
         rho=WATER_DENSITY,
         X0=WATER_RADIATION_LENGTH,
         Z=WATER_EFFECTIVE_Z,

@@ -1,5 +1,4 @@
-"""
-Core Accounting System for Particle Conservation Tracking
+"""Core Accounting System for Particle Conservation Tracking
 
 This module provides the central accounting system for the simulation.
 It defines escape channels, conservation reporting, and GPU accumulator interfaces.
@@ -66,9 +65,9 @@ DO NOT use: from smatrix_2d.core.accounting import *
 
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Tuple, Dict, Any
-import numpy as np
+from typing import Any, Dict, Tuple
 
+import numpy as np
 
 # ============================================================================
 # KERNEL POLICY CONSTANTS (Policy-A)
@@ -146,6 +145,7 @@ class EscapeChannel(IntEnum):
         escapes_gpu[EscapeChannel.SPATIAL_LEAK] -> atomicAdd leaked weight
         escapes_gpu[EscapeChannel.RESIDUAL] -> NOT accumulated (host computed)
     """
+
     THETA_BOUNDARY = 0
     THETA_CUTOFF = 1
     ENERGY_STOPPED = 2
@@ -156,11 +156,12 @@ class EscapeChannel(IntEnum):
     NUM_CHANNELS = 5
 
     @classmethod
-    def gpu_accumulated_channels(cls) -> Tuple[int, ...]:
+    def gpu_accumulated_channels(cls) -> tuple[int, ...]:
         """Return channels that are directly accumulated in GPU kernels.
 
         Returns:
             Tuple of channel indices that use atomicAdd in kernels
+
         """
         return (
             cls.THETA_BOUNDARY,
@@ -170,16 +171,17 @@ class EscapeChannel(IntEnum):
         )
 
     @classmethod
-    def host_computed_channels(cls) -> Tuple[int, ...]:
+    def host_computed_channels(cls) -> tuple[int, ...]:
         """Return channels computed on host side.
 
         Returns:
             Tuple of channel indices computed from CPU analysis
+
         """
         return (cls.RESIDUAL,)
 
     @classmethod
-    def physical_escape_channels(cls) -> Tuple[int, ...]:
+    def physical_escape_channels(cls) -> tuple[int, ...]:
         """Return channels that participate in Policy-A mass balance equation.
 
         Under Policy-A (normalized kernel), only physical boundary escapes
@@ -188,6 +190,7 @@ class EscapeChannel(IntEnum):
 
         Returns:
             Tuple of channel indices that are physical escapes
+
         """
         return (
             cls.THETA_BOUNDARY,
@@ -196,7 +199,7 @@ class EscapeChannel(IntEnum):
         )
 
     @classmethod
-    def diagnostic_channels(cls) -> Tuple[int, ...]:
+    def diagnostic_channels(cls) -> tuple[int, ...]:
         """Return channels tracked for diagnostic purposes only.
 
         Diagnostic channels do NOT participate in the mass balance equation.
@@ -205,6 +208,7 @@ class EscapeChannel(IntEnum):
 
         Returns:
             Tuple of channel indices that are diagnostic only
+
         """
         return (cls.THETA_CUTOFF,)
 
@@ -236,12 +240,14 @@ class ConservationReport:
         residual: Numerical residual (computed)
         relative_error: Relative conservation error
         is_valid: Whether conservation holds within tolerance
+
     """
+
     step_number: int = 0
     mass_in: float = 0.0
     mass_out: float = 0.0
-    escape_weights: Dict[EscapeChannel, float] = field(default_factory=dict)
-    escape_energy: Dict[EscapeChannel, float] = field(default_factory=dict)
+    escape_weights: dict[EscapeChannel, float] = field(default_factory=dict)
+    escape_energy: dict[EscapeChannel, float] = field(default_factory=dict)
     deposited_energy: float = 0.0
     residual: float = 0.0
     relative_error: float = 0.0
@@ -260,6 +266,7 @@ class ConservationReport:
 
         Returns:
             Sum of all escape weights
+
         """
         total = 0.0
         for channel, weight in self.escape_weights.items():
@@ -281,6 +288,7 @@ class ConservationReport:
 
         Returns:
             Sum of physical escape channel weights (excludes diagnostic channels)
+
         """
         total = 0.0
         for channel, weight in self.escape_weights.items():
@@ -293,6 +301,7 @@ class ConservationReport:
 
         Returns:
             Sum of all escaped energy values
+
         """
         return sum(self.escape_energy.values())
 
@@ -316,6 +325,7 @@ class ConservationReport:
 
         Returns:
             True if conservation holds within tolerance
+
         """
         # Use physical escapes only (Policy-A: exclude diagnostic channels)
         physical_escapes = self.physical_escape_weight()
@@ -336,6 +346,7 @@ class ConservationReport:
 
         Returns:
             Residual value (should be small, ideally < 1e-10)
+
         """
         # Use physical escapes only (Policy-A compliant)
         physical_escapes = self.physical_escape_weight()
@@ -343,7 +354,7 @@ class ConservationReport:
         self.escape_weights[EscapeChannel.RESIDUAL] = abs(self.residual)
         return self.residual
 
-    def compute_weight_closure(self) -> Dict[str, float]:
+    def compute_weight_closure(self) -> dict[str, float]:
         """Compute weight closure metrics with detailed balance.
 
         Mass Balance Equation (Policy-A):
@@ -371,6 +382,7 @@ class ConservationReport:
                 - W_residual: Numerical residual
                 - relative_error: |W_in - (W_out + W_escapes)| / W_in
                 - is_closed: Whether relative_error < 1e-6
+
         """
         # Use physical escapes only (Policy-A)
         w_escapes = self.physical_escape_weight()
@@ -379,15 +391,15 @@ class ConservationReport:
         is_closed = relative_error < 1e-6
 
         return {
-            'W_in': self.mass_in,
-            'W_out': self.mass_out,
-            'W_escapes': w_escapes,
-            'W_residual': w_residual,
-            'relative_error': relative_error,
-            'is_closed': is_closed,
+            "W_in": self.mass_in,
+            "W_out": self.mass_out,
+            "W_escapes": w_escapes,
+            "W_residual": w_residual,
+            "relative_error": relative_error,
+            "is_closed": is_closed,
         }
 
-    def compute_energy_closure(self) -> Dict[str, float]:
+    def compute_energy_closure(self) -> dict[str, float]:
         """Compute energy closure metrics with detailed balance.
 
         Energy Balance Equation:
@@ -413,6 +425,7 @@ class ConservationReport:
                 - E_residual: Numerical residual
                 - relative_error: |E_in - (E_out + E_deposit + E_escape)| / E_in
                 - is_closed: Whether relative_error < 1e-5
+
         """
         # Energy tracking is optional - compute closure if available
         e_in = 0.0  # Would need to be computed from particle states
@@ -426,13 +439,13 @@ class ConservationReport:
         is_closed = relative_error < 1e-5
 
         return {
-            'E_in': e_in,
-            'E_out': e_out,
-            'E_deposit': e_deposit,
-            'E_escape': e_escape,
-            'E_residual': e_residual,
-            'relative_error': relative_error,
-            'is_closed': is_closed,
+            "E_in": e_in,
+            "E_out": e_out,
+            "E_deposit": e_deposit,
+            "E_escape": e_escape,
+            "E_residual": e_residual,
+            "relative_error": relative_error,
+            "is_closed": is_closed,
         }
 
     def is_weight_closed(self, tolerance: float = 1e-6) -> bool:
@@ -451,9 +464,10 @@ class ConservationReport:
 
         Returns:
             True if |W_in - W_out - W_escapes| / W_in <= tolerance
+
         """
         closure = self.compute_weight_closure()
-        return closure['relative_error'] <= tolerance
+        return closure["relative_error"] <= tolerance
 
     def is_energy_closed(self, tolerance: float = 1e-5) -> bool:
         """Check if energy conservation holds within tolerance.
@@ -469,37 +483,39 @@ class ConservationReport:
 
         Returns:
             True if |E_in - E_out - E_deposit - E_escape| / E_in <= tolerance
+
         """
         closure = self.compute_energy_closure()
         # If E_in = 0 (not tracked), consider it closed
-        if closure['E_in'] == 0.0:
+        if closure["E_in"] == 0.0:
             return True
-        return closure['relative_error'] <= tolerance
+        return closure["relative_error"] <= tolerance
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert report to dictionary for serialization.
 
         Returns:
             Dictionary representation of report including closure metrics
+
         """
         weight_closure = self.compute_weight_closure()
         energy_closure = self.compute_energy_closure()
 
         return {
-            'step_number': self.step_number,
-            'mass_in': self.mass_in,
-            'mass_out': self.mass_out,
-            'deposited_energy': self.deposited_energy,
-            'escape_weights': {CHANNEL_NAMES[k]: v for k, v in self.escape_weights.items()},
-            'escape_energy': {CHANNEL_NAMES[k]: v for k, v in self.escape_energy.items()},
-            'total_escape_weight': self.total_escape_weight(include_residual=False),
-            'total_escape_energy': self.total_escape_energy(),
-            'residual': self.residual,
-            'relative_error': self.relative_error,
-            'is_valid': self.is_valid,
+            "step_number": self.step_number,
+            "mass_in": self.mass_in,
+            "mass_out": self.mass_out,
+            "deposited_energy": self.deposited_energy,
+            "escape_weights": {CHANNEL_NAMES[k]: v for k, v in self.escape_weights.items()},
+            "escape_energy": {CHANNEL_NAMES[k]: v for k, v in self.escape_energy.items()},
+            "total_escape_weight": self.total_escape_weight(include_residual=False),
+            "total_escape_energy": self.total_escape_energy(),
+            "residual": self.residual,
+            "relative_error": self.relative_error,
+            "is_valid": self.is_valid,
             # Closure metrics (R-ACC-002, R-ACC-003)
-            'weight_closure': weight_closure,
-            'energy_closure': energy_closure,
+            "weight_closure": weight_closure,
+            "energy_closure": energy_closure,
         }
 
     def __str__(self) -> str:
@@ -521,7 +537,7 @@ class ConservationReport:
 
         for channel in EscapeChannel:
             if channel in self.escape_weights:
-                name = CHANNEL_NAMES[channel].upper().replace('_', ' ')
+                name = CHANNEL_NAMES[channel].upper().replace("_", " ")
                 lines.append(f"  {name:20s} {self.escape_weights[channel]:.6e}")
 
         lines.extend([
@@ -556,8 +572,8 @@ def validate_conservation(
     mass_in: float,
     mass_out: float,
     escape_weights: np.ndarray,
-    tolerance: float = 1e-6
-) -> Tuple[bool, float]:
+    tolerance: float = 1e-6,
+) -> tuple[bool, float]:
     """Validate mass conservation under Policy-A.
 
     This is the main validation function used by the simulation loop.
@@ -585,6 +601,7 @@ def validate_conservation(
 
     Raises:
         ValueError: If mass_in is not positive
+
     """
     if mass_in <= 0:
         raise ValueError(f"mass_in must be positive, got {mass_in}")
@@ -606,7 +623,7 @@ def validate_conservation(
 
 def create_gpu_accumulators(
     dtype: type = np.float64,
-    device: str = 'cpu'
+    device: str = "cpu",
 ) -> np.ndarray:
     """Create GPU accumulator array for escape channels.
 
@@ -622,16 +639,17 @@ def create_gpu_accumulators(
     Example:
         >>> escapes_gpu = create_gpu_accumulators(device='gpu')
         >>> # In CUDA kernel: atomicAdd(&escapes_gpu[THETA_BOUNDARY], weight)
+
     """
     if dtype != np.float64:
         import warnings
         warnings.warn(
             f"Accumulator dtype is {dtype}, MUST be float64 for accurate conservation",
             RuntimeWarning,
-            stacklevel=2
+            stacklevel=2,
         )
 
-    if device == 'gpu':
+    if device == "gpu":
         try:
             import cupy as cp
             return cp.zeros(EscapeChannel.NUM_CHANNELS, dtype=dtype)
@@ -646,6 +664,7 @@ def reset_gpu_accumulators(escapes_gpu: np.ndarray) -> None:
 
     Args:
         escapes_gpu: GPU accumulator array to reset
+
     """
     escapes_gpu.fill(0.0)
 
@@ -656,7 +675,7 @@ def create_conservation_report(
     mass_out: float,
     escapes_gpu: np.ndarray,
     deposited_energy: float = 0.0,
-    tolerance: float = 1e-6
+    tolerance: float = 1e-6,
 ) -> ConservationReport:
     """Create a conservation report from GPU accumulators.
 
@@ -672,6 +691,7 @@ def create_conservation_report(
 
     Returns:
         ConservationReport with all information
+
     """
     # Convert GPU array to CPU if needed
     try:
@@ -708,9 +728,6 @@ def create_conservation_report(
     return report
 
 
-# Backward compatibility: re-export from old escape_accounting module
-from smatrix_2d.core.escape_accounting import EscapeAccounting, validate_conservation as old_validate_conservation, conservation_report as old_conservation_report
-
 __all__ = [
     # New API (recommended)
     "EscapeChannel",
@@ -726,8 +743,4 @@ __all__ = [
     "PHYSICAL_ESCAPE_CHANNELS",
     "DIAGNOSTIC_ESCAPE_CHANNELS",
     "MASS_BALANCE_TOLERANCE",
-    # Legacy API (for backward compatibility)
-    "EscapeAccounting",
-    "old_validate_conservation",
-    "old_conservation_report",
 ]

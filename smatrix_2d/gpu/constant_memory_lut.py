@@ -27,9 +27,10 @@ Reference:
 from __future__ import annotations
 
 import warnings
-import numpy as np
-from typing import Optional, Dict, Any, Tuple
 from dataclasses import dataclass
+from typing import Any, Dict, Optional, Tuple
+
+import numpy as np
 
 try:
     import cupy as cp
@@ -47,10 +48,12 @@ class ConstantMemoryStats:
         total_kb: Total constant memory used [KB]
         lut_breakdown: Breakdown of memory usage by LUT type
         utilization_pct: Percentage of 64KB constant memory budget used
+
     """
+
     total_bytes: int
     total_kb: float
-    lut_breakdown: Dict[str, int]
+    lut_breakdown: dict[str, int]
     utilization_pct: float
 
     def __repr__(self) -> str:
@@ -99,17 +102,18 @@ class ConstantMemoryLUTManager:
         Args:
             enable_constant_memory: If False, force global memory fallback
                 (useful for benchmarking or testing)
+
         """
         self.enable_constant_memory = enable_constant_memory and CUPY_AVAILABLE
-        self._luts: Dict[str, np.ndarray] = {}
-        self._gpu_arrays: Dict[str, Any] = {}
-        self._using_constant_memory: Dict[str, bool] = {}
+        self._luts: dict[str, np.ndarray] = {}
+        self._gpu_arrays: dict[str, Any] = {}
+        self._using_constant_memory: dict[str, bool] = {}
 
     def upload_stopping_power(
         self,
         energy_grid: np.ndarray,
         stopping_power: np.ndarray,
-        symbol_name: str = "STOPPING_POWER_LUT"
+        symbol_name: str = "STOPPING_POWER_LUT",
     ) -> bool:
         """Upload stopping power LUT to constant memory.
 
@@ -123,11 +127,12 @@ class ConstantMemoryLUTManager:
 
         Raises:
             ValueError: If arrays have mismatched shapes
+
         """
         if len(energy_grid) != len(stopping_power):
             raise ValueError(
                 f"energy_grid and stopping_power must have same length: "
-                f"{len(energy_grid)} != {len(stopping_power)}"
+                f"{len(energy_grid)} != {len(stopping_power)}",
             )
 
         # Stack into single array [energy, stopping_power]
@@ -137,7 +142,7 @@ class ConstantMemoryLUTManager:
         success = self._upload_to_constant_memory(
             symbol_name,
             lut_array,
-            "stopping_power"
+            "stopping_power",
         )
 
         # Store for GPU access
@@ -156,7 +161,7 @@ class ConstantMemoryLUTManager:
         material_name: str,
         energy_grid: np.ndarray,
         sigma_norm: np.ndarray,
-        symbol_prefix: str = "SCATTERING_SIGMA"
+        symbol_prefix: str = "SCATTERING_SIGMA",
     ) -> bool:
         """Upload scattering sigma LUT to constant memory.
 
@@ -168,11 +173,12 @@ class ConstantMemoryLUTManager:
 
         Returns:
             True if uploaded to constant memory, False if using global memory
+
         """
         if len(energy_grid) != len(sigma_norm):
             raise ValueError(
                 f"energy_grid and sigma_norm must have same length: "
-                f"{len(energy_grid)} != {len(sigma_norm)}"
+                f"{len(energy_grid)} != {len(sigma_norm)}",
             )
 
         # Stack into single array
@@ -185,7 +191,7 @@ class ConstantMemoryLUTManager:
         success = self._upload_to_constant_memory(
             symbol_name,
             lut_array,
-            f"scattering_sigma_{material_name}"
+            f"scattering_sigma_{material_name}",
         )
 
         # Store for GPU access
@@ -204,8 +210,8 @@ class ConstantMemoryLUTManager:
         sin_theta: np.ndarray,
         cos_theta: np.ndarray,
         sin_symbol: str = "SIN_THETA_LUT",
-        cos_symbol: str = "COS_THETA_LUT"
-    ) -> Tuple[bool, bool]:
+        cos_symbol: str = "COS_THETA_LUT",
+    ) -> tuple[bool, bool]:
         """Upload sin/cos theta LUTs to constant memory.
 
         Args:
@@ -216,11 +222,12 @@ class ConstantMemoryLUTManager:
 
         Returns:
             (sin_success, cos_success) tuple indicating constant memory usage
+
         """
         if len(sin_theta) != len(cos_theta):
             raise ValueError(
                 f"sin_theta and cos_theta must have same length: "
-                f"{len(sin_theta)} != {len(cos_theta)}"
+                f"{len(sin_theta)} != {len(cos_theta)}",
             )
 
         sin_array = sin_theta.astype(np.float32)
@@ -230,7 +237,7 @@ class ConstantMemoryLUTManager:
         sin_success = self._upload_to_constant_memory(
             sin_symbol,
             sin_array,
-            "sin_theta"
+            "sin_theta",
         )
 
         if sin_success:
@@ -244,7 +251,7 @@ class ConstantMemoryLUTManager:
         cos_success = self._upload_to_constant_memory(
             cos_symbol,
             cos_array,
-            "cos_theta"
+            "cos_theta",
         )
 
         if cos_success:
@@ -260,7 +267,7 @@ class ConstantMemoryLUTManager:
         self,
         symbol_name: str,
         array: np.ndarray,
-        lut_type: str
+        lut_type: str,
     ) -> bool:
         """Upload array to constant memory.
 
@@ -271,6 +278,7 @@ class ConstantMemoryLUTManager:
 
         Returns:
             True if successful, False if using global memory fallback
+
         """
         if not self.enable_constant_memory:
             return False
@@ -278,7 +286,7 @@ class ConstantMemoryLUTManager:
         if not CUPY_AVAILABLE:
             warnings.warn(
                 f"CuPy not available, {lut_type} LUT will use global memory",
-                UserWarning, stacklevel=3
+                UserWarning, stacklevel=3,
             )
             return False
 
@@ -291,7 +299,7 @@ class ConstantMemoryLUTManager:
                 f"Constant memory limit exceeded: "
                 f"{current_usage + array_bytes} bytes > {self.CONSTANT_MEMORY_LIMIT} bytes. "
                 f"{lut_type} LUT will use global memory.",
-                UserWarning, stacklevel=3
+                UserWarning, stacklevel=3,
             )
             return False
 
@@ -304,6 +312,7 @@ class ConstantMemoryLUTManager:
 
         Returns:
             CUDA source code with __constant__ declarations
+
         """
         if not self._luts:
             return ""
@@ -325,6 +334,7 @@ class ConstantMemoryLUTManager:
 
         Returns:
             CUDA source code for cudaMemcpyToSymbol calls
+
         """
         if not self._luts:
             return ""
@@ -339,7 +349,7 @@ class ConstantMemoryLUTManager:
 
         return code
 
-    def get_cupy_constants(self) -> Dict[str, cp.ndarray]:
+    def get_cupy_constants(self) -> dict[str, cp.ndarray]:
         """Get CuPy constant memory arrays.
 
         Returns:
@@ -348,6 +358,7 @@ class ConstantMemoryLUTManager:
         Note:
             This uses CuPy's get_const_preamble mechanism to create
             compile-time constant memory symbols.
+
         """
         if not CUPY_AVAILABLE or not self._luts:
             return {}
@@ -359,7 +370,7 @@ class ConstantMemoryLUTManager:
 
         return constants
 
-    def get_gpu_array(self, symbol_name: str) -> Optional[Any]:
+    def get_gpu_array(self, symbol_name: str) -> Any | None:
         """Get GPU array (constant or global memory) for symbol.
 
         Args:
@@ -367,15 +378,15 @@ class ConstantMemoryLUTManager:
 
         Returns:
             CuPy array (constant memory if available, else global memory)
+
         """
         if symbol_name in self._luts and self.enable_constant_memory:
             # Return constant memory view
             return cp.asarray(self._luts[symbol_name])
-        elif symbol_name in self._gpu_arrays:
+        if symbol_name in self._gpu_arrays:
             # Return global memory fallback
             return self._gpu_arrays[symbol_name]
-        else:
-            return None
+        return None
 
     def is_using_constant_memory(self, symbol_name: str) -> bool:
         """Check if symbol is using constant memory.
@@ -385,6 +396,7 @@ class ConstantMemoryLUTManager:
 
         Returns:
             True if using constant memory, False if using global memory
+
         """
         return self._using_constant_memory.get(symbol_name, False)
 
@@ -393,6 +405,7 @@ class ConstantMemoryLUTManager:
 
         Returns:
             Memory usage statistics
+
         """
         total_bytes = sum(arr.nbytes for arr in self._luts.values())
         total_kb = total_bytes / 1024.0
@@ -407,7 +420,7 @@ class ConstantMemoryLUTManager:
             total_bytes=total_bytes,
             total_kb=total_kb,
             lut_breakdown=lut_breakdown,
-            utilization_pct=utilization
+            utilization_pct=utilization,
         )
 
     def clear(self):
@@ -422,8 +435,8 @@ def benchmark_constant_vs_global_memory(
     stopping_power: np.ndarray,
     sin_theta: np.ndarray,
     cos_theta: np.ndarray,
-    n_iterations: int = 1000
-) -> Dict[str, Any]:
+    n_iterations: int = 1000,
+) -> dict[str, Any]:
     """Benchmark constant memory vs global memory performance.
 
     This benchmark measures the performance difference between constant
@@ -442,13 +455,14 @@ def benchmark_constant_vs_global_memory(
             - global_time: Time using global memory [ms]
             - speedup: Performance speedup factor
             - stats: Memory usage statistics
+
     """
     if not CUPY_AVAILABLE:
         return {
             "constant_time": None,
             "global_time": None,
             "speedup": None,
-            "error": "CuPy not available"
+            "error": "CuPy not available",
         }
 
     import time
@@ -462,15 +476,15 @@ def benchmark_constant_vs_global_memory(
 
     # Create simple kernel for global memory access
     kernel_global = cp.ElementwiseKernel(
-        'float32 x, raw float32 stopping_power, raw float32 sin_theta, int32 lut_size',
-        'float32 y',
-        '''
+        "float32 x, raw float32 stopping_power, raw float32 sin_theta, int32 lut_size",
+        "float32 y",
+        """
         // Simple interpolation kernel
         int idx = (int)(x * (lut_size - 1));
         idx = max(0, min(idx, lut_size - 1));
         y = stopping_power[idx] * sin_theta[idx % 180];
-        ''',
-        'benchmark_global'
+        """,
+        "benchmark_global",
     )
 
     # Warmup
@@ -479,7 +493,7 @@ def benchmark_constant_vs_global_memory(
         test_data,
         manager_global.get_gpu_array("STOPPING_POWER_LUT"),
         manager_global.get_gpu_array("SIN_THETA_LUT"),
-        len(energy_grid)
+        len(energy_grid),
     )
 
     # Benchmark global memory
@@ -489,7 +503,7 @@ def benchmark_constant_vs_global_memory(
             test_data,
             manager_global.get_gpu_array("STOPPING_POWER_LUT"),
             manager_global.get_gpu_array("SIN_THETA_LUT"),
-            len(energy_grid)
+            len(energy_grid),
         )
     cp.cuda.Stream.null.synchronize()
     global_time = (time.perf_counter() - start) * 1000  # Convert to ms
@@ -503,15 +517,15 @@ def benchmark_constant_vs_global_memory(
     # Note: In practice, constant memory kernels use __constant__ symbols
     # For benchmarking, we simulate the access pattern
     kernel_const = cp.ElementwiseKernel(
-        'float32 x, raw float32 stopping_power, raw float32 sin_theta, int32 lut_size',
-        'float32 y',
-        '''
+        "float32 x, raw float32 stopping_power, raw float32 sin_theta, int32 lut_size",
+        "float32 y",
+        """
         // Simulate constant memory access pattern
         int idx = (int)(x * (lut_size - 1));
         idx = max(0, min(idx, lut_size - 1));
         y = stopping_power[idx] * sin_theta[idx % 180];
-        ''',
-        'benchmark_const'
+        """,
+        "benchmark_const",
     )
 
     # Warmup
@@ -519,7 +533,7 @@ def benchmark_constant_vs_global_memory(
         test_data,
         manager_const.get_gpu_array("STOPPING_POWER_LUT"),
         manager_const.get_gpu_array("SIN_THETA_LUT"),
-        len(energy_grid)
+        len(energy_grid),
     )
 
     # Benchmark constant memory
@@ -529,7 +543,7 @@ def benchmark_constant_vs_global_memory(
             test_data,
             manager_const.get_gpu_array("STOPPING_POWER_LUT"),
             manager_const.get_gpu_array("SIN_THETA_LUT"),
-            len(energy_grid)
+            len(energy_grid),
         )
     cp.cuda.Stream.null.synchronize()
     const_time = (time.perf_counter() - start) * 1000  # Convert to ms
@@ -542,17 +556,17 @@ def benchmark_constant_vs_global_memory(
         "global_time": global_time,
         "speedup": speedup,
         "stats": manager_const.get_memory_stats(),
-        "iterations": n_iterations
+        "iterations": n_iterations,
     }
 
     return results
 
 
 def create_constant_memory_lut_manager_from_grid(
-    grid: 'PhaseSpaceGridV2',
-    stopping_power_lut: 'StoppingPowerLUT',
-    scattering_lut: Optional['ScatteringLUT'] = None,
-    enable_constant_memory: bool = True
+    grid: PhaseSpaceGridV2,
+    stopping_power_lut: StoppingPowerLUT,
+    scattering_lut: ScatteringLUT | None = None,
+    enable_constant_memory: bool = True,
 ) -> ConstantMemoryLUTManager:
     """Create constant memory LUT manager from simulation grid and LUTs.
 
@@ -575,13 +589,14 @@ def create_constant_memory_lut_manager_from_grid(
         >>> sp_lut = create_water_stopping_power_lut()
         >>> manager = create_constant_memory_lut_manager_from_grid(grid, sp_lut)
         >>> print(manager.get_memory_stats())
+
     """
     manager = ConstantMemoryLUTManager(enable_constant_memory=enable_constant_memory)
 
     # Upload stopping power LUT
     manager.upload_stopping_power(
         stopping_power_lut.energy_grid,
-        stopping_power_lut.stopping_power
+        stopping_power_lut.stopping_power,
     )
 
     # Upload sin/cos theta LUTs
@@ -594,7 +609,7 @@ def create_constant_memory_lut_manager_from_grid(
         manager.upload_scattering_sigma(
             scattering_lut.material_name,
             scattering_lut.E_grid,
-            scattering_lut.sigma_norm
+            scattering_lut.sigma_norm,
         )
 
     return manager

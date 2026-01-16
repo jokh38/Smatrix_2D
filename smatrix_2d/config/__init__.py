@@ -1,5 +1,4 @@
-"""
-Configuration Module - Single Source of Truth for Simulation Parameters
+"""Configuration Module - Single Source of Truth for Simulation Parameters
 
 This module provides the complete configuration system for Smatrix_2D.
 It is the Single Source of Truth (SSOT) for all simulation parameters.
@@ -35,27 +34,27 @@ Submodules:
 """
 
 from smatrix_2d.config.enums import (
-    EnergyGridType,
     AngularGridType,
-    BoundaryPolicy,
-    SplittingType,
     BackwardTransportPolicy,
+    BoundaryPolicy,
     DeterminismLevel,
+    EnergyGridType,
+    SplittingType,
 )
 from smatrix_2d.config.simulation_config import (
-    GridConfig,
-    TransportConfig,
-    NumericsConfig,
     BoundaryConfig,
+    GridConfig,
+    NumericsConfig,
     SimulationConfig,
+    TransportConfig,
     create_default_config,
 )
 from smatrix_2d.config.validation import (
-    validate_config,
     check_invariants,
-    warn_if_unsafe,
-    validate_and_fix,
     create_validated_config,
+    validate_and_fix,
+    validate_config,
+    warn_if_unsafe,
 )
 
 __all__ = [

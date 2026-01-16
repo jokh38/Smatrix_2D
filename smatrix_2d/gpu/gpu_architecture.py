@@ -1,5 +1,4 @@
-"""
-GPU Architecture Detection and Dynamic Block Sizing Optimization
+"""GPU Architecture Detection and Dynamic Block Sizing Optimization
 
 This module provides:
 1. GPU architecture detection (compute capability, SM count, max threads)
@@ -28,10 +27,11 @@ Usage:
     )
 """
 
-import numpy as np
-from typing import Dict, Tuple, Optional, List
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
 
 # Import GPU utilities from utils module (SSOT)
 from smatrix_2d.gpu.utils import get_cupy, gpu_available
@@ -70,9 +70,11 @@ class GPUProfile:
         memory_bandwidth: Memory bandwidth (GB/s)
         memory_clock: Memory clock (MHz)
         memory_bus_width: Memory bus width (bits)
+
     """
+
     name: str
-    compute_capability: Tuple[int, int]
+    compute_capability: tuple[int, int]
     sm_count: int
     max_threads_per_sm: int
     max_threads_per_block: int
@@ -108,10 +110,11 @@ def _get_gpu_profiles_path() -> Path:
 
     Raises:
         FileNotFoundError: If YAML file is not found
+
     """
     # Try the module directory first
     module_dir = Path(__file__).parent
-    yaml_path = module_dir / 'gpu_profiles.yaml'
+    yaml_path = module_dir / "gpu_profiles.yaml"
 
     if yaml_path.exists():
         return yaml_path
@@ -119,13 +122,13 @@ def _get_gpu_profiles_path() -> Path:
     # Fallback to package data location
     import smatrix_2d
     package_dir = Path(smatrix_2d.__file__).parent
-    yaml_path = package_dir / 'gpu' / 'gpu_profiles.yaml'
+    yaml_path = package_dir / "gpu" / "gpu_profiles.yaml"
 
     if yaml_path.exists():
         return yaml_path
 
     raise FileNotFoundError(
-        f"GPU profiles YAML file not found. Expected at {module_dir / 'gpu_profiles.yaml'}"
+        f"GPU profiles YAML file not found. Expected at {module_dir / 'gpu_profiles.yaml'}",
     )
 
 
@@ -138,33 +141,34 @@ def _load_profile_from_dict(key: str, data: dict) -> GPUProfile:
 
     Returns:
         GPUProfile instance
+
     """
     # Convert compute_capability list to tuple
-    cc = data.get('compute_capability', [0, 0])
+    cc = data.get("compute_capability", [0, 0])
     if isinstance(cc, list):
         compute_capability = (cc[0], cc[1])
     else:
         compute_capability = cc
 
     return GPUProfile(
-        name=data.get('name', key),
+        name=data.get("name", key),
         compute_capability=compute_capability,
-        sm_count=data.get('sm_count', 1),
-        max_threads_per_sm=data.get('max_threads_per_sm', 1024),
-        max_threads_per_block=data.get('max_threads_per_block', 1024),
-        warp_size=data.get('warp_size', 32),
-        max_shared_memory_per_sm=data.get('max_shared_memory_per_sm', 65536),
-        max_shared_memory_per_block=data.get('max_shared_memory_per_block', 49152),
-        max_registers_per_sm=data.get('max_registers_per_sm', 65536),
-        max_registers_per_block=data.get('max_registers_per_block', 65536),
-        l2_cache_size=data.get('l2_cache_size', 4194304),
-        memory_bandwidth=data.get('memory_bandwidth', 600.0),
-        memory_clock=data.get('memory_clock', 1413.0),
-        memory_bus_width=data.get('memory_bus_width', 384),
+        sm_count=data.get("sm_count", 1),
+        max_threads_per_sm=data.get("max_threads_per_sm", 1024),
+        max_threads_per_block=data.get("max_threads_per_block", 1024),
+        warp_size=data.get("warp_size", 32),
+        max_shared_memory_per_sm=data.get("max_shared_memory_per_sm", 65536),
+        max_shared_memory_per_block=data.get("max_shared_memory_per_block", 49152),
+        max_registers_per_sm=data.get("max_registers_per_sm", 65536),
+        max_registers_per_block=data.get("max_registers_per_block", 65536),
+        l2_cache_size=data.get("l2_cache_size", 4194304),
+        memory_bandwidth=data.get("memory_bandwidth", 600.0),
+        memory_clock=data.get("memory_clock", 1413.0),
+        memory_bus_width=data.get("memory_bus_width", 384),
     )
 
 
-def load_gpu_profiles() -> Dict[str, GPUProfile]:
+def load_gpu_profiles() -> dict[str, GPUProfile]:
     """Load GPU profiles from YAML file.
 
     Returns:
@@ -173,20 +177,21 @@ def load_gpu_profiles() -> Dict[str, GPUProfile]:
     Raises:
         FileNotFoundError: If YAML file is not found
         ImportError: If PyYAML is not installed
+
     """
     if not YAML_AVAILABLE:
         raise ImportError(
             "PyYAML is required to load GPU profiles. "
-            "Install it with: pip install pyyaml"
+            "Install it with: pip install pyyaml",
         )
 
     yaml_path = _get_gpu_profiles_path()
 
-    with open(yaml_path, 'r') as f:
+    with open(yaml_path) as f:
         yaml_data = yaml.safe_load(f)
 
     profiles = {}
-    for key, data in yaml_data.get('profiles', {}).items():
+    for key, data in yaml_data.get("profiles", {}).items():
         # Create profile with YAML key as identifier, store with display name as key
         profile = _load_profile_from_dict(key, data)
         profiles[profile.name] = profile
@@ -195,10 +200,10 @@ def load_gpu_profiles() -> Dict[str, GPUProfile]:
 
 
 # Lazy-loaded profiles dict for backward compatibility
-_PREDEFINED_GPU_PROFILES_CACHE: Optional[Dict[str, GPUProfile]] = None
+_PREDEFINED_GPU_PROFILES_CACHE: dict[str, GPUProfile] | None = None
 
 
-def get_predefined_gpu_profiles() -> Dict[str, GPUProfile]:
+def get_predefined_gpu_profiles() -> dict[str, GPUProfile]:
     """Get predefined GPU profiles (lazy-loaded from YAML).
 
     This function maintains backward compatibility with the original
@@ -206,6 +211,7 @@ def get_predefined_gpu_profiles() -> Dict[str, GPUProfile]:
 
     Returns:
         Dictionary mapping GPU names to GPUProfile instances
+
     """
     global _PREDEFINED_GPU_PROFILES_CACHE
 
@@ -263,6 +269,7 @@ def get_gpu_properties(device_id: int = 0) -> GPUProfile:
 
     Raises:
         RuntimeError: If CuPy is not available or device is invalid
+
     """
     if not GPU_AVAILABLE:
         raise RuntimeError("CuPy is not available. Cannot detect GPU properties.")
@@ -272,25 +279,25 @@ def get_gpu_properties(device_id: int = 0) -> GPUProfile:
 
     # Extract compute capability
     compute_capability = (
-        attributes.get('ComputeCapabilityMajor', 0),
-        attributes.get('ComputeCapabilityMinor', 0),
+        attributes.get("ComputeCapabilityMajor", 0),
+        attributes.get("ComputeCapabilityMinor", 0),
     )
 
     # Extract SM count
-    sm_count = attributes.get('MultiProcessorCount', 1)
+    sm_count = attributes.get("MultiProcessorCount", 1)
 
     # Extract thread limits
-    max_threads_per_sm = attributes.get('MaxThreadsPerMultiProcessor', 1024)
-    max_threads_per_block = attributes.get('MaxThreadsPerBlock', 1024)
-    warp_size = attributes.get('WarpSize', 32)
+    max_threads_per_sm = attributes.get("MaxThreadsPerMultiProcessor", 1024)
+    max_threads_per_block = attributes.get("MaxThreadsPerBlock", 1024)
+    warp_size = attributes.get("WarpSize", 32)
 
     # Extract shared memory (in bytes)
-    max_shared_memory_per_sm = attributes.get('MaxSharedMemoryPerMultiprocessor', 65536)
-    max_shared_memory_per_block = attributes.get('MaxSharedMemoryPerBlock', 49152)
+    max_shared_memory_per_sm = attributes.get("MaxSharedMemoryPerMultiprocessor", 65536)
+    max_shared_memory_per_block = attributes.get("MaxSharedMemoryPerBlock", 49152)
 
     # Extract register limits (32-bit registers)
-    max_registers_per_sm = attributes.get('MaxRegistersPerMultiprocessor', 65536)
-    max_registers_per_block = attributes.get('MaxRegistersPerBlock', 65536)
+    max_registers_per_sm = attributes.get("MaxRegistersPerMultiprocessor", 65536)
+    max_registers_per_block = attributes.get("MaxRegistersPerBlock", 65536)
 
     # Extract memory info (if available)
     try:
@@ -300,8 +307,8 @@ def get_gpu_properties(device_id: int = 0) -> GPUProfile:
         device_name = f"GPU_{device_id}"
 
     # Extract clock and memory info (may not be available in all CuPy versions)
-    memory_clock = attributes.get('ClockRate', 0) / 1000.0  # kHz to MHz
-    memory_bus_width = attributes.get('GlobalMemoryBusWidth', 256)
+    memory_clock = attributes.get("ClockRate", 0) / 1000.0  # kHz to MHz
+    memory_bus_width = attributes.get("GlobalMemoryBusWidth", 256)
 
     # Try to find a predefined profile by name
     if device_name in PREDEFINED_GPU_PROFILES:
@@ -324,7 +331,7 @@ def get_gpu_properties(device_id: int = 0) -> GPUProfile:
     )
 
 
-def get_predefined_profile(name: str) -> Optional[GPUProfile]:
+def get_predefined_profile(name: str) -> GPUProfile | None:
     """Get a predefined GPU profile by name.
 
     Args:
@@ -332,15 +339,17 @@ def get_predefined_profile(name: str) -> Optional[GPUProfile]:
 
     Returns:
         GPUProfile or None if not found
+
     """
     return PREDEFINED_GPU_PROFILES.get(name)
 
 
-def list_available_profiles() -> List[str]:
+def list_available_profiles() -> list[str]:
     """List all available predefined GPU profiles.
 
     Returns:
         List of GPU profile names
+
     """
     return sorted(PREDEFINED_GPU_PROFILES.keys())
 
@@ -375,6 +384,7 @@ class OccupancyCalculator:
 
         Args:
             profile: GPU profile for calculations
+
         """
         self.profile = profile
 
@@ -393,6 +403,7 @@ class OccupancyCalculator:
 
         Returns:
             Maximum number of blocks that can reside on one SM
+
         """
         # Limit by threads
         blocks_by_threads = min(
@@ -425,6 +436,7 @@ class OccupancyCalculator:
 
         Returns:
             Occupancy ratio (0.0 to 1.0)
+
         """
         # Calculate blocks per SM
         blocks_per_sm = self.calculate_blocks_per_sm(
@@ -466,41 +478,42 @@ class OptimalBlockSizeCalculator:
 
     # Kernel-specific configurations
     KERNEL_CONFIGS = {
-        'angular': {
-            'registers_per_thread': 32,
-            'shared_memory_bytes': 0,
-            'preferred_sizes': [128, 256, 192, 320, 384],
-            'max_block_size': 1024,
-            'min_block_size': 64,
+        "angular": {
+            "registers_per_thread": 32,
+            "shared_memory_bytes": 0,
+            "preferred_sizes": [128, 256, 192, 320, 384],
+            "max_block_size": 1024,
+            "min_block_size": 64,
         },
-        'energy': {
-            'registers_per_thread': 40,
-            'shared_memory_bytes': 0,
-            'preferred_sizes': [128, 256, 192, 320],
-            'max_block_size': 1024,
-            'min_block_size': 64,
+        "energy": {
+            "registers_per_thread": 40,
+            "shared_memory_bytes": 0,
+            "preferred_sizes": [128, 256, 192, 320],
+            "max_block_size": 1024,
+            "min_block_size": 64,
         },
-        'spatial': {
-            'registers_per_thread': 28,
-            'shared_memory_bytes': 0,
-            'preferred_sizes': [(16, 16), (32, 32), (8, 32), (32, 8)],
-            'max_block_size': 1024,
-            'min_block_size': 64,
+        "spatial": {
+            "registers_per_thread": 28,
+            "shared_memory_bytes": 0,
+            "preferred_sizes": [(16, 16), (32, 32), (8, 32), (32, 8)],
+            "max_block_size": 1024,
+            "min_block_size": 64,
         },
-        'default': {
-            'registers_per_thread': 32,
-            'shared_memory_bytes': 0,
-            'preferred_sizes': [256, 128, 192, 320, 384],
-            'max_block_size': 1024,
-            'min_block_size': 64,
+        "default": {
+            "registers_per_thread": 32,
+            "shared_memory_bytes": 0,
+            "preferred_sizes": [256, 128, 192, 320, 384],
+            "max_block_size": 1024,
+            "min_block_size": 64,
         },
     }
 
-    def __init__(self, profile: Optional[GPUProfile] = None):
+    def __init__(self, profile: GPUProfile | None = None):
         """Initialize calculator with GPU profile.
 
         Args:
             profile: GPU profile (if None, will detect current GPU)
+
         """
         if profile is None:
             profile = get_gpu_properties()
@@ -509,9 +522,9 @@ class OptimalBlockSizeCalculator:
 
     def get_optimal_block_size(
         self,
-        kernel_type: str = 'default',
-        registers_per_thread: Optional[int] = None,
-        shared_memory_bytes: Optional[int] = None,
+        kernel_type: str = "default",
+        registers_per_thread: int | None = None,
+        shared_memory_bytes: int | None = None,
         target_occupancy: float = 0.75,
     ) -> int:
         """Get optimal 1D block size for a kernel type.
@@ -524,16 +537,17 @@ class OptimalBlockSizeCalculator:
 
         Returns:
             Optimal threads per block (1D)
+
         """
         # Get kernel config
-        config = self.KERNEL_CONFIGS.get(kernel_type, self.KERNEL_CONFIGS['default'])
+        config = self.KERNEL_CONFIGS.get(kernel_type, self.KERNEL_CONFIGS["default"])
 
         # Use provided values or defaults
-        regs = registers_per_thread if registers_per_thread is not None else config['registers_per_thread']
-        shared = shared_memory_bytes if shared_memory_bytes is not None else config['shared_memory_bytes']
+        regs = registers_per_thread if registers_per_thread is not None else config["registers_per_thread"]
+        shared = shared_memory_bytes if shared_memory_bytes is not None else config["shared_memory_bytes"]
 
         # Try preferred sizes
-        for block_size in config['preferred_sizes']:
+        for block_size in config["preferred_sizes"]:
             occupancy = self.occupancy_calc.calculate_occupancy(
                 block_size,
                 regs,
@@ -543,8 +557,8 @@ class OptimalBlockSizeCalculator:
                 return block_size
 
         # If no preferred size meets target, find best by binary search
-        min_size = config['min_block_size']
-        max_size = min(config['max_block_size'], self.profile.max_threads_per_block)
+        min_size = config["min_block_size"]
+        max_size = min(config["max_block_size"], self.profile.max_threads_per_block)
 
         # Sample block sizes
         best_block_size = 256
@@ -564,11 +578,11 @@ class OptimalBlockSizeCalculator:
 
     def get_optimal_block_size_2d(
         self,
-        kernel_type: str = 'spatial',
-        registers_per_thread: Optional[int] = None,
-        shared_memory_bytes: Optional[int] = None,
+        kernel_type: str = "spatial",
+        registers_per_thread: int | None = None,
+        shared_memory_bytes: int | None = None,
         target_occupancy: float = 0.75,
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         """Get optimal 2D block size for a kernel type.
 
         Args:
@@ -579,17 +593,18 @@ class OptimalBlockSizeCalculator:
 
         Returns:
             Optimal (threads_x, threads_y) for 2D block
+
         """
         # Get kernel config
-        config = self.KERNEL_CONFIGS.get(kernel_type, self.KERNEL_CONFIGS['default'])
+        config = self.KERNEL_CONFIGS.get(kernel_type, self.KERNEL_CONFIGS["default"])
 
         # Use provided values or defaults
-        regs = registers_per_thread if registers_per_thread is not None else config['registers_per_thread']
-        shared = shared_memory_bytes if shared_memory_bytes is not None else config['shared_memory_bytes']
+        regs = registers_per_thread if registers_per_thread is not None else config["registers_per_thread"]
+        shared = shared_memory_bytes if shared_memory_bytes is not None else config["shared_memory_bytes"]
 
         # Try preferred 2D sizes
-        if kernel_type == 'spatial':
-            preferred_sizes = config['preferred_sizes']
+        if kernel_type == "spatial":
+            preferred_sizes = config["preferred_sizes"]
         else:
             # Generate 2D sizes from 1D total
             total_threads = self.get_optimal_block_size(
@@ -636,14 +651,15 @@ class OptimalBlockSizeCalculator:
 
         Returns:
             Number of blocks in grid
+
         """
         return (total_elements + block_size - 1) // block_size
 
     def calculate_grid_size_2d(
         self,
-        block_size: Tuple[int, int],
-        grid_dimensions: Tuple[int, int],
-    ) -> Tuple[int, int]:
+        block_size: tuple[int, int],
+        grid_dimensions: tuple[int, int],
+    ) -> tuple[int, int]:
         """Calculate grid size for 2D launch.
 
         Args:
@@ -652,6 +668,7 @@ class OptimalBlockSizeCalculator:
 
         Returns:
             (grid_x, grid_y) number of blocks
+
         """
         grid_x = (grid_dimensions[0] + block_size[0] - 1) // block_size[0]
         grid_y = (grid_dimensions[1] + block_size[1] - 1) // block_size[1]
@@ -661,9 +678,9 @@ class OptimalBlockSizeCalculator:
         self,
         kernel_type: str,
         total_elements: int,
-        registers_per_thread: Optional[int] = None,
-        shared_memory_bytes: Optional[int] = None,
-    ) -> Tuple[Tuple[int, ...], Tuple[int, ...], float]:
+        registers_per_thread: int | None = None,
+        shared_memory_bytes: int | None = None,
+    ) -> tuple[tuple[int, ...], tuple[int, ...], float]:
         """Get complete launch configuration for a kernel.
 
         Args:
@@ -674,8 +691,9 @@ class OptimalBlockSizeCalculator:
 
         Returns:
             (grid_dim, block_dim, occupancy) tuple
+
         """
-        if kernel_type == 'spatial' and isinstance(total_elements, tuple):
+        if kernel_type == "spatial" and isinstance(total_elements, tuple):
             # 2D launch
             block_size = self.get_optimal_block_size_2d(
                 kernel_type,
@@ -697,11 +715,11 @@ class OptimalBlockSizeCalculator:
             grid_dim = (grid_size,)
 
         # Calculate occupancy
-        config = self.KERNEL_CONFIGS.get(kernel_type, self.KERNEL_CONFIGS['default'])
-        regs = registers_per_thread if registers_per_thread is not None else config['registers_per_thread']
-        shared = shared_memory_bytes if shared_memory_bytes is not None else config['shared_memory_bytes']
+        config = self.KERNEL_CONFIGS.get(kernel_type, self.KERNEL_CONFIGS["default"])
+        regs = registers_per_thread if registers_per_thread is not None else config["registers_per_thread"]
+        shared = shared_memory_bytes if shared_memory_bytes is not None else config["shared_memory_bytes"]
 
-        if kernel_type == 'spatial':
+        if kernel_type == "spatial":
             total_threads = block_dim[0] * block_dim[1]
         else:
             total_threads = block_dim[0]
@@ -724,6 +742,7 @@ def print_gpu_profile(profile: GPUProfile) -> None:
 
     Args:
         profile: GPU profile to print
+
     """
     cc_major, cc_minor = profile.compute_capability
 
@@ -745,10 +764,10 @@ def print_gpu_profile(profile: GPUProfile) -> None:
 def benchmark_block_sizes(
     profile: GPUProfile,
     kernel_type: str,
-    block_sizes: List[int],
+    block_sizes: list[int],
     registers_per_thread: int = 32,
     shared_memory_bytes: int = 0,
-) -> Dict[int, float]:
+) -> dict[int, float]:
     """Benchmark occupancy for different block sizes.
 
     Args:
@@ -760,6 +779,7 @@ def benchmark_block_sizes(
 
     Returns:
         Dictionary mapping block_size -> occupancy
+
     """
     calc = OccupancyCalculator(profile)
     results = {}
@@ -776,15 +796,15 @@ def benchmark_block_sizes(
 
 
 __all__ = [
-    'GPUProfile',
-    'get_gpu_properties',
-    'get_predefined_profile',
-    'list_available_profiles',
-    'load_gpu_profiles',
-    'get_predefined_gpu_profiles',
-    'OccupancyCalculator',
-    'OptimalBlockSizeCalculator',
-    'print_gpu_profile',
-    'benchmark_block_sizes',
-    'PREDEFINED_GPU_PROFILES',
+    "PREDEFINED_GPU_PROFILES",
+    "GPUProfile",
+    "OccupancyCalculator",
+    "OptimalBlockSizeCalculator",
+    "benchmark_block_sizes",
+    "get_gpu_properties",
+    "get_predefined_gpu_profiles",
+    "get_predefined_profile",
+    "list_available_profiles",
+    "load_gpu_profiles",
+    "print_gpu_profile",
 ]

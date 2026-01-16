@@ -14,64 +14,64 @@ Key Principles:
 Version: 2.1
 """
 
-__version__ = '2.1'
+__version__ = "2.1"
 
 # Core data structures
+from smatrix_2d.core.constants import PhysicsConstants2D
 from smatrix_2d.core.grid import (
+    GridSpecs2D,  # alias
     GridSpecsV2,
+    PhaseSpaceGrid2D,  # alias
     PhaseSpaceGridV2,
     create_phase_space_grid,
-    GridSpecs2D,  # alias
-    PhaseSpaceGrid2D,  # alias
 )
-from smatrix_2d.core.materials import MaterialProperties2D, create_water_material
-from smatrix_2d.core.constants import PhysicsConstants2D
 from smatrix_2d.core.lut import StoppingPowerLUT, create_water_stopping_power_lut
+from smatrix_2d.core.materials import MaterialProperties2D, create_water_material
 
 # Operators
 from smatrix_2d.operators import (
-    SigmaBuckets,
-    SigmaBucketInfo,
-    AngularScatteringV2,
     AngularEscapeAccounting,
+    AngularScatteringV2,
     EnergyLossV2,
+    SigmaBucketInfo,
+    SigmaBuckets,
     SpatialStreamingV2,
     StreamingResult,
 )
 
 # Transport orchestration
 from smatrix_2d.transport import (
-    TransportStepV2,
-    TransportSimulationV2,
-    create_transport_simulation,
     ConservationReport,
+    SimulationResult,
+    TransportSimulation,
+    create_simulation,
 )
 
 __all__ = [
     # Version
-    '__version__',
+    "__version__",
     # Core
-    'GridSpecsV2',
-    'PhaseSpaceGridV2',
-    'create_phase_space_grid',
-    'GridSpecs2D',  # alias
-    'PhaseSpaceGrid2D',  # alias
-    'MaterialProperties2D',
-    'create_water_material',
-    'PhysicsConstants2D',
-    'StoppingPowerLUT',
-    'create_water_stopping_power_lut',
+    "GridSpecsV2",
+    "PhaseSpaceGridV2",
+    "create_phase_space_grid",
+    "GridSpecs2D",  # alias
+    "PhaseSpaceGrid2D",  # alias
+    "MaterialProperties2D",
+    "create_water_material",
+    "PhysicsConstants2D",
+    "StoppingPowerLUT",
+    "create_water_stopping_power_lut",
     # Operators
-    'SigmaBuckets',
-    'SigmaBucketInfo',
-    'AngularScatteringV2',
-    'AngularEscapeAccounting',
-    'EnergyLossV2',
-    'SpatialStreamingV2',
-    'StreamingResult',
+    "SigmaBuckets",
+    "SigmaBucketInfo",
+    "AngularScatteringV2",
+    "AngularEscapeAccounting",
+    "EnergyLossV2",
+    "SpatialStreamingV2",
+    "StreamingResult",
     # Transport
-    'TransportStepV2',
-    'TransportSimulationV2',
-    'create_transport_simulation',
-    'ConservationReport',
+    "TransportSimulation",
+    "SimulationResult",
+    "create_simulation",
+    "ConservationReport",
 ]

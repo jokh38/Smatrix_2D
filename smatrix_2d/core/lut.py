@@ -5,8 +5,9 @@ physics data, particularly stopping power data from NIST PSTAR.
 These LUTs are designed for efficient GPU texture/constant memory usage.
 """
 
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 
 class StoppingPowerLUT:
@@ -22,6 +23,7 @@ class StoppingPowerLUT:
     Attributes:
         energy_grid: Energy values [MeV] (monotonically increasing)
         stopping_power: Stopping power values [MeV/mm] at each energy point
+
     """
 
     # NIST PSTAR data for protons in liquid water
@@ -37,7 +39,7 @@ class StoppingPowerLUT:
         13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 25.0, 30.0,
         35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0, 70.0, 75.0, 80.0,
         85.0, 90.0, 95.0, 100.0, 110.0, 120.0, 130.0, 140.0, 150.0, 160.0,
-        170.0, 180.0, 190.0, 200.0
+        170.0, 180.0, 190.0, 200.0,
     ], dtype=np.float32)
 
     # NIST PSTAR stopping power data for protons in liquid water
@@ -55,13 +57,13 @@ class StoppingPowerLUT:
         # Mapping: index 60=55MeV, 61=60MeV, ..., 71=100MeV, ..., 83=200MeV
         17.8, 17.1, 16.4, 15.8, 15.2, 14.7, 14.2, 13.7, 13.3, 12.9,
         12.5, 11.9, 11.3, 10.7, 10.2, 9.6, 9.0, 8.6, 8.2, 7.8,
-        7.4, 7.0, 6.6, 6.2
+        7.4, 7.0, 6.6, 6.2,
     ], dtype=np.float32)
 
     def __init__(
         self,
-        energy_grid: Optional[np.ndarray] = None,
-        stopping_power: Optional[np.ndarray] = None
+        energy_grid: np.ndarray | None = None,
+        stopping_power: np.ndarray | None = None,
     ):
         """Initialize stopping power lookup table.
 
@@ -74,6 +76,7 @@ class StoppingPowerLUT:
         Raises:
             ValueError: If energy_grid and stopping_power have mismatched shapes,
                 if arrays are empty, or if energy_grid is not monotonically increasing.
+
         """
         if energy_grid is None or stopping_power is None:
             # Use default NIST PSTAR data
@@ -96,7 +99,7 @@ class StoppingPowerLUT:
             if len(energy_grid) != len(stopping_power):
                 raise ValueError(
                     f"energy_grid and stopping_power must have same length: "
-                    f"{len(energy_grid)} != {len(stopping_power)}"
+                    f"{len(energy_grid)} != {len(stopping_power)}",
                 )
 
             if len(energy_grid) == 0:
@@ -123,6 +126,7 @@ class StoppingPowerLUT:
             >>> lut = StoppingPowerLUT()
             >>> S_50MeV = lut.get_stopping_power(50.0)  # ~18.2 MeV/mm
             >>> S_1MeV = lut.get_stopping_power(1.0)    # ~40.8 MeV/mm
+
         """
         # Clamp to energy grid boundaries
         if energy <= self.energy_grid[0]:
@@ -164,6 +168,7 @@ class StoppingPowerLUT:
             >>> lut = StoppingPowerLUT()
             >>> energies = np.array([1.0, 10.0, 100.0])
             >>> S_values = lut.get_stopping_power_array(energies)
+
         """
         energies = np.asarray(energies, dtype=np.float32)
         result = np.empty_like(energies, dtype=np.float32)
@@ -216,5 +221,6 @@ def create_water_stopping_power_lut() -> StoppingPowerLUT:
     Examples:
         >>> lut = create_water_stopping_power_lut()
         >>> S_100MeV = lut.get_stopping_power(100.0)
+
     """
     return StoppingPowerLUT()
