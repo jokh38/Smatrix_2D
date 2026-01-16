@@ -1,6 +1,0 @@
-conservation_valid: true
-date: '2026-01-14T10:21:17.311822'
-description: Small grid for quick regression tests
-n_steps: 10
-runtime_seconds: 0.03885030746459961
-version: '2.0'

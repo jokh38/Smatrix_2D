@@ -30,6 +30,12 @@ from smatrix_2d.core.escape_accounting import (
     validate_conservation,
     conservation_report,
 )
+from smatrix_2d.core.non_uniform_grid import (
+    NonUniformGridSpecs,
+    create_non_uniform_energy_grid,
+    create_non_uniform_angular_grid,
+    create_non_uniform_grids,
+)
 
 __all__ = [
     'GridSpecsV2',
@@ -52,4 +58,8 @@ __all__ = [
     'EscapeAccounting',
     'validate_conservation',
     'conservation_report',
+    'NonUniformGridSpecs',
+    'create_non_uniform_energy_grid',
+    'create_non_uniform_angular_grid',
+    'create_non_uniform_grids',
 ]

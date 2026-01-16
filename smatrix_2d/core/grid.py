@@ -396,7 +396,7 @@ def create_energy_grid(
 
     elif grid_type == EnergyGridType.NON_UNIFORM:
         # Phase C-3: Non-uniform energy grid with region-based spacing
-        from smatrix_2d.phase_c3 import create_non_uniform_energy_grid
+        from smatrix_2d.core.non_uniform_grid import create_non_uniform_energy_grid
         E_edges, E_centers, _ = create_non_uniform_energy_grid(
             E_min=E_min,
             E_max=E_max,
@@ -437,7 +437,7 @@ def create_angular_grid(
 
     elif grid_type == AngularGridType.NON_UNIFORM:
         # Phase C-3: Non-uniform angular grid with core/wing/tail regions
-        from smatrix_2d.phase_c3 import create_non_uniform_angular_grid
+        from smatrix_2d.core.non_uniform_grid import create_non_uniform_angular_grid
         theta_edges, theta_centers, _ = create_non_uniform_angular_grid(
             theta_min=theta_min,
             theta_max=theta_max,
