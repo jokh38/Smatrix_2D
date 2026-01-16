@@ -7,10 +7,10 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #672 | 3:01 AM | 🔄 | GPU package __init__.py updated to use centralized utilities | ~211 |
-| #671 | " | 🔄 | GPU availability check centralized in gpu/utils.py | ~250 |
-| #599 | 2:13 AM | ✅ | GPU profile YAML refactoring committed to version control | ~324 |
-| #596 | 2:12 AM | 🔵 | Verified gpu_architecture module exports in package __init__.py | ~393 |
-| #587 | 2:09 AM | 🔄 | GPU profile data externalized from Python to YAML configuration | ~371 |
-| #586 | 2:08 AM | 🔄 | Refactored hardcoded data to external YAML configuration files | ~433 |
+| #774 | 3:43 AM | 🔵 | GPU module __init__.py shows all three kernel variants exported with try/except ImportError guards | ~361 |
+| #758 | 3:19 AM | 🔵 | GPU hardware profiles define warp_size as CUDA architectural parameter | ~303 |
+| #742 | 3:18 AM | 🔵 | Warp-optimized kernel referenced in only three files | ~275 |
+| #730 | " | 🔵 | GPU profiling and architecture infrastructure uses baseline GPUTransportStepV3 | ~383 |
+| #719 | 3:17 AM | 🔵 | GPU module exports all three kernel variants as optional imports | ~383 |
+| #697 | 3:16 AM | 🔵 | GPU kernel variant usage patterns discovered across codebase | ~344 |
 </claude-mem-context>
