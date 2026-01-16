@@ -30,15 +30,15 @@ Usage:
 
 import numpy as np
 from typing import Dict, Tuple, Optional, List
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
-try:
-    import cupy as cp
-    GPU_AVAILABLE = True
-except ImportError:
-    GPU_AVAILABLE = False
-    cp = None
+# Import GPU utilities from utils module (SSOT)
+from smatrix_2d.gpu.utils import get_cupy, gpu_available
+
+# Get CuPy module (may be None if unavailable)
+cp = get_cupy()
+GPU_AVAILABLE = gpu_available()
 
 try:
     import yaml

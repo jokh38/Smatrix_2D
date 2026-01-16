@@ -3,13 +3,11 @@
 from smatrix_2d.gpu.memory_layout import GPUMemoryLayout, create_gpu_memory_layout
 from smatrix_2d.gpu.tiling import TileManager, TileSpec, TileInfo, create_tile_manager
 
-GPU_AVAILABLE = False
+# Import GPU availability from utils module (SSOT)
+from smatrix_2d.gpu.utils import gpu_available, get_cupy, require_gpu
 
-try:
-    import cupy as cp
-    GPU_AVAILABLE = True
-except ImportError:
-    GPU_AVAILABLE = False
+# GPU_AVAILABLE is deprecated but kept for backward compatibility
+GPU_AVAILABLE = gpu_available()
 
 try:
     from smatrix_2d.gpu.kernels import (
@@ -93,6 +91,10 @@ __all__ = [
     'TileSpec',
     'TileInfo',
     'create_tile_manager',
+    # GPU utilities
+    'gpu_available',
+    'get_cupy',
+    'require_gpu',
     'GPUTransportStepV3',
     'create_gpu_transport_step_v3',
     'KernelTimer',

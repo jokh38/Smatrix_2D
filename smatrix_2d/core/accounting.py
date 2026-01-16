@@ -66,7 +66,7 @@ DO NOT use: from smatrix_2d.core.accounting import *
 
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Optional, Tuple, Dict, Any
+from typing import Tuple, Dict, Any
 import numpy as np
 
 

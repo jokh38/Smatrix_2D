@@ -11,7 +11,7 @@ DO NOT use: from smatrix_2d.config.simulation_config import *
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, Literal
+from typing import Literal
 
 from smatrix_2d.config.enums import (
     EnergyGridType,
@@ -26,8 +26,6 @@ from smatrix_2d.config.defaults import (
     DEFAULT_E_MAX,
     DEFAULT_E_BUFFER_MIN,
     DEFAULT_SPATIAL_HALF_SIZE,
-    DEFAULT_DELTA_X,
-    DEFAULT_DELTA_Z,
     DEFAULT_NX,
     DEFAULT_NZ,
     DEFAULT_THETA_MIN,
@@ -470,6 +468,6 @@ def create_default_config() -> SimulationConfig:
     errors = config.validate()
 
     if errors:
-        raise ValueError(f"Default configuration is invalid:\n" + "\n".join(errors))
+        raise ValueError("Default configuration is invalid:\n" + "\n".join(errors))
 
     return config

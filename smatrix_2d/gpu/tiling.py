@@ -20,7 +20,7 @@ from typing import Optional, Iterator, TYPE_CHECKING
 
 if TYPE_CHECKING:
     # For type hints only - both grid types are supported at runtime
-    from smatrix_2d.core.grid import PhaseSpaceGrid2D, PhaseSpaceGridV2
+    pass
 
 # Type alias for either grid type
 PhaseSpaceGrid = object  # Will be duck-typed at runtime

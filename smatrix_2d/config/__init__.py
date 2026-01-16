@@ -6,7 +6,7 @@ It is the Single Source of Truth (SSOT) for all simulation parameters.
 
 Recommended Usage:
     from smatrix_2d.config import SimulationConfig, create_validated_config
-    from smatrix_2d.config.enums import EnergyGridType, BoundaryPolicy
+    from smatrix_2d.config.enums import EnergyGridType, AngularGridType, BoundaryPolicy
 
     # Create a default config (already validated)
     config = create_validated_config()
@@ -14,12 +14,13 @@ Recommended Usage:
     # Create a custom config with validation
     config = create_validated_config(
         Nx=200, Nz=200, Ne=150,
-        E_min=1.0, E_cutoff=3.0, E_max=100.0
+        E_min=1.0, E_cutoff=2.0, E_max=100.0
     )
 
     # Or build manually
     from smatrix_2d.config import SimulationConfig, GridConfig
-    grid = GridConfig(Nx=100, Nz=100, E_min=1.0, E_cutoff=2.0)
+    from smatrix_2d.config.defaults import DEFAULT_E_MIN, DEFAULT_E_CUTOFF, DEFAULT_E_MAX
+    grid = GridConfig(Nx=100, Nz=100, E_min=DEFAULT_E_MIN, E_cutoff=DEFAULT_E_CUTOFF, E_max=DEFAULT_E_MAX)
     config = SimulationConfig(grid=grid)
 
 Import Policy:
@@ -27,7 +28,7 @@ Import Policy:
     This causes namespace pollution and makes tracking difficult.
 
 Submodules:
-    enums: Configuration enumerations (EnergyGridType, BoundaryPolicy, etc.)
+    enums: Configuration enumerations (EnergyGridType, AngularGridType, BoundaryPolicy, etc.)
     defaults: Default constants (DEFAULT_E_MIN, DEFAULT_E_CUTOFF, etc.)
     simulation_config: Configuration dataclasses (GridConfig, TransportConfig, etc.)
     validation: Validation utilities (validate_config, check_invariants, etc.)
@@ -35,6 +36,7 @@ Submodules:
 
 from smatrix_2d.config.enums import (
     EnergyGridType,
+    AngularGridType,
     BoundaryPolicy,
     SplittingType,
     BackwardTransportPolicy,
@@ -59,6 +61,7 @@ from smatrix_2d.config.validation import (
 __all__ = [
     # Enums
     "EnergyGridType",
+    "AngularGridType",
     "BoundaryPolicy",
     "SplittingType",
     "BackwardTransportPolicy",

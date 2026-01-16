@@ -5,7 +5,7 @@ This module defines all enumeration types used throughout the simulation configu
 These enums provide type-safe configuration options and improve code documentation.
 
 Import Policy:
-    from smatrix_2d.config.enums import EnergyGridType, BoundaryPolicy, SplittingType, BackwardTransportPolicy
+    from smatrix_2d.config.enums import EnergyGridType, AngularGridType, BoundaryPolicy, SplittingType, BackwardTransportPolicy, DeterminismLevel
 
 DO NOT use: from smatrix_2d.config.enums import *
 """
@@ -20,13 +20,31 @@ class EnergyGridType(Enum):
         UNIFORM: Linear spacing in energy (simplest, most predictable)
         LOGARITHMIC: Logarithmic spacing (better for wide energy ranges)
         RANGE_BASED: Equal steps in residual range (physics-motivated, best for Bragg peak resolution)
+        NON_UNIFORM: Phase C-3 non-uniform grid with region-based spacing
 
     Note:
         RANGE_BASED requires residual range data from stopping power tables.
+        NON_UNIFORM uses the Phase C-3 adaptive grid algorithm.
     """
     UNIFORM = "uniform"
     LOGARITHMIC = "logarithmic"
     RANGE_BASED = "range_based"
+    NON_UNIFORM = "non_uniform"
+
+
+class AngularGridType(Enum):
+    """Angular grid discretization strategies.
+
+    Options:
+        UNIFORM: Equal spacing across entire angular range
+        NON_UNIFORM: Phase C-3 non-uniform grid with core/wing/tail regions
+
+    Note:
+        NON_UNIFORM provides finer resolution in forward direction (beam core)
+        and coarser resolution in the tails.
+    """
+    UNIFORM = "uniform"
+    NON_UNIFORM = "non_uniform"
 
 
 class BoundaryPolicy(Enum):

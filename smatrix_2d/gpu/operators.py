@@ -19,17 +19,15 @@ Import Policy:
 DO NOT use: from smatrix_2d.gpu.operators import *
 """
 
-from typing import Optional, Tuple
-import numpy as np
+from typing import Optional
 
-try:
-    import cupy as cp
-    CUPY_AVAILABLE = True
-except ImportError:
-    CUPY_AVAILABLE = False
-    cp = None
+# Import GPU utilities from utils module (SSOT)
+from smatrix_2d.gpu.utils import get_cupy, gpu_available
 
-from smatrix_2d.core.accounting import EscapeChannel
+# Get CuPy module (may be None if unavailable)
+cp = get_cupy()
+CUPY_AVAILABLE = gpu_available()
+
 from smatrix_2d.gpu.accumulators import GPUAccumulators
 
 

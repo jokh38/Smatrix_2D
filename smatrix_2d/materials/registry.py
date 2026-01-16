@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import warnings
 
-from .descriptor import MaterialDescriptor, ElementComponent
+from .descriptor import MaterialDescriptor
 
 
 class MaterialRegistry:

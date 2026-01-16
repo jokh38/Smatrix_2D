@@ -22,7 +22,7 @@ def example_1_basic_conversion():
     # Convert to GridSpecsV2
     grid_specs = GridSpecsV2.from_simulation_config(config)
 
-    print(f"Grid configuration extracted:")
+    print("Grid configuration extracted:")
     print(f"  Spatial: {grid_specs.Nx}x{grid_specs.Nz} bins")
     print(f"  Domain: x=[{grid_specs.x_min}, {grid_specs.x_max}] mm, "
           f"z=[{grid_specs.z_min}, {grid_specs.z_max}] mm")
@@ -62,7 +62,7 @@ def example_2_custom_config():
     # Convert to GridSpecsV2
     grid_specs = GridSpecsV2.from_simulation_config(config)
 
-    print(f"Custom grid configuration:")
+    print("Custom grid configuration:")
     print(f"  Spatial: {grid_specs.Nx}x{grid_specs.Nz} bins")
     print(f"  Domain: x=[{grid_specs.x_min}, {grid_specs.x_max}] mm, "
           f"z=[{grid_specs.z_min}, {grid_specs.z_max}] mm")
@@ -135,7 +135,7 @@ def example_4_direct_gridspecs():
         E_cutoff=3.0,
     )
 
-    print(f"Direct GridSpecsV2 created:")
+    print("Direct GridSpecsV2 created:")
     print(f"  Spatial: {grid_specs.Nx}x{grid_specs.Nz} bins")
     print(f"  Domain: x=[{grid_specs.x_min}, {grid_specs.x_max}] mm, "
           f"z=[{grid_specs.z_min}, {grid_specs.z_max}] mm")
@@ -144,7 +144,7 @@ def example_4_direct_gridspecs():
     # Convert to SimulationConfig
     config = grid_specs.to_simulation_config()
 
-    print(f"\nConverted to SimulationConfig:")
+    print("\nConverted to SimulationConfig:")
     print(f"  GridConfig.Nx: {config.grid.Nx}")
     print(f"  GridConfig.Nz: {config.grid.Nz}")
     print(f"  GridConfig.x_min: {config.grid.x_min}")
@@ -155,7 +155,7 @@ def example_4_direct_gridspecs():
     if errors:
         print(f"\n  Validation errors: {errors}")
     else:
-        print(f"\n  Configuration is valid!")
+        print("\n  Configuration is valid!")
 
 
 def example_5_workflow():
@@ -193,9 +193,9 @@ def example_5_workflow():
     phase_space = create_phase_space_grid(grid_specs)
 
     print("Workflow complete:")
-    print(f"  1. Configuration loaded and validated")
-    print(f"  2. GridSpecsV2 created from configuration")
-    print(f"  3. PhaseSpaceGrid created from GridSpecsV2")
+    print("  1. Configuration loaded and validated")
+    print("  2. GridSpecsV2 created from configuration")
+    print("  3. PhaseSpaceGrid created from GridSpecsV2")
     print(f"  4. Ready for simulation with shape: {phase_space.shape}")
 
 

@@ -27,6 +27,15 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #666 | 3:00 AM | 🔄 | Water material creation refactored to use SSOT constants | ~308 |
+| #665 | " | 🔄 | Water material properties centralized to core.constants Single Source of Truth | ~313 |
+| #662 | " | 🟣 | Physics constants centralized in core/constants.py as SSOT | ~255 |
+| #660 | 2:59 AM | 🔵 | Physics constants module structure examined | ~292 |
+| #659 | " | 🔵 | Material properties constants examined in core/materials.py | ~142 |
+| #658 | " | 🔄 | Duplicate enum definitions consolidated to Single Source of Truth | ~313 |
+| #656 | " | 🔵 | Grid system implements SPEC v2.1 with dual EnergyGridType enums | ~438 |
+| #632 | 2:20 AM | 🔵 | Grid system implements SPEC v2.1 phase space discretization | ~358 |
+| #624 | 2:19 AM | 🔵 | Grid configuration architecture examined in core/grid.py | ~275 |
 | #586 | 2:08 AM | 🔄 | Refactored hardcoded data to external YAML configuration files | ~433 |
 | #585 | 2:07 AM | 🔵 | Data storage patterns analyzed in Smatrix_2D physics simulation codebase | ~390 |
 </claude-mem-context>

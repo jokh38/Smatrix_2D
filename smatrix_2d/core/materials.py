@@ -5,6 +5,15 @@ Extends MaterialProperties with methods needed for operator-factorized transport
 
 from dataclasses import dataclass
 
+# Import water properties from core.constants (SSOT)
+from smatrix_2d.core.constants import (
+    WATER_DENSITY,
+    WATER_RADIATION_LENGTH,
+    WATER_EFFECTIVE_Z,
+    WATER_ATOMIC_MASS,
+    WATER_MEAN_EXCITATION_ENERGY,
+)
+
 
 @dataclass
 class MaterialProperties2D:
@@ -41,14 +50,16 @@ class MaterialProperties2D:
 def create_water_material() -> MaterialProperties2D:
     """Create water material properties.
 
+    Uses constants from core.constants (SSOT).
+
     Returns:
         MaterialProperties2D for liquid water
     """
     return MaterialProperties2D(
         name='water',
-        rho=1.0,
-        X0=36.08,
-        Z=7.42,
-        A=18.015,
-        I_excitation=75.0e-6,
+        rho=WATER_DENSITY,
+        X0=WATER_RADIATION_LENGTH,
+        Z=WATER_EFFECTIVE_Z,
+        A=WATER_ATOMIC_MASS,
+        I_excitation=WATER_MEAN_EXCITATION_ENERGY,
     )

@@ -10,37 +10,12 @@ Implements grid configuration following spec v2.1 requirements:
 
 import numpy as np
 from dataclasses import dataclass
-from enum import Enum
 from typing import Optional
 
+# Import enums from config.enums (SSOT for all enumerations)
+from smatrix_2d.config.enums import EnergyGridType, AngularGridType
 # Import default grid dimensions from config SSOT (R-CFG-001 compliance)
 from smatrix_2d.config.defaults import DEFAULT_NX, DEFAULT_NZ, DEFAULT_NE
-
-
-class EnergyGridType(Enum):
-    """Energy grid generation strategies.
-
-    Options:
-        UNIFORM: Equal spacing across entire energy range
-        LOGARITHMIC: Logarithmic spacing
-        RANGE_BASED: Equal steps in residual range
-        NON_UNIFORM: Phase C-3 non-uniform grid with region-based spacing
-    """
-    UNIFORM = 'uniform'
-    LOGARITHMIC = 'logarithmic'
-    RANGE_BASED = 'range_based'
-    NON_UNIFORM = 'non_uniform'  # Phase C-3
-
-
-class AngularGridType(Enum):
-    """Angular grid generation strategies.
-
-    Options:
-        UNIFORM: Equal spacing across entire angular range
-        NON_UNIFORM: Phase C-3 non-uniform grid with core/wing/tail regions
-    """
-    UNIFORM = 'uniform'
-    NON_UNIFORM = 'non_uniform'  # Phase C-3
 
 
 @dataclass

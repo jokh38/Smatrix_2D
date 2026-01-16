@@ -20,19 +20,25 @@ Example:
 
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any, Union
+from typing import Dict, List, Optional, Tuple, Any
 from collections import defaultdict
 import json
 
-try:
-    import cupy as cp
-    import cupy.cuda
-    import cupy.cuda.runtime as runtime
-    GPU_AVAILABLE = True
-except ImportError:
-    GPU_AVAILABLE = False
-    cp = None
-    runtime = None
+# Import GPU utilities from utils module (SSOT)
+from smatrix_2d.gpu.utils import get_cupy, gpu_available
+
+# Get CuPy module (may be None if unavailable)
+cp = get_cupy()
+GPU_AVAILABLE = gpu_available()
+
+# CuPy CUDA runtime (may be None if unavailable)
+runtime = None
+if cp is not None:
+    try:
+        import cupy.cuda.runtime as _runtime
+        runtime = _runtime
+    except ImportError:
+        pass
 
 
 class KernelTimer:

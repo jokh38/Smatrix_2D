@@ -7,7 +7,7 @@ Precomputes scattering kernels for each bucket to avoid per-bin kernel generatio
 from __future__ import annotations
 
 import numpy as np
-from typing import TYPE_CHECKING, Tuple, Optional
+from typing import TYPE_CHECKING, Optional
 from dataclasses import dataclass
 import warnings
 

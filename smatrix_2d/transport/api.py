@@ -22,16 +22,13 @@ import sys
 import json
 import argparse
 from pathlib import Path
-from typing import Optional, Dict, Any, Union
-from dataclasses import asdict
+from typing import Optional, Union
 
 import numpy as np
 
 from smatrix_2d.transport.simulation import (
-    TransportSimulation,
     SimulationResult,
     create_simulation,
-    create_default_config,
 )
 from smatrix_2d.config import SimulationConfig, create_validated_config
 from smatrix_2d.config.defaults import DEFAULT_NX, DEFAULT_NZ, DEFAULT_NE
@@ -95,7 +92,7 @@ def run_simulation(
         print(f"Steps: {result.n_steps}")
         print(f"Conservation valid: {result.conservation_valid}")
         if not result.conservation_valid:
-            print(f"  Warning: Conservation check failed!")
+            print("  Warning: Conservation check failed!")
 
         # Print escape summary
         print("\nEscape summary:")

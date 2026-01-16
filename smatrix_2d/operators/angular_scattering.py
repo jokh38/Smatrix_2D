@@ -28,8 +28,6 @@ from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from smatrix_2d.core.grid import PhaseSpaceGridV2
-    from smatrix_2d.core.materials import MaterialProperties2D
-    from smatrix_2d.core.constants import PhysicsConstants2D
     from smatrix_2d.operators.sigma_buckets import SigmaBuckets
 
 

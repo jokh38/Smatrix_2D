@@ -30,7 +30,6 @@ Import Policy:
 """
 
 import numpy as np
-from typing import Optional
 
 try:
     import cupy as cp

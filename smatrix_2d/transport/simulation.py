@@ -22,8 +22,8 @@ DO NOT use: from smatrix_2d.transport.simulation import *
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
-from typing import Optional, Tuple, List, Dict, Any
+from dataclasses import dataclass
+from typing import Optional, List, Dict, Any
 import warnings
 
 try:
@@ -38,17 +38,13 @@ import numpy as np
 from smatrix_2d.config.simulation_config import SimulationConfig, create_default_config
 from smatrix_2d.config.validation import validate_config
 from smatrix_2d.core.accounting import (
-    EscapeChannel,
     ConservationReport,
     create_conservation_report,
     validate_conservation,
 )
 from smatrix_2d.gpu.accumulators import (
-    GPUAccumulators,
     create_accumulators,
     sync_accumulators_to_cpu,
-    get_escapes_pointer,
-    get_dose_pointer,
 )
 
 
@@ -165,7 +161,7 @@ class TransportSimulation:
         Uses GPUTransportStepV3 which integrates with GPUAccumulators.
         """
         from smatrix_2d.gpu.kernels import create_gpu_transport_step_v3
-        from smatrix_2d.core.grid import PhaseSpaceGridV2, GridSpecsV2, create_phase_space_grid
+        from smatrix_2d.core.grid import GridSpecsV2, create_phase_space_grid
         from smatrix_2d.operators.sigma_buckets import SigmaBuckets
         from smatrix_2d.core.lut import StoppingPowerLUT
 

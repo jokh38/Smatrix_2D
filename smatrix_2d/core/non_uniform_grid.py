@@ -11,7 +11,7 @@ Design Principles:
 """
 
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from typing import Tuple
 import numpy as np
 
 # SSOT: Import default spatial grid values from defaults.py

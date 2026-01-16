@@ -21,10 +21,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from smatrix_2d import (
     GridSpecsV2,
-    PhaseSpaceGridV2,
     create_phase_space_grid,
     create_water_material,
-    PhysicsConstants2D,
     StoppingPowerLUT,
 )
 from smatrix_2d.transport.transport import TransportSimulationV2
@@ -467,7 +465,7 @@ def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
                      linestyle='--', color='red', alpha=0.7, label='Peak')
     ax3a.set_xlabel('Lateral Position x [mm]')
     ax3a.set_ylabel('Dose [MeV]')
-    ax3a.set_title(f'Lateral Profile at Bragg Peak')
+    ax3a.set_title('Lateral Profile at Bragg Peak')
     ax3a.grid(True, alpha=0.3)
     ax3a.legend()
 
@@ -515,7 +513,7 @@ def main():
     # ========================================================================
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True, parents=True)
-    print(f"\n[0] OUTPUT DIRECTORY")
+    print("\n[0] OUTPUT DIRECTORY")
     print("-" * 70)
     print(f"  Output directory: {output_dir.absolute()}")
 
@@ -527,7 +525,7 @@ def main():
 
     # Load configuration from YAML
     config = load_config()
-    print(f"  Loaded configuration from: initial_info.yaml")
+    print("  Loaded configuration from: initial_info.yaml")
 
     # Extract particle parameters
     particle = config['particle']
@@ -610,7 +608,7 @@ def main():
     print(f"  Radiation length X0: {material.X0:.2f} mm")
 
     stopping_power_lut = StoppingPowerLUT()
-    print(f"\n  NIST PSTAR Stopping Power LUT:")
+    print("\n  NIST PSTAR Stopping Power LUT:")
     print(f"    Energy range: {stopping_power_lut.energy_grid[0]:.2f} - {stopping_power_lut.energy_grid[-1]:.1f} MeV")
     print(f"    Number of points: {len(stopping_power_lut.energy_grid)}")
     print(f"    S(1 MeV) = {stopping_power_lut.get_stopping_power(1.0):.2f} MeV/mm")
@@ -647,7 +645,7 @@ def main():
         E0=E_init,
         w0=weight_init,
     )
-    print(f"  ✓ Beam initialized")
+    print("  ✓ Beam initialized")
     print(f"    Energy: {E_init} MeV")
     print(f"    Position: (x={x_init:.1f}, z={z_init:.1f}) mm")
     print(f"    Direction: {theta_init}° (forward)")
@@ -961,10 +959,10 @@ def main():
     print(f"  Total steps: {len(history)}")
     print(f"  Final weight: {final_weight:.6f}")
     print(f"  Mass conservation: {'✓ PASS' if history[-1].is_valid else '✗ FAIL'}")
-    print(f"\n  Key features:")
-    print(f"    ✓ NIST PSTAR stopping power LUT (not Bethe-Bloch formula)")
-    print(f"    ✓ Sigma buckets for angular scattering")
-    print(f"    ✓ SPEC v2.1 compliant")
+    print("\n  Key features:")
+    print("    ✓ NIST PSTAR stopping power LUT (not Bethe-Bloch formula)")
+    print("    ✓ Sigma buckets for angular scattering")
+    print("    ✓ SPEC v2.1 compliant")
     print("=" * 70)
 
 

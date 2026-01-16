@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import numpy as np
 from typing import Tuple, List, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from smatrix_2d.core.grid import GridSpecsV2, PhaseSpaceGridV2, create_phase_space_grid
 from smatrix_2d.core.materials import MaterialProperties2D
@@ -27,11 +27,10 @@ from smatrix_2d.core.escape_accounting import (
     EscapeAccounting,
     EscapeChannel as OldEscapeChannel,
     validate_conservation,
-    conservation_report,
 )
 from smatrix_2d.core.accounting import EscapeChannel  # IntEnum for GPU
 from smatrix_2d.operators.sigma_buckets import SigmaBuckets
-from smatrix_2d.operators.angular_scattering import AngularScatteringV2, AngularEscapeAccounting
+from smatrix_2d.operators.angular_scattering import AngularScatteringV2
 from smatrix_2d.operators.energy_loss import EnergyLossV2
 from smatrix_2d.operators.spatial_streaming import SpatialStreamingV2, StreamingResult
 from smatrix_2d.core.lut import StoppingPowerLUT
@@ -248,7 +247,7 @@ class TransportSimulationV2:
 
         # Initialize transport step operator
         if self._has_gpu:
-            from smatrix_2d.gpu.kernels import GPUTransportStepV3, create_gpu_transport_step_v3
+            from smatrix_2d.gpu.kernels import create_gpu_transport_step_v3
             self.transport_step = create_gpu_transport_step_v3(
                 grid=grid,
                 sigma_buckets=SigmaBuckets(

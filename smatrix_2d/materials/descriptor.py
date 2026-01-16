@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 import math
 
+# Import physics constants from core.constants (SSOT)
+from smatrix_2d.core.constants import AVOGADRO
+
 
 @dataclass
 class ElementComponent:
@@ -155,7 +158,8 @@ class MaterialDescriptor:
         Returns:
             Electron density [electrons/cm³]
         """
-        N_A = 6.02214076e23  # Avogadro's number [mol⁻¹]
+        # Use AVOGADRO from core.constants (SSOT)
+        N_A = AVOGADRO  # Avogadro's number [mol⁻¹]
 
         if self.composition:
             # Compound: weighted average

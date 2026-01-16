@@ -216,37 +216,12 @@ DEFAULT_DETERMINISM_LEVEL = 0
 # Material Defaults (Water)
 # =============================================================================
 
-# Water density (g/cm³)
-DEFAULT_WATER_DENSITY = 1.0
+# Water properties are now defined in core/constants.py (SSOT)
+# These are re-exported here for backward compatibility during migration.
+# New code should import directly from smatrix_2d.core.constants.
 
-# Water radiation length (g/cm²)
-DEFAULT_WATER_RADIATION_LENGTH = 36.08
-
-# Water mean excitation energy (MeV)
-DEFAULT_WATER_MEAN_EXCITATION_ENERGY = 75.0
-
-# Water atomic number and mass
-DEFAULT_WATER_Z = 7.42  # Effective Z for liquid water
-DEFAULT_WATER_A = 18.0  # Effective A for liquid water
-
-# =============================================================================
-# Physical Constants (re-exported for convenience)
-# =============================================================================
-
-# Speed of light (mm/s)
-C_LIGHT_MM = 299792458000.0
-
-# Proton rest mass (MeV/c²)
-PROTON_MASS_MEV = 938.27208816
-
-# Electron rest mass (MeV/c²)
-ELECTRON_MASS_MEV = 0.51099895
-
-# Elementary charge (C)
-E_CHARGE = 1.602176634e-19
-
-# Avogadro's number (mol⁻¹)
-AVOGADRO = 6.02214076e23
+# Backward compatibility aliases (note: DEFAULT_WATER_A is now 18.015, not 18.0)
+# The more precise value 18.015 is the correct atomic mass for water
 
 # =============================================================================
 # Deprecated Legacy Defaults (for compatibility)

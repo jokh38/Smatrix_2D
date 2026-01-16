@@ -7,7 +7,7 @@ to prevent numerical artifacts like zig-zag patterns.
 """
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 import math
 
 

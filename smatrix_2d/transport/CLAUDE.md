@@ -7,5 +7,10 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #173 | 11:27 AM | 🔵 | Transport simulation implements GPU-only runtime with zero-sync architecture | ~301 |
 | #83 | 11:05 AM | ✅ | Phase A validation suite fully implemented and passing | ~445 |
+| #69 | 8:21 AM | 🔵 | Legacy Transport Module Shows Dual EscapeChannel Usage Pattern | ~277 |
+| #56 | 8:18 AM | 🔵 | TransportSimulation Class Implements Complete Zero-Sync GPU Architecture with Conservation Reporting | ~414 |
+| #49 | 8:15 AM | 🔵 | Legacy Transport Module Marked Deprecated Uses Old Escape Accounting System | ~374 |
+| #42 | 8:12 AM | 🔵 | TransportSimulation Implements Zero-Sync GPU Architecture with Conservation Reporting | ~393 |
 </claude-mem-context>

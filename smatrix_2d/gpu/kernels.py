@@ -19,7 +19,6 @@ DO NOT use: from smatrix_2d.gpu.kernels import *
 """
 
 import numpy as np
-from typing import Tuple, Optional
 
 try:
     import cupy as cp
@@ -28,7 +27,6 @@ except ImportError:
     GPU_AVAILABLE = False
     cp = None
 
-from smatrix_2d.core.accounting import EscapeChannel
 
 
 # ============================================================================

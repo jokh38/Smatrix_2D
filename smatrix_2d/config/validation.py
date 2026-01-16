@@ -66,6 +66,111 @@ class ConfigValidator:
         ...     raise ConfigValidationError(errors)
     """
 
+    # =========================================================================
+    # Common Validation Helpers (SSOT for validation patterns)
+    # =========================================================================
+
+    def _validate_positive(
+        self, value: float, name: str, allow_zero: bool = False
+    ) -> list[str]:
+        """Validate that a numeric value is positive.
+
+        Args:
+            value: Value to validate
+            name: Parameter name for error messages
+            allow_zero: If True, zero is allowed (default: False)
+
+        Returns:
+            List of error messages (empty if valid)
+        """
+        errors = []
+        if allow_zero:
+            if value < 0:
+                errors.append(f"{name} must be >= 0, got {value}")
+        else:
+            if value <= 0:
+                errors.append(f"{name} must be > 0, got {value}")
+        return errors
+
+    def _validate_range(
+        self,
+        value: float,
+        name: str,
+        min_val: Optional[float] = None,
+        max_val: Optional[float] = None,
+        min_exclusive: bool = False,
+        max_exclusive: bool = False,
+    ) -> list[str]:
+        """Validate that a numeric value is within a specified range.
+
+        Args:
+            value: Value to validate
+            name: Parameter name for error messages
+            min_val: Minimum allowed value (None for no minimum)
+            max_val: Maximum allowed value (None for no maximum)
+            min_exclusive: If True, minimum is exclusive (value > min_val)
+            max_exclusive: If True, maximum is exclusive (value < max_val)
+
+        Returns:
+            List of error messages (empty if valid)
+        """
+        errors = []
+
+        if min_val is not None:
+            if min_exclusive:
+                if value <= min_val:
+                    errors.append(f"{name} ({value}) must be > {min_val}")
+            else:
+                if value < min_val:
+                    errors.append(f"{name} ({value}) must be >= {min_val}")
+
+        if max_val is not None:
+            if max_exclusive:
+                if value >= max_val:
+                    errors.append(f"{name} ({value}) must be < {max_val}")
+            else:
+                if value > max_val:
+                    errors.append(f"{name} ({value}) must be <= {max_val}")
+
+        return errors
+
+    def _validate_ordering(
+        self,
+        smaller: float,
+        larger: float,
+        smaller_name: str,
+        larger_name: str,
+        allow_equal: bool = False,
+    ) -> list[str]:
+        """Validate that two values are in the correct order.
+
+        Args:
+            smaller: Value that should be smaller
+            larger: Value that should be larger
+            smaller_name: Name of the smaller parameter
+            larger_name: Name of the larger parameter
+            allow_equal: If True, values can be equal
+
+        Returns:
+            List of error messages (empty if valid)
+        """
+        errors = []
+        if allow_equal:
+            if smaller > larger:
+                errors.append(
+                    f"{smaller_name} ({smaller}) must be <= {larger_name} ({larger})"
+                )
+        else:
+            if smaller >= larger:
+                errors.append(
+                    f"{smaller_name} ({smaller}) must be < {larger_name} ({larger})"
+                )
+        return errors
+
+    # =========================================================================
+    # Configuration-Specific Validation Methods
+    # =========================================================================
+
     def validate_energy_config(
         self, E_min: float, E_cutoff: float, E_max: float
     ) -> list[str]:
@@ -376,7 +481,6 @@ def auto_fix_config(config: SimulationConfig) -> SimulationConfig:
         This function modifies the input config in place and also returns it.
     """
     from copy import deepcopy
-    import dataclasses
 
     # Create a deep copy to avoid modifying the original
     fixed = deepcopy(config)
@@ -456,7 +560,7 @@ def validate_and_fix(config: SimulationConfig, auto_fix: bool = False) -> Simula
 
     if not is_valid:
         raise ConfigurationError(
-            f"Configuration validation failed. Errors cannot be auto-fixed:\n"
+            "Configuration validation failed. Errors cannot be auto-fixed:\n"
             + "\n".join(f"  - {err}" for err in errors)
         )
 
