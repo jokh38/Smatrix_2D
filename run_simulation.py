@@ -37,11 +37,11 @@ def load_config(config_path: str = "initial_info.yaml") -> dict:
     return config
 
 
-def export_detailed_csv(history, deposited_dose, grid, config, filename="proton_transport_steps.csv"):
+def export_detailed_csv(reports, deposited_dose, grid, config, filename="proton_transport_steps.csv"):
     """Export detailed step-by-step data to CSV.
 
     Args:
-        history: List of ConservationReport objects
+        reports: List of ConservationReport objects
         deposited_dose: 2D dose array [Nz, Nx]
         grid: PhaseSpaceGridV2 object
         config: Configuration dictionary
@@ -81,8 +81,8 @@ def export_detailed_csv(history, deposited_dose, grid, config, filename="proton_
         writer.writerow(header)
 
         # Write data for each step
-        for report in history:
-            # Calculate centroid statistics from history if available
+        for report in reports:
+            # Calculate centroid statistics from reports if available
             # Note: We'll get these from tracking during the run
             # New API uses escape_weights dict instead of escapes object
             theta_boundary = report.escape_weights.get(EscapeChannel.THETA_BOUNDARY, 0.0)
@@ -218,14 +218,14 @@ def analyze_profile_data(profile_data, grid, output_file="profile_analysis.txt")
     """Analyze profile data and write report.
 
     Args:
-        profile_data: List of 2D arrays [Nz, Nx] for each step
+        profile_data: List of 2D arrays [Nz, Nx] for each step (per-step dose)
         grid: PhaseSpaceGridV2 object
         output_file: Output text file
 
     """
     with open(output_file, "w") as f:
         f.write("=" * 70 + "\n")
-        f.write("PROTON TRANSPORT PROFILE ANALYSIS\n")
+        f.write("PROTON TRANSPORT PROFILE ANALYSIS (Per-Step Dose)\n")
         f.write("=" * 70 + "\n\n")
 
         f.write(f"Total steps: {len(profile_data)}\n")
@@ -247,35 +247,37 @@ def analyze_profile_data(profile_data, grid, output_file="profile_analysis.txt")
             dose_map = profile_data[step_idx]
 
             # Calculate statistics
-            total_weight = np.sum(dose_map)
-            max_weight = np.max(dose_map)
+            step_dose = np.sum(dose_map)
+            max_dose = np.max(dose_map)
             max_idx = np.unravel_index(np.argmax(dose_map), dose_map.shape)
             z_peak = grid.z_centers[max_idx[0]]
             x_peak = grid.x_centers[max_idx[1]]
 
             # Centroid
             z_coords, x_coords = np.meshgrid(grid.z_centers, grid.x_centers, indexing="ij")
-            z_centroid = np.sum(dose_map * z_coords) / total_weight if total_weight > 0 else 0
-            x_centroid = np.sum(dose_map * x_coords) / total_weight if total_weight > 0 else 0
+            z_centroid = np.sum(dose_map * z_coords) / step_dose if step_dose > 0 else 0
+            x_centroid = np.sum(dose_map * x_coords) / step_dose if step_dose > 0 else 0
 
             # RMS spread
-            z_rms = np.sqrt(np.sum(dose_map * (z_coords - z_centroid)**2) / total_weight) if total_weight > 0 else 0
-            x_rms = np.sqrt(np.sum(dose_map * (x_coords - x_centroid)**2) / total_weight) if total_weight > 0 else 0
+            z_rms = np.sqrt(np.sum(dose_map * (z_coords - z_centroid)**2) / step_dose) if step_dose > 0 else 0
+            x_rms = np.sqrt(np.sum(dose_map * (x_coords - x_centroid)**2) / step_dose) if step_dose > 0 else 0
 
             # Count non-zero elements
             non_zero_count = np.count_nonzero(dose_map > 1e-12)
 
             f.write(f"\nStep {step_num}:\n")
-            f.write(f"  Total weight: {total_weight:.6e}\n")
+            f.write(f"  Step dose: {step_dose:.6e} MeV\n")
             f.write(f"  Non-zero cells: {non_zero_count}\n")
-            f.write(f"  Peak weight: {max_weight:.6e} at (z={z_peak:.2f}mm, x={x_peak:.2f}mm)\n")
+            f.write(f"  Peak dose: {max_dose:.6e} MeV at (z={z_peak:.2f}mm, x={x_peak:.2f}mm)\n")
             f.write(f"  Centroid: (z={z_centroid:.2f}mm, x={x_centroid:.2f}mm)\n")
             f.write(f"  RMS spread: (z={z_rms:.3f}mm, x={x_rms:.3f}mm)\n")
 
             # Z-profile (depth dose)
             z_profile = np.sum(dose_map, axis=1)  # Sum over x
-            f.write(f"  Z-range with weight: [{grid.z_centers[np.where(z_profile > 0)[0][0]]:.1f}, "
-                   f"{grid.z_centers[np.where(z_profile > 0)[0][-1]]:.1f}] mm\n")
+            nonzero_z = np.where(z_profile > 0)[0]
+            if len(nonzero_z) > 0:
+                f.write(f"  Z-range with dose: [{grid.z_centers[nonzero_z[0]]:.1f}, "
+                       f"{grid.z_centers[nonzero_z[-1]]:.1f}] mm\n")
 
             # X-profile at peak z
             iz_peak = max_idx[0]
@@ -296,15 +298,15 @@ def analyze_profile_data(profile_data, grid, output_file="profile_analysis.txt")
         for step_idx in range(min(len(profile_data), 60)):  # First 60 steps
             step_num = step_idx + 1
             dose_map = profile_data[step_idx]
-            total_weight = np.sum(dose_map)
+            step_dose = np.sum(dose_map)
 
-            if total_weight < 1e-12:
+            if step_dose < 1e-12:
                 break
 
             z_coords, x_coords = np.meshgrid(grid.z_centers, grid.x_centers, indexing="ij")
-            z_centroid = np.sum(dose_map * z_coords) / total_weight
-            x_centroid = np.sum(dose_map * x_coords) / total_weight
-            x_rms = np.sqrt(np.sum(dose_map * (x_coords - x_centroid)**2) / total_weight)
+            z_centroid = np.sum(dose_map * z_coords) / step_dose
+            x_centroid = np.sum(dose_map * x_coords) / step_dose
+            x_rms = np.sqrt(np.sum(dose_map * (x_coords - x_centroid)**2) / step_dose)
 
             # Find x range
             x_profile = np.sum(dose_map, axis=0)
@@ -393,7 +395,7 @@ def export_summary_csv(deposited_dose, grid, z_peak, d_peak, fwhm,
 
 
 def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
-                          grid, z_peak, d_peak, idx_peak, history,
+                          grid, z_peak, d_peak, idx_peak, reports,
                           config, output_dir=None, dpi=150):
     """Save separate PNG figures for each plot.
 
@@ -405,7 +407,7 @@ def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
         z_peak: Bragg peak position
         d_peak: Peak dose
         idx_peak: Index of Bragg peak
-        history: Conservation history
+        reports: Conservation reports
         config: Configuration dictionary
         output_dir: Output directory for figures (defaults to 'output')
         dpi: Figure DPI
@@ -593,14 +595,12 @@ def main():
     print("\n[2] CREATING SIMULATION CONFIGURATION")
     print("-" * 70)
 
-    # Create grid configuration
+    # Create grid configuration (deltas are computed from boundaries and N)
     grid_config = GridConfig(
         Nx=Nx,
         Nz=Nz,
         Ntheta=Ntheta,
         Ne=Ne,
-        delta_x=delta_x,
-        delta_z=delta_z,
         x_min=x_min,
         x_max=x_max,
         z_min=z_min,
@@ -627,7 +627,7 @@ def main():
     )
 
     # Combine into simulation config
-    config = SimulationConfig(
+    sim_config = SimulationConfig(
         grid=grid_config,
         transport=transport_config,
         numerics=numerics_config,
@@ -644,7 +644,7 @@ def main():
     print("\n[3] CREATING TRANSPORT SIMULATION")
     print("-" * 70)
 
-    sim = create_simulation(config=config)
+    sim = create_simulation(config=sim_config)
     print("  ✓ Simulation created (GPU-only, zero-sync)")
 
     # ========================================================================
@@ -659,8 +659,11 @@ def main():
 
     # Track centroids for each step
     centroid_tracking = []
-    # Track full 2D profile for each step
+    # Track full 2D profile for each step (per-step dose, not cumulative)
     profile_tracking = []
+    # Track previous cumulative dose to compute per-step dose
+    previous_dose = np.zeros((sim.transport_step.sigma_buckets.grid.Nz,
+                               sim.transport_step.sigma_buckets.grid.Nx))
 
     for step in range(max_steps):
         report = sim.step()
@@ -680,11 +683,10 @@ def main():
         # Get grid for centroid calculations
         grid = sim.transport_step.sigma_buckets.grid
 
-        # Calculate centroid statistics
-        # deposited_dose already fetched above
-
-        # Save a copy of the 2D dose profile for this step
-        profile_tracking.append(deposited_dose.copy())
+        # Calculate per-step dose (delta from previous cumulative dose)
+        step_dose = deposited_dose - previous_dose
+        profile_tracking.append(step_dose.copy())
+        previous_dose = deposited_dose.copy()
 
         # Get all non-zero particles
         indices = np.where(psi > 1e-12)
@@ -714,11 +716,15 @@ def main():
             x_min, x_max = np.min(x_vals), np.max(x_vals)
             z_min, z_max = np.min(z_vals), np.max(z_vals)
 
-            # Find dose peak
-            max_dose = np.max(deposited_dose)
-            peak_indices = np.where(deposited_dose == max_dose)
-            z_peak = grid.z_centers[peak_indices[0][0]]
-            x_peak = grid.x_centers[peak_indices[1][0]]
+            # Find dose peak (using per-step dose, not cumulative)
+            max_dose = np.max(step_dose)
+            peak_indices = np.where(step_dose == max_dose)
+            if len(peak_indices[0]) > 0:
+                z_peak = grid.z_centers[peak_indices[0][0]]
+                x_peak = grid.x_centers[peak_indices[1][0]]
+            else:
+                z_peak = z_centroid
+                x_peak = x_centroid
         else:
             # No particles left
             x_centroid = z_centroid = theta_centroid = E_centroid = 0
@@ -788,7 +794,7 @@ def main():
     print("\n[8] BRAGG PEAK ANALYSIS")
     print("-" * 70)
 
-    deposited_dose = sim.get_deposited_energy()
+    deposited_dose = cp.asnumpy(sim.accumulators.get_dose_cpu())
     depth_dose = np.sum(deposited_dose, axis=1)  # Sum over x
     lateral_profile = np.sum(deposited_dose, axis=0)  # Sum over z
 
@@ -917,7 +923,7 @@ def main():
         analysis_file = output_dir / "profile_analysis.txt"
 
         # Export detailed step-by-step data
-        export_detailed_csv(history, deposited_dose, grid, config, filename=str(detailed_file))
+        export_detailed_csv(reports, deposited_dose, grid, config, filename=str(detailed_file))
         print(f"  ✓ Saved: {detailed_file}")
 
         # Export centroid tracking data
@@ -951,7 +957,7 @@ def main():
     if csv_cfg.get("enabled", True):
         save_separate_figures(
             depth_dose, deposited_dose, lateral_profile,
-            grid, z_peak, d_peak, idx_peak, history,
+            grid, z_peak, d_peak, idx_peak, reports,
             config, output_dir=output_dir, dpi=150,
         )
     else:
@@ -968,7 +974,7 @@ def main():
     print(f"  Peak dose: {d_peak:.4f} MeV")
     print(f"  Total steps: {len(reports)}")
     print(f"  Final weight: {final_weight:.6f}")
-    print(f"  Mass conservation: {'✓ PASS' if reports[-1].is_valid else '✗ FAIL'}")
+    print(f"  Mass conservation: {'✓ PASS' if reports and reports[-1].is_valid else '✗ FAIL'}")
     print("\n  Key features:")
     print("    ✓ NIST PSTAR stopping power LUT (not Bethe-Bloch formula)")
     print("    ✓ Sigma buckets for angular scattering")
