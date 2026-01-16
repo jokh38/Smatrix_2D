@@ -7,5 +7,37 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #78 | 8:24 AM | ✅ | GridSpecsV2 E_cutoff Default Changed from 1.0 to 2.0 for SSOT Compliance | ~326 |
+| #332 | 12:38 PM | 🔵 | Examined grid module to understand current uniform grid implementation | ~339 |
+| #181 | 11:29 AM | 🔵 | Core accounting system implements Policy-A with normalized kernel and physical-only escape channels for mass balance | ~325 |
+| #176 | 11:28 AM | 🔵 | Escape accounting system marked deprecated in favor of core/accounting.py with IntEnum and ConservationReport | ~339 |
+| #167 | 11:26 AM | 🔵 | Grid system review confirms SPEC v2.1 implementation with absolute angles and centered spatial domain | ~303 |
+| #163 | 11:25 AM | 🔵 | Grid system implements SPEC v2.1 with absolute angles, centered spatial domain, and GPU-optimized memory layout | ~305 |
+| #147 | 11:21 AM | 🟣 | Phase B-1: Tier-1 Scattering LUT Implementation Complete | ~303 |
+| #83 | 11:05 AM | ✅ | Phase A validation suite fully implemented and passing | ~445 |
+| #80 | 8:24 AM | 🔵 | New accounting.py Implements GPU-Compatible IntEnum with 5 Channels and Comprehensive Reporting | ~389 |
+| #79 | " | 🔵 | Legacy escape_accounting.py Uses String-Based Enum Incompatible with GPU Kernels | ~361 |
+| #78 | " | ✅ | GridSpecsV2 E_cutoff Default Changed from 1.0 to 2.0 for SSOT Compliance | ~326 |
+| #76 | 8:23 AM | 🔵 | GridSpecsV2 Dataclass Confirms Hardcoded Default Values Conflicting with SSOT | ~305 |
+| #41 | 8:11 AM | 🔵 | Legacy escape_accounting.py Uses String-Based Enum Instead of Integer Indices | ~385 |
+| #34 | 8:07 AM | 🔵 | Accounting Module Defines EscapeChannel IntEnum with GPU-Kernel Mapped Indices | ~413 |
+| #27 | 8:05 AM | 🔵 | Physics Constants Module Defines Domain-Specific Constants Separate from defaults.py | ~348 |
+| #26 | " | 🔵 | GridSpecsV2 Has Hardcoded E_cutoff=1.0 Default Violating SSOT Principle | ~379 |
+
+### Jan 16, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #874 | 4:11 AM | 🔄 | Code consolidation and deprecated module removal completed | ~586 |
+| #873 | 4:08 AM | 🔄 | Migrated codebase from deprecated legacy modules to modern GPU-only architecture | ~533 |
+| #666 | 3:00 AM | 🔄 | Water material creation refactored to use SSOT constants | ~308 |
+| #665 | " | 🔄 | Water material properties centralized to core.constants Single Source of Truth | ~313 |
+| #662 | " | 🟣 | Physics constants centralized in core/constants.py as SSOT | ~255 |
+| #660 | 2:59 AM | 🔵 | Physics constants module structure examined | ~292 |
+| #659 | " | 🔵 | Material properties constants examined in core/materials.py | ~142 |
+| #658 | " | 🔄 | Duplicate enum definitions consolidated to Single Source of Truth | ~313 |
+| #656 | " | 🔵 | Grid system implements SPEC v2.1 with dual EnergyGridType enums | ~438 |
+| #632 | 2:20 AM | 🔵 | Grid system implements SPEC v2.1 phase space discretization | ~358 |
+| #624 | 2:19 AM | 🔵 | Grid configuration architecture examined in core/grid.py | ~275 |
+| #586 | 2:08 AM | 🔄 | Refactored hardcoded data to external YAML configuration files | ~433 |
+| #585 | 2:07 AM | 🔵 | Data storage patterns analyzed in Smatrix_2D physics simulation codebase | ~390 |
 </claude-mem-context>

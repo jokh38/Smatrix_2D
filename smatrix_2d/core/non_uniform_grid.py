@@ -9,19 +9,13 @@ Design Principles:
 - Space: Uniform grid (to simplify spatial streaming operator)
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Tuple
 
 import numpy as np
 
-# SSOT: Import default spatial grid values from defaults.py
-from smatrix_2d.config.defaults import (
-    DEFAULT_DELTA_X,
-    DEFAULT_DELTA_Z,
-    DEFAULT_NX,
-    DEFAULT_NZ,
-    DEFAULT_SPATIAL_HALF_SIZE,
-)
+# SSOT: Import default spatial grid values from YAML config
+from smatrix_2d.config import get_default
 
 try:
     import cupy as cp
@@ -72,15 +66,15 @@ class NonUniformGridSpecs:
     theta_max: float = 120.0
     theta0: float = 90.0  # Beam direction
 
-    # Spatial grid (uniform) - SSOT: Use defaults from config.defaults
-    Nx: int = DEFAULT_NX
-    Nz: int = DEFAULT_NZ
-    x_min: float = -DEFAULT_SPATIAL_HALF_SIZE
-    x_max: float = DEFAULT_SPATIAL_HALF_SIZE
+    # Spatial grid (uniform) - SSOT: Use defaults from YAML config
+    Nx: int = field(default_factory=lambda: get_default('spatial_grid.nx'))
+    Nz: int = field(default_factory=lambda: get_default('spatial_grid.nz'))
+    x_min: float = field(default_factory=lambda: -get_default('spatial_grid.half_size'))
+    x_max: float = field(default_factory=lambda: get_default('spatial_grid.half_size'))
     z_min: float = 0.0
-    z_max: float = 2.0 * DEFAULT_SPATIAL_HALF_SIZE
-    delta_x: float = DEFAULT_DELTA_X
-    delta_z: float = DEFAULT_DELTA_Z
+    z_max: float = field(default_factory=lambda: 2.0 * get_default('spatial_grid.half_size'))
+    delta_x: float = field(default_factory=lambda: get_default('spatial_grid.delta_x'))
+    delta_z: float = field(default_factory=lambda: get_default('spatial_grid.delta_z'))
 
     # Energy grid (non-uniform)
     E_spacing_low: float = 0.2   # 2-10 MeV

@@ -14,7 +14,7 @@ from typing import Optional
 import numpy as np
 
 # Import default grid dimensions from config SSOT (R-CFG-001 compliance)
-from smatrix_2d.config.defaults import DEFAULT_NE, DEFAULT_NX, DEFAULT_NZ
+from smatrix_2d.config import get_default
 
 # Import enums from config.enums (SSOT for all enumerations)
 from smatrix_2d.config.enums import AngularGridType, EnergyGridType
@@ -69,8 +69,8 @@ class GridSpecsV2:
 
     E_min: float = 0.0
     E_max: float = 100.0
-    # Import from SSOT (defaults.py) - R-CFG-001 compliance
-    E_cutoff: float = 2.0  # DEFAULT_E_CUTOFF from config/defaults.py
+    # Import from SSOT (defaults.yaml) - R-CFG-001 compliance
+    E_cutoff: float = 2.0  # Default from config/defaults.yaml
 
     energy_grid_type: EnergyGridType = EnergyGridType.UNIFORM
     angular_grid_type: AngularGridType = AngularGridType.UNIFORM
@@ -498,10 +498,10 @@ def create_phase_space_grid(specs: GridSpecsV2) -> PhaseSpaceGridV2:
 
 
 def create_default_grid_specs(
-    Nx: int = DEFAULT_NX,
-    Nz: int = DEFAULT_NZ,
+    Nx: int | None = None,
+    Nz: int | None = None,
     Ntheta: int = 180,
-    Ne: int = DEFAULT_NE,
+    Ne: int | None = None,
     use_texture_memory: bool = False,
 ) -> GridSpecsV2:
     """Create default GridSpecsV2 following SPEC v2.1 baseline.
@@ -517,42 +517,38 @@ def create_default_grid_specs(
         GridSpecsV2 configured for SPEC v2.1 baseline grid
 
     """
-    # Import remaining default constants from config SSOT
-    from smatrix_2d.config.defaults import (
-        DEFAULT_DELTA_X,
-        DEFAULT_DELTA_Z,
-        DEFAULT_E_CUTOFF,
-        DEFAULT_E_MAX,
-        DEFAULT_E_MIN,
-        DEFAULT_SPATIAL_HALF_SIZE,
-        DEFAULT_THETA_MAX,
-        DEFAULT_THETA_MIN,
-    )
+    # Use defaults from YAML config if not specified
+    if Nx is None:
+        Nx = get_default('spatial_grid.nx')
+    if Nz is None:
+        Nz = get_default('spatial_grid.nz')
+    if Ne is None:
+        Ne = get_default('energy_grid.ne')
 
     return GridSpecsV2(
         Nx=Nx,
         Nz=Nz,
         Ntheta=Ntheta,
         Ne=Ne,
-        delta_x=DEFAULT_DELTA_X,
-        delta_z=DEFAULT_DELTA_Z,
-        x_min=-DEFAULT_SPATIAL_HALF_SIZE,
-        x_max=DEFAULT_SPATIAL_HALF_SIZE,
-        z_min=-DEFAULT_SPATIAL_HALF_SIZE,
-        z_max=DEFAULT_SPATIAL_HALF_SIZE,
-        theta_min=DEFAULT_THETA_MIN,
-        theta_max=DEFAULT_THETA_MAX,
-        E_min=DEFAULT_E_MIN,  # Use config SSOT (was 0.0, causing issues)
-        E_max=DEFAULT_E_MAX,
-        E_cutoff=DEFAULT_E_CUTOFF,  # Use config SSOT (was 1.0, too small)
+        delta_x=get_default('spatial_grid.delta_x'),
+        delta_z=get_default('spatial_grid.delta_z'),
+        x_min=-get_default('spatial_grid.half_size'),
+        x_max=get_default('spatial_grid.half_size'),
+        z_min=-get_default('spatial_grid.half_size'),
+        z_max=get_default('spatial_grid.half_size'),
+        theta_min=get_default('angular_grid.theta_min'),
+        theta_max=get_default('angular_grid.theta_max'),
+        E_min=get_default('energy_grid.e_min'),
+        E_max=get_default('energy_grid.e_max'),
+        E_cutoff=get_default('energy_grid.e_cutoff'),
         energy_grid_type=EnergyGridType.UNIFORM,
         use_texture_memory=use_texture_memory,
     )
 
 
 def create_non_uniform_grid_specs(
-    Nx: int = DEFAULT_NX,
-    Nz: int = DEFAULT_NZ,
+    Nx: int | None = None,
+    Nz: int | None = None,
     use_texture_memory: bool = False,
     theta0: float = 90.0,
 ) -> GridSpecsV2:
@@ -578,16 +574,11 @@ def create_non_uniform_grid_specs(
         the grid generation functions.
 
     """
-    from smatrix_2d.config.defaults import (
-        DEFAULT_DELTA_X,
-        DEFAULT_DELTA_Z,
-        DEFAULT_E_CUTOFF,
-        DEFAULT_E_MAX,
-        DEFAULT_E_MIN,
-        DEFAULT_SPATIAL_HALF_SIZE,
-        DEFAULT_THETA_MAX,
-        DEFAULT_THETA_MIN,
-    )
+    # Use defaults from YAML config if not specified
+    if Nx is None:
+        Nx = get_default('spatial_grid.nx')
+    if Nz is None:
+        Nz = get_default('spatial_grid.nz')
 
     # For non-uniform grids, use placeholder values for Ne, Ntheta
     # They will be overridden by grid generation
@@ -596,17 +587,17 @@ def create_non_uniform_grid_specs(
         Nz=Nz,
         Ntheta=100,  # Placeholder, actual count determined by non-uniform grid
         Ne=100,      # Placeholder, actual count determined by non-uniform grid
-        delta_x=DEFAULT_DELTA_X,
-        delta_z=DEFAULT_DELTA_Z,
-        x_min=-DEFAULT_SPATIAL_HALF_SIZE,
-        x_max=DEFAULT_SPATIAL_HALF_SIZE,
-        z_min=-DEFAULT_SPATIAL_HALF_SIZE,
-        z_max=DEFAULT_SPATIAL_HALF_SIZE,
-        theta_min=DEFAULT_THETA_MIN,
-        theta_max=DEFAULT_THETA_MAX,
-        E_min=DEFAULT_E_MIN,
-        E_max=DEFAULT_E_MAX,
-        E_cutoff=DEFAULT_E_CUTOFF,
+        delta_x=get_default('spatial_grid.delta_x'),
+        delta_z=get_default('spatial_grid.delta_z'),
+        x_min=-get_default('spatial_grid.half_size'),
+        x_max=get_default('spatial_grid.half_size'),
+        z_min=-get_default('spatial_grid.half_size'),
+        z_max=get_default('spatial_grid.half_size'),
+        theta_min=get_default('angular_grid.theta_min'),
+        theta_max=get_default('angular_grid.theta_max'),
+        E_min=get_default('energy_grid.e_min'),
+        E_max=get_default('energy_grid.e_max'),
+        E_cutoff=get_default('energy_grid.e_cutoff'),
         energy_grid_type=EnergyGridType.NON_UNIFORM,
         angular_grid_type=AngularGridType.NON_UNIFORM,
         use_texture_memory=use_texture_memory,

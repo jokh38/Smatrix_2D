@@ -1,0 +1,198 @@
+# Default Configuration for Smatrix_2D Simulation
+# This file contains ALL default values used throughout the simulation.
+# This is the Single Source of Truth (SSOT) for default configuration.
+#
+# To modify defaults, edit this YAML file. The Python module (defaults.py)
+# loads these values at runtime and exposes them as constants.
+#
+# Modification Policy:
+# - All defaults must be in this file
+# - Do not hardcode default values elsewhere in the codebase
+# - Use explicit imports: from smatrix_2d.config.defaults import DEFAULT_E_MIN, DEFAULT_E_CUTOFF
+
+# =============================================================================
+# Energy Grid Defaults
+# =============================================================================
+energy_grid:
+  # Minimum energy in the simulation grid (MeV)
+  # Note: Must be less than E_cutoff. A buffer of at least 1 MeV is recommended.
+  e_min: 1.0
+
+  # Energy cutoff threshold (MeV)
+  # Particles below this energy are considered stopped and contribute to dose.
+  # CRITICAL: E_cutoff must be > E_min to avoid numerical instability at grid edges.
+  e_cutoff: 2.0
+
+  # Maximum energy in the simulation grid (MeV)
+  # Should be set based on the beam energy. For a 70 MeV beam, use ~70-75 MeV.
+  e_max: 100.0
+
+  # Minimum buffer between E_min and E_cutoff (MeV)
+  # This buffer prevents numerical instability when E_cutoff is too close to E_min.
+  # Enforcement: E_cutoff >= E_min + E_BUFFER_MIN
+  e_buffer_min: 1.0
+
+  # Default number of energy bins
+  ne: 100
+
+# =============================================================================
+# Spatial Grid Defaults
+# =============================================================================
+spatial_grid:
+  # Spatial domain half-width (mm)
+  # The domain is [-SPATIAL_HALF_SIZE, +SPATIAL_HALF_SIZE] in both x and z
+  half_size: 50.0
+
+  # Default spatial resolution (mm)
+  delta_x: 1.0
+  delta_z: 1.0
+
+  # Default number of spatial grid points
+  # These are computed from domain size and resolution:
+  # Nx = 2 * SPATIAL_HALF_SIZE / delta_x
+  # Nz = 2 * SPATIAL_HALF_SIZE / delta_z
+  nx: 100
+  nz: 100
+
+  # Default boundary policy for spatial domain
+  boundary_policy: absorb
+
+# =============================================================================
+# Angular Grid Defaults
+# =============================================================================
+angular_grid:
+  # Angular domain (degrees)
+  # Using absolute angles [0, 180] rather than circular [-90, 90]
+  theta_min: 0.0
+  theta_max: 180.0
+
+  # Default angular resolution (degrees)
+  ntheta: 180
+
+  # Default boundary policy for angular domain
+  boundary_policy: absorb
+
+# =============================================================================
+# Transport Defaults
+# =============================================================================
+transport:
+  # Transport step size (mm)
+  # Should be <= min(delta_x, delta_z) to avoid bin-skipping artifacts
+  delta_s: 1.0
+
+  # Maximum number of transport steps
+  max_steps: 100
+
+  # Default number of sub-steps per operator
+  # Increasing this improves stability at the cost of performance
+  sub_steps: 1
+
+  # Default operator splitting method
+  splitting_type: first_order
+
+  # Default policy for handling backward-traveling particles
+  backward_transport_policy: hard_reject
+
+# =============================================================================
+# Numerical Defaults
+# =============================================================================
+numerical:
+  # Weight threshold for particle tracking
+  # Particles with weight below this are not tracked (variance reduction)
+  weight_threshold: 1.0e-10
+
+  # Minimum beta squared for Highland formula
+  # Prevents numerical issues at very low energies
+  beta_sq_min: 0.01
+
+# =============================================================================
+# Data Type Policies
+# =============================================================================
+dtypes:
+  # Primary phase space tensor dtype
+  # float32: Good balance of performance and precision (recommended for GPU)
+  # float64: Higher precision but 2x memory usage (use for validation/debug)
+  psi: float32
+
+  # Dose/deposited energy dtype
+  # float32: Sufficient for most clinical applications
+  # float64: Use for high-precision validation or research
+  dose: float32
+
+  # Accumulator dtype (escape channels, conservation tracking)
+  # float64: Required for accurate mass conservation tracking
+  # DO NOT change to float32 or you will lose conservation accuracy
+  acc: float64
+
+  # Stopping power LUT dtype
+  # float32: Sufficient precision for interpolation
+  lut: float32
+
+# =============================================================================
+# Sigma Bucket Defaults (Angular Scattering)
+# =============================================================================
+sigma_buckets:
+  # Number of sigma buckets for angular scattering kernel
+  # More buckets = more accurate but higher memory usage
+  n_buckets: 10
+
+  # Sigma cutoff for angular scattering (degrees)
+  # Scatter angles beyond this are truncated (THETA_CUTOFF escape)
+  theta_cutoff_deg: 45.0
+
+# =============================================================================
+# GPU Kernel Defaults
+# =============================================================================
+gpu_kernels:
+  # CUDA block size for 1D kernels
+  block_size_1d: 256
+
+  # CUDA block size for 2D kernels (x, y dimensions)
+  block_size_2d: [16, 16]
+
+  # CUDA block size for 3D kernels (x, y, z dimensions)
+  block_size_3d: [8, 8, 8]
+
+# =============================================================================
+# Synchronization Defaults
+# =============================================================================
+synchronization:
+  # Default sync interval for GPU->CPU data transfer
+  # 0: Only sync at the end of simulation (maximum performance)
+  # N > 0: Sync every N steps (for debugging/monitoring)
+  sync_interval: 0
+
+# =============================================================================
+# Tolerance Defaults (Validation)
+# =============================================================================
+tolerances:
+  # Mass conservation tolerance (relative error)
+  # Mass balance should be satisfied within this fraction
+  mass_conservance_rel: 1.0e-6
+
+  # Dose comparison tolerance (relative error)
+  # For golden snapshot comparison
+  dose_rel: 1.0e-4
+  dose_abs: 1.0e-6
+
+  # Escape channel tolerance (relative error)
+  # Escapes are more sensitive due to float64 accumulation
+  escape_rel: 1.0e-6
+  escape_abs: 1.0e-10
+
+# =============================================================================
+# Determinism Level Defaults
+# =============================================================================
+determinism:
+  # Default determinism level (see enums.py for details)
+  # 0 (FAST): Best performance, tolerance-based testing
+  level: 0
+
+# =============================================================================
+# Deprecated Legacy Defaults (for compatibility)
+# =============================================================================
+legacy:
+  # These are kept for backward compatibility during transition.
+  # DO NOT use in new code. Use the constants above instead.
+  e_min_old: 0.0  # Old default, causes E_min/E_cutoff conflict
+  e_cutoff_old: 1.0  # Old default, too close to E_min

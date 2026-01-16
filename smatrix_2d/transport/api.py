@@ -25,8 +25,7 @@ from typing import Optional, Union
 
 import numpy as np
 
-from smatrix_2d.config import SimulationConfig, create_validated_config
-from smatrix_2d.config.defaults import DEFAULT_NE, DEFAULT_NX, DEFAULT_NZ
+from smatrix_2d.config import SimulationConfig, create_validated_config, get_default
 from smatrix_2d.transport.simulation import (
     SimulationResult,
     create_simulation,
@@ -34,9 +33,9 @@ from smatrix_2d.transport.simulation import (
 
 
 def run_simulation(
-    Nx: int = DEFAULT_NX,
-    Nz: int = DEFAULT_NZ,
-    Ne: int = DEFAULT_NE,
+    Nx: int | None = None,
+    Nz: int | None = None,
+    Ne: int | None = None,
     Ntheta: int = 180,
     E_beam: float = 70.0,
     n_steps: int | None = None,
@@ -67,6 +66,14 @@ def run_simulation(
         >>> print(f"Max dose: {result.dose_final.max():.6e}")
 
     """
+    # Use defaults from YAML config if not specified
+    if Nx is None:
+        Nx = get_default('spatial_grid.nx')
+    if Nz is None:
+        Nz = get_default('spatial_grid.nz')
+    if Ne is None:
+        Ne = get_default('energy_grid.ne')
+
     # Create config if not provided
     if config is None:
         config = create_validated_config(
@@ -267,12 +274,15 @@ Examples:
     )
 
     # Grid parameters
-    parser.add_argument("--Nx", type=int, default=DEFAULT_NX,
-                       help=f"Number of x bins (default: {DEFAULT_NX})")
-    parser.add_argument("--Nz", type=int, default=DEFAULT_NZ,
-                       help=f"Number of z bins (default: {DEFAULT_NZ})")
-    parser.add_argument("--Ne", type=int, default=DEFAULT_NE,
-                       help=f"Number of energy bins (default: {DEFAULT_NE})")
+    _nx_default = get_default('spatial_grid.nx')
+    _nz_default = get_default('spatial_grid.nz')
+    _ne_default = get_default('energy_grid.ne')
+    parser.add_argument("--Nx", type=int, default=_nx_default,
+                       help=f"Number of x bins (default: {_nx_default})")
+    parser.add_argument("--Nz", type=int, default=_nz_default,
+                       help=f"Number of z bins (default: {_nz_default})")
+    parser.add_argument("--Ne", type=int, default=_ne_default,
+                       help=f"Number of energy bins (default: {_ne_default})")
     parser.add_argument("--Ntheta", type=int, default=180,
                        help="Number of angular bins (default: 180)")
 

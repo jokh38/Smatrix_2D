@@ -368,13 +368,8 @@ def create_gpu_operators(
     if not CUPY_AVAILABLE:
         raise RuntimeError("CuPy required for GPU operators")
 
-    # Get parameters from config or use defaults from config SSOT
-    from smatrix_2d.config.defaults import (
-        DEFAULT_E_CUTOFF,
-        DEFAULT_N_BUCKETS,
-        DEFAULT_SPATIAL_BOUNDARY_POLICY,
-        DEFAULT_THETA_CUTOFF_DEG,
-    )
+    # Get parameters from config or use defaults from YAML config
+    from smatrix_2d.config import get_default
 
     if config is not None:
         n_buckets = config.transport.n_buckets
@@ -383,10 +378,10 @@ def create_gpu_operators(
         boundary_mode = config.boundary.spatial.value
     else:
         # Use config SSOT defaults instead of hardcoded values
-        n_buckets = DEFAULT_N_BUCKETS
-        k_cutoff = DEFAULT_THETA_CUTOFF_DEG
-        E_cutoff = DEFAULT_E_CUTOFF
-        boundary_mode = DEFAULT_SPATIAL_BOUNDARY_POLICY
+        n_buckets = get_default('sigma_buckets.n_buckets')
+        k_cutoff = get_default('sigma_buckets.theta_cutoff_deg')
+        E_cutoff = get_default('energy_grid.e_cutoff')
+        boundary_mode = get_default('spatial_grid.boundary_policy')
 
     # Create operators
     angular = AngularScatteringGPU(

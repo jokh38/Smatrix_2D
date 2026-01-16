@@ -18,7 +18,7 @@ DO NOT use: from smatrix_2d.config.validation import *
 import warnings
 from typing import List, Optional, Tuple
 
-from smatrix_2d.config.defaults import DEFAULT_E_BUFFER_MIN
+from smatrix_2d.config.yaml_loader import get_default
 from smatrix_2d.config.simulation_config import SimulationConfig
 
 
@@ -204,10 +204,11 @@ class ConfigValidator:
 
         # Check 3: Minimum buffer enforcement
         buffer = E_cutoff - E_min
-        if buffer < DEFAULT_E_BUFFER_MIN:
+        _buffer_min = get_default('energy_grid.e_buffer_min')
+        if buffer < _buffer_min:
             errors.append(
                 f"E_cutoff - E_min buffer ({buffer:.2f} MeV) is below minimum "
-                f"({DEFAULT_E_BUFFER_MIN} MeV). This causes numerical instability "
+                f"({_buffer_min} MeV). This causes numerical instability "
                 "at grid edges. Increase E_cutoff or decrease E_min.",
             )
 
@@ -408,10 +409,11 @@ def warn_if_unsafe(config: SimulationConfig) -> list[str]:
 
     # Check 1: E_cutoff close to E_min
     buffer = config.grid.E_cutoff - config.grid.E_min
-    if buffer < DEFAULT_E_BUFFER_MIN * 2:
+    _buffer_min = get_default('energy_grid.e_buffer_min')
+    if buffer < _buffer_min * 2:
         warnings_list.append(
             f"E_cutoff - E_min buffer ({buffer:.2f} MeV) is close to minimum. "
-            f"Recommend at least {DEFAULT_E_BUFFER_MIN * 2:.1f} MeV buffer for safety.",
+            f"Recommend at least {_buffer_min * 2:.1f} MeV buffer for safety.",
         )
 
     # Check 2: Delta_s too large (bin-skipping risk)
@@ -492,11 +494,12 @@ def auto_fix_config(config: SimulationConfig) -> SimulationConfig:
 
     # Fix 1: E_cutoff too close to E_min
     buffer = fixed.grid.E_cutoff - fixed.grid.E_min
-    if buffer < DEFAULT_E_BUFFER_MIN:
-        fixed.grid.E_cutoff = fixed.grid.E_min + DEFAULT_E_BUFFER_MIN
+    _buffer_min = get_default('energy_grid.e_buffer_min')
+    if buffer < _buffer_min:
+        fixed.grid.E_cutoff = fixed.grid.E_min + _buffer_min
         warnings.warn(
             f"Auto-fixed E_cutoff from {config.grid.E_cutoff:.2f} to {fixed.grid.E_cutoff:.2f} "
-            f"to satisfy minimum buffer requirement ({DEFAULT_E_BUFFER_MIN} MeV)",
+            f"to satisfy minimum buffer requirement ({_buffer_min} MeV)",
             ConfigurationWarning,
             stacklevel=2,
         )

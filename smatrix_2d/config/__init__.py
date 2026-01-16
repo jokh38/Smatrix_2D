@@ -3,6 +3,16 @@
 This module provides the complete configuration system for Smatrix_2D.
 It is the Single Source of Truth (SSOT) for all simulation parameters.
 
+Default Configuration (loaded from defaults.yaml):
+    from smatrix_2d.config import get_default, get_defaults
+
+    # Get a specific default value by dotted key path
+    E_min = get_default('energy_grid.e_min')
+    Nx = get_default('spatial_grid.nx')
+
+    # Get the full configuration dictionary
+    all_defaults = get_defaults()
+
 Recommended Usage:
     from smatrix_2d.config import SimulationConfig, create_validated_config
     from smatrix_2d.config.enums import EnergyGridType, AngularGridType, BoundaryPolicy
@@ -17,9 +27,13 @@ Recommended Usage:
     )
 
     # Or build manually
-    from smatrix_2d.config import SimulationConfig, GridConfig
-    from smatrix_2d.config.defaults import DEFAULT_E_MIN, DEFAULT_E_CUTOFF, DEFAULT_E_MAX
-    grid = GridConfig(Nx=100, Nz=100, E_min=DEFAULT_E_MIN, E_cutoff=DEFAULT_E_CUTOFF, E_max=DEFAULT_E_MAX)
+    from smatrix_2d.config import SimulationConfig, GridConfig, get_default
+    grid = GridConfig(
+        Nx=100, Nz=100,
+        E_min=get_default('energy_grid.e_min'),
+        E_cutoff=get_default('energy_grid.e_cutoff'),
+        E_max=get_default('energy_grid.e_max')
+    )
     config = SimulationConfig(grid=grid)
 
 Import Policy:
@@ -28,7 +42,7 @@ Import Policy:
 
 Submodules:
     enums: Configuration enumerations (EnergyGridType, AngularGridType, BoundaryPolicy, etc.)
-    defaults: Default constants (DEFAULT_E_MIN, DEFAULT_E_CUTOFF, etc.)
+    yaml_loader: YAML configuration loader (get_default, get_defaults)
     simulation_config: Configuration dataclasses (GridConfig, TransportConfig, etc.)
     validation: Validation utilities (validate_config, check_invariants, etc.)
 """
@@ -41,6 +55,8 @@ from smatrix_2d.config.enums import (
     EnergyGridType,
     SplittingType,
 )
+# Import YAML loader functions first (no circular dependencies)
+from smatrix_2d.config.yaml_loader import get_default, get_defaults, reload_defaults
 from smatrix_2d.config.simulation_config import (
     BoundaryConfig,
     GridConfig,
@@ -56,6 +72,7 @@ from smatrix_2d.config.validation import (
     validate_config,
     warn_if_unsafe,
 )
+
 
 __all__ = [
     # Enums
@@ -79,4 +96,8 @@ __all__ = [
     "check_invariants",
     "warn_if_unsafe",
     "validate_and_fix",
+    # YAML defaults access
+    "get_default",
+    "get_defaults",
+    "reload_defaults",
 ]

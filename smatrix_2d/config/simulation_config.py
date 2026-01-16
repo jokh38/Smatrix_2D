@@ -12,35 +12,7 @@ DO NOT use: from smatrix_2d.config.simulation_config import *
 from dataclasses import dataclass, field
 from typing import Literal
 
-from smatrix_2d.config.defaults import (
-    ACC_DTYPE,
-    DEFAULT_ANGULAR_BOUNDARY_POLICY,
-    DEFAULT_BACKWARD_TRANSPORT_POLICY,
-    DEFAULT_BETA_SQ_MIN,
-    DEFAULT_DELTA_S,
-    DEFAULT_DETERMINISM_LEVEL,
-    DEFAULT_E_BUFFER_MIN,
-    DEFAULT_E_CUTOFF,
-    DEFAULT_E_MAX,
-    DEFAULT_E_MIN,
-    DEFAULT_MAX_STEPS,
-    DEFAULT_N_BUCKETS,
-    DEFAULT_NE,
-    DEFAULT_NTHETA,
-    DEFAULT_NX,
-    DEFAULT_NZ,
-    DEFAULT_SPATIAL_BOUNDARY_POLICY,
-    DEFAULT_SPATIAL_HALF_SIZE,
-    DEFAULT_SPLITTING_TYPE,
-    DEFAULT_SUB_STEPS,
-    DEFAULT_SYNC_INTERVAL,
-    DEFAULT_THETA_CUTOFF_DEG,
-    DEFAULT_THETA_MAX,
-    DEFAULT_THETA_MIN,
-    DEFAULT_WEIGHT_THRESHOLD,
-    DOSE_DTYPE,
-    PSI_DTYPE,
-)
+from smatrix_2d.config.yaml_loader import get_default
 from smatrix_2d.config.enums import (
     BackwardTransportPolicy,
     BoundaryPolicy,
@@ -71,23 +43,23 @@ class GridConfig:
     """
 
     # Spatial grid
-    Nx: int = DEFAULT_NX
-    Nz: int = DEFAULT_NZ
-    x_min: float = -DEFAULT_SPATIAL_HALF_SIZE
-    x_max: float = DEFAULT_SPATIAL_HALF_SIZE
-    z_min: float = -DEFAULT_SPATIAL_HALF_SIZE
-    z_max: float = DEFAULT_SPATIAL_HALF_SIZE
+    Nx: int = field(default_factory=lambda: get_default('spatial_grid.nx'))
+    Nz: int = field(default_factory=lambda: get_default('spatial_grid.nz'))
+    x_min: float = field(default_factory=lambda: -get_default('spatial_grid.half_size'))
+    x_max: float = field(default_factory=lambda: get_default('spatial_grid.half_size'))
+    z_min: float = field(default_factory=lambda: -get_default('spatial_grid.half_size'))
+    z_max: float = field(default_factory=lambda: get_default('spatial_grid.half_size'))
 
     # Angular grid
-    Ntheta: int = DEFAULT_NTHETA
-    theta_min: float = DEFAULT_THETA_MIN
-    theta_max: float = DEFAULT_THETA_MAX
+    Ntheta: int = field(default_factory=lambda: get_default('angular_grid.ntheta'))
+    theta_min: float = field(default_factory=lambda: get_default('angular_grid.theta_min'))
+    theta_max: float = field(default_factory=lambda: get_default('angular_grid.theta_max'))
 
     # Energy grid
-    Ne: int = DEFAULT_NE
-    E_min: float = DEFAULT_E_MIN
-    E_max: float = DEFAULT_E_MAX
-    E_cutoff: float = DEFAULT_E_CUTOFF
+    Ne: int = field(default_factory=lambda: get_default('energy_grid.ne'))
+    E_min: float = field(default_factory=lambda: get_default('energy_grid.e_min'))
+    E_max: float = field(default_factory=lambda: get_default('energy_grid.e_max'))
+    E_cutoff: float = field(default_factory=lambda: get_default('energy_grid.e_cutoff'))
     energy_grid_type: EnergyGridType = EnergyGridType.UNIFORM
 
     def validate(self) -> list[str]:
@@ -130,10 +102,11 @@ class GridConfig:
 
         # Buffer enforcement
         buffer = self.E_cutoff - self.E_min
-        if buffer < DEFAULT_E_BUFFER_MIN:
+        _buffer_min = get_default('energy_grid.e_buffer_min')
+        if buffer < _buffer_min:
             errors.append(
                 f"E_cutoff - E_min buffer ({buffer} MeV) is below minimum "
-                f"({DEFAULT_E_BUFFER_MIN} MeV). This causes numerical instability.",
+                f"({_buffer_min} MeV). This causes numerical instability.",
             )
 
         # E_cutoff must be < E_max
@@ -159,14 +132,16 @@ class TransportConfig:
 
     """
 
-    delta_s: float = DEFAULT_DELTA_S
-    max_steps: int = DEFAULT_MAX_STEPS
-    splitting_type: SplittingType = SplittingType(DEFAULT_SPLITTING_TYPE)
-    sub_steps: int = DEFAULT_SUB_STEPS
+    delta_s: float = field(default_factory=lambda: get_default('transport.delta_s'))
+    max_steps: int = field(default_factory=lambda: get_default('transport.max_steps'))
+    splitting_type: SplittingType = field(
+        default_factory=lambda: SplittingType(get_default('transport.splitting_type'))
+    )
+    sub_steps: int = field(default_factory=lambda: get_default('transport.sub_steps'))
 
     # Angular scattering parameters
-    n_buckets: int = DEFAULT_N_BUCKETS
-    k_cutoff_deg: float = DEFAULT_THETA_CUTOFF_DEG
+    n_buckets: int = field(default_factory=lambda: get_default('sigma_buckets.n_buckets'))
+    k_cutoff_deg: float = field(default_factory=lambda: get_default('sigma_buckets.theta_cutoff_deg'))
 
     def validate(self, grid: GridConfig) -> list[str]:
         """Validate transport configuration.
@@ -224,19 +199,27 @@ class NumericsConfig:
 
     """
 
-    weight_threshold: float = DEFAULT_WEIGHT_THRESHOLD
-    beta_sq_min: float = DEFAULT_BETA_SQ_MIN
+    weight_threshold: float = field(default_factory=lambda: get_default('numerical.weight_threshold'))
+    beta_sq_min: float = field(default_factory=lambda: get_default('numerical.beta_sq_min'))
 
     # Data type policies
-    psi_dtype: Literal["float32", "float64"] = PSI_DTYPE
-    dose_dtype: Literal["float32", "float64"] = DOSE_DTYPE
-    acc_dtype: Literal["float32", "float64"] = ACC_DTYPE
+    psi_dtype: Literal["float32", "float64"] = field(
+        default_factory=lambda: get_default('dtypes.psi')
+    )
+    dose_dtype: Literal["float32", "float64"] = field(
+        default_factory=lambda: get_default('dtypes.dose')
+    )
+    acc_dtype: Literal["float32", "float64"] = field(
+        default_factory=lambda: get_default('dtypes.acc')
+    )
 
     # Synchronization
-    sync_interval: int = DEFAULT_SYNC_INTERVAL
+    sync_interval: int = field(default_factory=lambda: get_default('synchronization.sync_interval'))
 
     # Determinism
-    determinism_level: DeterminismLevel = DeterminismLevel(DEFAULT_DETERMINISM_LEVEL)
+    determinism_level: DeterminismLevel = field(
+        default_factory=lambda: DeterminismLevel(get_default('determinism.level'))
+    )
 
     def validate(self) -> list[str]:
         """Validate numerical configuration.
@@ -276,10 +259,16 @@ class BoundaryConfig:
 
     """
 
-    spatial: BoundaryPolicy = BoundaryPolicy(DEFAULT_SPATIAL_BOUNDARY_POLICY)
-    angular: BoundaryPolicy = BoundaryPolicy(DEFAULT_ANGULAR_BOUNDARY_POLICY)
-    backward_transport: BackwardTransportPolicy = BackwardTransportPolicy(
-        DEFAULT_BACKWARD_TRANSPORT_POLICY,
+    spatial: BoundaryPolicy = field(
+        default_factory=lambda: BoundaryPolicy(get_default('spatial_grid.boundary_policy'))
+    )
+    angular: BoundaryPolicy = field(
+        default_factory=lambda: BoundaryPolicy(get_default('angular_grid.boundary_policy'))
+    )
+    backward_transport: BackwardTransportPolicy = field(
+        default_factory=lambda: BackwardTransportPolicy(
+            get_default('transport.backward_transport_policy')
+        )
     )
 
     def validate(self) -> list[str]:
@@ -401,57 +390,57 @@ class SimulationConfig:
         boundary_data = data.get("boundary", {})
 
         grid = GridConfig(
-            Nx=grid_data.get("Nx", DEFAULT_NX),
-            Nz=grid_data.get("Nz", DEFAULT_NZ),
-            x_min=grid_data.get("x_min", -DEFAULT_SPATIAL_HALF_SIZE),
-            x_max=grid_data.get("x_max", DEFAULT_SPATIAL_HALF_SIZE),
-            z_min=grid_data.get("z_min", -DEFAULT_SPATIAL_HALF_SIZE),
-            z_max=grid_data.get("z_max", DEFAULT_SPATIAL_HALF_SIZE),
-            Ntheta=grid_data.get("Ntheta", DEFAULT_NTHETA),
-            theta_min=grid_data.get("theta_min", DEFAULT_THETA_MIN),
-            theta_max=grid_data.get("theta_max", DEFAULT_THETA_MAX),
-            Ne=grid_data.get("Ne", DEFAULT_NE),
-            E_min=grid_data.get("E_min", DEFAULT_E_MIN),
-            E_max=grid_data.get("E_max", DEFAULT_E_MAX),
-            E_cutoff=grid_data.get("E_cutoff", DEFAULT_E_CUTOFF),
+            Nx=grid_data.get("Nx", get_default('spatial_grid.nx')),
+            Nz=grid_data.get("Nz", get_default('spatial_grid.nz')),
+            x_min=grid_data.get("x_min", -get_default('spatial_grid.half_size')),
+            x_max=grid_data.get("x_max", get_default('spatial_grid.half_size')),
+            z_min=grid_data.get("z_min", -get_default('spatial_grid.half_size')),
+            z_max=grid_data.get("z_max", get_default('spatial_grid.half_size')),
+            Ntheta=grid_data.get("Ntheta", get_default('angular_grid.ntheta')),
+            theta_min=grid_data.get("theta_min", get_default('angular_grid.theta_min')),
+            theta_max=grid_data.get("theta_max", get_default('angular_grid.theta_max')),
+            Ne=grid_data.get("Ne", get_default('energy_grid.ne')),
+            E_min=grid_data.get("E_min", get_default('energy_grid.e_min')),
+            E_max=grid_data.get("E_max", get_default('energy_grid.e_max')),
+            E_cutoff=grid_data.get("E_cutoff", get_default('energy_grid.e_cutoff')),
             energy_grid_type=parse_enum(
                 EnergyGridType, grid_data.get("energy_grid_type", "uniform"),
             ),
         )
 
         transport = TransportConfig(
-            delta_s=transport_data.get("delta_s", DEFAULT_DELTA_S),
-            max_steps=transport_data.get("max_steps", DEFAULT_MAX_STEPS),
+            delta_s=transport_data.get("delta_s", get_default('transport.delta_s')),
+            max_steps=transport_data.get("max_steps", get_default('transport.max_steps')),
             splitting_type=parse_enum(
                 SplittingType, transport_data.get("splitting_type", "first_order"),
             ),
-            sub_steps=transport_data.get("sub_steps", DEFAULT_SUB_STEPS),
-            n_buckets=transport_data.get("n_buckets", DEFAULT_N_BUCKETS),
-            k_cutoff_deg=transport_data.get("k_cutoff_deg", DEFAULT_THETA_CUTOFF_DEG),
+            sub_steps=transport_data.get("sub_steps", get_default('transport.sub_steps')),
+            n_buckets=transport_data.get("n_buckets", get_default('sigma_buckets.n_buckets')),
+            k_cutoff_deg=transport_data.get("k_cutoff_deg", get_default('sigma_buckets.theta_cutoff_deg')),
         )
 
         numerics = NumericsConfig(
-            weight_threshold=numerics_data.get("weight_threshold", DEFAULT_WEIGHT_THRESHOLD),
-            beta_sq_min=numerics_data.get("beta_sq_min", DEFAULT_BETA_SQ_MIN),
-            psi_dtype=numerics_data.get("psi_dtype", PSI_DTYPE),
-            dose_dtype=numerics_data.get("dose_dtype", DOSE_DTYPE),
-            acc_dtype=numerics_data.get("acc_dtype", ACC_DTYPE),
-            sync_interval=numerics_data.get("sync_interval", DEFAULT_SYNC_INTERVAL),
+            weight_threshold=numerics_data.get("weight_threshold", get_default('numerical.weight_threshold')),
+            beta_sq_min=numerics_data.get("beta_sq_min", get_default('numerical.beta_sq_min')),
+            psi_dtype=numerics_data.get("psi_dtype", get_default('dtypes.psi')),
+            dose_dtype=numerics_data.get("dose_dtype", get_default('dtypes.dose')),
+            acc_dtype=numerics_data.get("acc_dtype", get_default('dtypes.acc')),
+            sync_interval=numerics_data.get("sync_interval", get_default('synchronization.sync_interval')),
             determinism_level=DeterminismLevel(
-                numerics_data.get("determinism_level", DEFAULT_DETERMINISM_LEVEL),
+                numerics_data.get("determinism_level", get_default('determinism.level')),
             ),
         )
 
         boundary = BoundaryConfig(
             spatial=parse_enum(
-                BoundaryPolicy, boundary_data.get("spatial", DEFAULT_SPATIAL_BOUNDARY_POLICY),
+                BoundaryPolicy, boundary_data.get("spatial", get_default('spatial_grid.boundary_policy')),
             ),
             angular=parse_enum(
-                BoundaryPolicy, boundary_data.get("angular", DEFAULT_ANGULAR_BOUNDARY_POLICY),
+                BoundaryPolicy, boundary_data.get("angular", get_default('angular_grid.boundary_policy')),
             ),
             backward_transport=parse_enum(
                 BackwardTransportPolicy,
-                boundary_data.get("backward_transport", DEFAULT_BACKWARD_TRANSPORT_POLICY),
+                boundary_data.get("backward_transport", get_default('transport.backward_transport_policy')),
             ),
         )
 
