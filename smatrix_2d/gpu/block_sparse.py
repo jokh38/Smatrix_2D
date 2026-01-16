@@ -4,6 +4,13 @@ This module implements the Block-Sparse optimization with dual block masks
 for proper particle conservation. The key idea is to only process blocks
 that contain significant weight, skipping empty regions of phase space.
 
+CUDA kernels are loaded from external .cu files in the cuda_kernels/ subdirectory:
+- smatrix_2d/gpu/cuda_kernels/update_block_mask.cu
+- smatrix_2d/gpu/cuda_kernels/spatial_streaming_dual_mask.cu
+- smatrix_2d/gpu/cuda_kernels/spatial_streaming_block_level.cu
+- smatrix_2d/gpu/cuda_kernels/expand_halo.cu
+- smatrix_2d/gpu/cuda_kernels/angular_scattering_block_sparse.cu
+
 Block Definition (R-BSP-001):
 - Block size: 16x16 for spatial dimensions (z, x)
 - Block indexing: (iz // 16, ix // 16)
@@ -40,6 +47,15 @@ try:
 except ImportError:
     GPU_AVAILABLE = False
     cp = None
+
+# Import kernel loader for external CUDA files
+from smatrix_2d.gpu.cuda_kernels import (
+    load_angular_scattering_block_sparse_kernel,
+    load_expand_halo_dual_kernel,
+    load_spatial_streaming_block_level_kernel,
+    load_spatial_streaming_dual_mask_kernel,
+    load_update_block_mask_kernel,
+)
 
 
 # =============================================================================
@@ -355,10 +371,6 @@ class DualBlockMask:
         """
         return self.mask_in_gpu.ravel()
 
-
-# =============================================================================
-# CUDA Kernels
-# =============================================================================
 
 _update_block_mask_gpu_src = r"""
 extern "C" __global__
@@ -851,41 +863,12 @@ class BlockSparseGPUTransportStep:
         self._compile_kernels()
 
     def _compile_kernels(self):
-        """Compile CUDA kernels."""
-        # GPU block mask update
-        self.update_block_mask_gpu_kernel = cp.RawKernel(
-            _update_block_mask_gpu_src,
-            "update_block_mask_gpu_kernel",
-            options=("--use_fast_math",),
-        )
-
-        # Dual mask spatial streaming (original with early exit)
-        self.spatial_streaming_dual_kernel = cp.RawKernel(
-            _spatial_streaming_dual_mask_src,
-            "spatial_streaming_dual_mask",
-            options=("--use_fast_math",),
-        )
-
-        # Block-level spatial streaming (optimized - one block per active block)
-        self.spatial_streaming_block_level_kernel = cp.RawKernel(
-            _spatial_streaming_block_level_src,
-            "spatial_streaming_block_level",
-            options=("--use_fast_math",),
-        )
-
-        # Halo expansion
-        self.expand_halo_dual_kernel = cp.RawKernel(
-            _expand_halo_dual_src,
-            "expand_halo_dual_kernel",
-            options=("--use_fast_math",),
-        )
-
-        # Block-sparse angular scattering
-        self.angular_scattering_block_sparse_kernel = cp.RawKernel(
-            _angular_scattering_block_sparse_src,
-            "angular_scattering_block_sparse",
-            options=("--use_fast_math",),
-        )
+        """Compile CUDA kernels from external .cu files."""
+        self.update_block_mask_gpu_kernel = load_update_block_mask_kernel()
+        self.spatial_streaming_dual_kernel = load_spatial_streaming_dual_mask_kernel()
+        self.spatial_streaming_block_level_kernel = load_spatial_streaming_block_level_kernel()
+        self.expand_halo_dual_kernel = load_expand_halo_dual_kernel()
+        self.angular_scattering_block_sparse_kernel = load_angular_scattering_block_sparse_kernel()
 
     def update_block_mask_gpu(
         self,

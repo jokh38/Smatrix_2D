@@ -14,6 +14,8 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #878 | 4:13 AM | 🔵 | Embedded C++/CUDA code located in 8 Python files | ~252 |
+| #876 | " | 🔵 | C++ wrapper code structure in GPU module identified | ~320 |
 | #874 | 4:11 AM | 🔄 | Code consolidation and deprecated module removal completed | ~586 |
 | #873 | 4:08 AM | 🔄 | Migrated codebase from deprecated legacy modules to modern GPU-only architecture | ~533 |
 </claude-mem-context>
