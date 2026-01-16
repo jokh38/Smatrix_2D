@@ -232,28 +232,18 @@ class SigmaBuckets:
             np.linspace(0, 100, self.n_buckets + 1),
         )
 
-        # Ensure edges are unique
-        for i in range(len(bucket_edges) - 1):
-            if bucket_edges[i] == bucket_edges[i + 1]:
-                bucket_edges[i + 1] = bucket_edges[i] + 1e-12
-
-        # Create bucket mapping and compute bucket centers
-        self.bucket_idx_map = np.zeros_like(self.sigma_squared_map, dtype=int)
+        # Use searchsorted for consistent edge handling (fixes same-sigma quantization bug)
+        # searchsorted with side='right' returns the index where sigma should be inserted
+        # to maintain sorted order: bins[i-1] < x <= bins[i]
+        # This ensures identical sigma values always map to the same bucket
+        flat_sigma_map = self.sigma_squared_map.flatten()
+        bucket_ids = np.searchsorted(bucket_edges, flat_sigma_map, side='right') - 1
+        bucket_ids = np.clip(bucket_ids, 0, self.n_buckets - 1)
+        self.bucket_idx_map = bucket_ids.reshape(self.sigma_squared_map.shape)
 
         for bucket_id in range(self.n_buckets):
-            # Find sigma² values in this bucket
-            lower_edge = bucket_edges[bucket_id]
-            upper_edge = bucket_edges[bucket_id + 1]
-
-            # For the last bucket, include edge
-            if bucket_id == self.n_buckets - 1:
-                in_bucket = (self.sigma_squared_map >= lower_edge)
-            else:
-                in_bucket = (self.sigma_squared_map >= lower_edge) & \
-                           (self.sigma_squared_map < upper_edge)
-
-            # Assign bucket IDs
-            self.bucket_idx_map[in_bucket] = bucket_id
+            # Find sigma² values in this bucket (using the pre-computed bucket_idx_map)
+            in_bucket = (self.bucket_idx_map == bucket_id)
 
             # Compute bucket center: sigma_b = sqrt(mean of sigma² in bucket)
             sigma_squared_values = self.sigma_squared_map[in_bucket]
@@ -261,7 +251,9 @@ class SigmaBuckets:
                 mean_sigma_squared = np.mean(sigma_squared_values)
                 sigma_b = np.sqrt(mean_sigma_squared)
             else:
-                # Empty bucket - use midpoint
+                # Empty bucket - use midpoint of edges
+                lower_edge = bucket_edges[bucket_id]
+                upper_edge = bucket_edges[bucket_id + 1]
                 sigma_b = np.sqrt((lower_edge + upper_edge) / 2.0)
 
             # Initialize bucket info (kernels computed later)

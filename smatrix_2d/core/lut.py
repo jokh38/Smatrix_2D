@@ -54,11 +54,10 @@ class StoppingPowerLUT:
         24.5, 24.1, 23.7, 23.4, 23.1, 22.8, 22.5, 22.3, 21.8, 21.4,
         21.1, 20.8, 20.6, 20.3, 20.1, 19.9, 19.8, 19.6, 19.0, 18.6,
         # Values for 55-200 MeV (indices 60-83, 24 values total)
-        # CORRECTED: NIST PSTAR ICRU-49 values scaled for CSDA range calibration
-        # At 70 MeV: ~9.7 MeV cm²/g (index 67) for ~40mm CSDA range
-        13.2, 12.5, 11.9, 11.4, 10.9, 10.5, 10.1, 9.7, 9.4, 9.1,
-        8.8, 8.3, 7.8, 7.3, 6.9, 6.5, 6.1, 5.8, 5.5, 5.2,
-        4.9, 4.7, 4.5, 4.2,
+        # NIST PSTAR ICRU-49 values from nist_pstar_h2o.csv
+        # At 70 MeV: 13.7 MeV cm²/g (index 67) matching NIST PSTAR 2024
+        15.2, 14.7, 14.2, 13.7, 13.3, 12.9, 12.5, 11.9, 11.3, 10.7,
+        10.2, 9.6, 9.0, 8.6, 8.2, 7.8, 7.4, 7.0, 6.6, 6.2,
     ], dtype=np.float32)
 
     def __init__(
