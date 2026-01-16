@@ -158,6 +158,15 @@ class TransportSimulation:
         self.current_step = 0
         self.reports: list[ConservationReport] = []
 
+        # Report memory management
+        self._report_log_file = None
+        if self.config.numerics.report_log_path is not None:
+            self._report_log_file = open(self.config.numerics.report_log_path, 'w')
+            # Write CSV header
+            self._report_log_file.write(
+                "step,mass_in,mass_out,deposited_energy,residual,relative_error,is_valid\n"
+            )
+
     def _initialize_kernels(self):
         """Initialize GPU transport kernels with new accumulator API.
 
@@ -265,6 +274,30 @@ class TransportSimulation:
         psi_gpu[e_idx, theta_idx, z_idx, :] = beam_profile
 
         return psi_gpu
+
+    def _save_report_to_disk(self, report: ConservationReport) -> None:
+        """Save a conservation report to disk (optional).
+
+        If report_log_path is configured, writes the report as CSV.
+        Otherwise, this is a no-op (report is discarded).
+
+        Args:
+            report: Conservation report to save
+
+        """
+        if self._report_log_file is not None:
+            # Write as CSV line
+            line = (
+                f"{report.step_number},"
+                f"{report.mass_in:.10e},"
+                f"{report.mass_out:.10e},"
+                f"{report.deposited_energy:.10e},"
+                f"{report.residual:.10e},"
+                f"{report.relative_error:.10e},"
+                f"{report.is_valid}\n"
+            )
+            self._report_log_file.write(line)
+            self._report_log_file.flush()  # Ensure data is written
 
     def step(self) -> ConservationReport:
         """Execute one transport step on GPU.
@@ -387,6 +420,14 @@ class TransportSimulation:
                 break
 
             report = self.step()
+
+            # Memory management: keep only last N reports
+            max_reports = self.config.numerics.max_reports_in_memory
+            if max_reports is not None and len(self.reports) >= max_reports:
+                # Save oldest report to disk before removing
+                self._save_report_to_disk(self.reports[0])
+                self.reports.pop(0)
+
             self.reports.append(report)
 
             # Optional: Progress logging at sync_interval
@@ -443,11 +484,26 @@ class TransportSimulation:
         - All accumulators to zero
         - Step counter to 0
         - Clears reports
+        - Reopens report log file (if configured)
+
         """
         self.psi_gpu = self._initialize_beam_gpu()
         self.accumulators.reset()
         self.current_step = 0
         self.reports = []
+
+        # Reopen report log file if configured
+        if self._report_log_file is not None:
+            self._report_log_file.close()
+            self._report_log_file = open(self.config.numerics.report_log_path, 'w')
+            self._report_log_file.write(
+                "step,mass_in,mass_out,deposited_energy,residual,relative_error,is_valid\n"
+            )
+
+    def __del__(self):
+        """Cleanup: close report log file if open."""
+        if self._report_log_file is not None:
+            self._report_log_file.close()
 
 
 def create_simulation(

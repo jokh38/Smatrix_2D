@@ -195,6 +195,9 @@ class NumericsConfig:
         dose_dtype: Data type for dose/deposited energy
         acc_dtype: Data type for accumulators (MUST be float64 for conservation)
         sync_interval: GPU->CPU sync interval (0=end only, N=every N steps)
+        max_reports_in_memory: Maximum number of conservation reports to keep in memory
+            (None=keep all, N=keep last N reports, oldest are discarded or saved to disk)
+        report_log_path: Optional path to save discarded reports (None=discard oldest)
         determinism_level: Trade-off between performance and reproducibility
 
     """
@@ -215,6 +218,10 @@ class NumericsConfig:
 
     # Synchronization
     sync_interval: int = field(default_factory=lambda: get_default('synchronization.sync_interval'))
+
+    # Report memory management
+    max_reports_in_memory: int | None = field(default=100)
+    report_log_path: str | None = field(default=None)
 
     # Determinism
     determinism_level: DeterminismLevel = field(
@@ -244,6 +251,9 @@ class NumericsConfig:
 
         if self.sync_interval < 0:
             errors.append(f"sync_interval must be >= 0, got {self.sync_interval}")
+
+        if self.max_reports_in_memory is not None and self.max_reports_in_memory <= 0:
+            errors.append(f"max_reports_in_memory must be > 0 or None, got {self.max_reports_in_memory}")
 
         return errors
 
@@ -426,6 +436,8 @@ class SimulationConfig:
             dose_dtype=numerics_data.get("dose_dtype", get_default('dtypes.dose')),
             acc_dtype=numerics_data.get("acc_dtype", get_default('dtypes.acc')),
             sync_interval=numerics_data.get("sync_interval", get_default('synchronization.sync_interval')),
+            max_reports_in_memory=numerics_data.get("max_reports_in_memory", 100),
+            report_log_path=numerics_data.get("report_log_path", None),
             determinism_level=DeterminismLevel(
                 numerics_data.get("determinism_level", get_default('determinism.level')),
             ),
