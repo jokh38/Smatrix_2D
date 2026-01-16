@@ -38,6 +38,7 @@ from smatrix_2d.config.simulation_config import SimulationConfig, create_default
 from smatrix_2d.config.validation import validate_config
 from smatrix_2d.core.accounting import (
     ConservationReport,
+    compute_total_kinetic_energy_gpu,
     create_conservation_report,
     validate_conservation,
 )
@@ -202,6 +203,9 @@ class TransportSimulation:
 
         grid = create_phase_space_grid(specs)
 
+        # Store E_centers for kinetic energy computation (Plan 2: energy conservation)
+        self.E_centers = grid.E_centers
+
         # Create sigma buckets
         from smatrix_2d.core.constants import PhysicsConstants2D
         from smatrix_2d.core.materials import create_water_material
@@ -323,6 +327,11 @@ class TransportSimulation:
         # Record mass before step
         mass_in = float(cp.sum(self.psi_gpu))
 
+        # Record kinetic energy before step (Plan 2: energy conservation)
+        kinetic_energy_in = compute_total_kinetic_energy_gpu(
+            self.psi_gpu, self.E_centers
+        )
+
         # Apply complete transport step using GPU kernels
         self.psi_gpu = self.transport_step.apply(
             psi=self.psi_gpu,
@@ -331,6 +340,11 @@ class TransportSimulation:
 
         # Record mass after step
         mass_out = float(cp.sum(self.psi_gpu))
+
+        # Record kinetic energy after step (Plan 2: energy conservation)
+        kinetic_energy_out = compute_total_kinetic_energy_gpu(
+            self.psi_gpu, self.E_centers
+        )
 
         # Record step (if history enabled)
         if self.config.numerics.sync_interval > 0:
@@ -349,6 +363,8 @@ class TransportSimulation:
             mass_out=mass_out,
             escapes_gpu=self.accumulators.escapes_gpu,
             deposited_energy=float(cp.sum(self.accumulators.dose_gpu)),
+            kinetic_energy_in=kinetic_energy_in,
+            kinetic_energy_out=kinetic_energy_out,
             tolerance=1e-6,
         )
 

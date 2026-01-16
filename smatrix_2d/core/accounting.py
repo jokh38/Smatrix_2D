@@ -234,6 +234,8 @@ class ConservationReport:
         step_number: Transport step number
         mass_in: Total weight at start of step
         mass_out: Total weight remaining in domain
+        kinetic_energy_in: Total kinetic energy at start of step [MeV]
+        kinetic_energy_out: Total kinetic energy remaining in domain [MeV]
         escape_weights: Dict mapping EscapeChannel -> accumulated weight
         escape_energy: Dict mapping EscapeChannel -> escaped energy (optional)
         deposited_energy: Total energy deposited as dose
@@ -246,6 +248,8 @@ class ConservationReport:
     step_number: int = 0
     mass_in: float = 0.0
     mass_out: float = 0.0
+    kinetic_energy_in: float = 0.0
+    kinetic_energy_out: float = 0.0
     escape_weights: dict[EscapeChannel, float] = field(default_factory=dict)
     escape_energy: dict[EscapeChannel, float] = field(default_factory=dict)
     deposited_energy: float = 0.0
@@ -406,20 +410,20 @@ class ConservationReport:
             E_in = E_out + E_deposit + E_escape + E_residual
 
         Where:
-            E_in: Initial total kinetic energy (computed from particle states)
-            E_out: Final total kinetic energy remaining in domain
+            E_in: Initial total kinetic energy (from kinetic_energy_in field)
+            E_out: Final total kinetic energy remaining in domain (from kinetic_energy_out field)
             E_deposit: Energy deposited as dose (stopping power)
             E_escape: Energy carried by escaped particles
             E_residual: Numerical residual from floating-point errors
 
-        Note: This requires escape_energy to be populated during simulation.
-              Currently, escape_energy tracking is optional and may be empty.
-              When E_in = 0 (not tracked), relative_error is reported as 0.0.
+        Note: Energy tracking requires kinetic_energy_in and kinetic_energy_out
+              to be populated during simulation. When not tracked (values = 0),
+              relative_error is reported as 0.0.
 
         Returns:
             Dict containing:
-                - E_in: Initial energy (0.0 if not tracked)
-                - E_out: Final energy (0.0 if not tracked)
+                - E_in: Initial kinetic energy
+                - E_out: Final kinetic energy
                 - E_deposit: Deposited energy (dose)
                 - E_escape: Total escaped energy
                 - E_residual: Numerical residual
@@ -427,9 +431,9 @@ class ConservationReport:
                 - is_closed: Whether relative_error < 1e-5
 
         """
-        # Energy tracking is optional - compute closure if available
-        e_in = 0.0  # Would need to be computed from particle states
-        e_out = 0.0  # Would need to be computed from particle states
+        # Use actual kinetic energy values if tracked
+        e_in = self.kinetic_energy_in
+        e_out = self.kinetic_energy_out
         e_deposit = self.deposited_energy
         e_escape = self.total_escape_energy()
 
@@ -475,14 +479,15 @@ class ConservationReport:
         Validates the energy balance equation:
             E_in = E_out + E_deposit + E_escape
 
-        Note: Energy tracking is currently optional. When E_in = 0 (not tracked),
-              this returns True by default.
+        Note: When kinetic_energy_in = 0 (not tracked during simulation),
+              this returns True to avoid false negative validation.
 
         Args:
             tolerance: Maximum allowed relative error (default: 1e-5)
 
         Returns:
-            True if |E_in - E_out - E_deposit - E_escape| / E_in <= tolerance
+            True if |E_in - (E_out + E_deposit + E_escape)| / E_in <= tolerance
+            or True if energy tracking is not enabled (kinetic_energy_in = 0)
 
         """
         closure = self.compute_energy_closure()
@@ -505,6 +510,8 @@ class ConservationReport:
             "step_number": self.step_number,
             "mass_in": self.mass_in,
             "mass_out": self.mass_out,
+            "kinetic_energy_in": self.kinetic_energy_in,
+            "kinetic_energy_out": self.kinetic_energy_out,
             "deposited_energy": self.deposited_energy,
             "escape_weights": {CHANNEL_NAMES[k]: v for k, v in self.escape_weights.items()},
             "escape_energy": {CHANNEL_NAMES[k]: v for k, v in self.escape_energy.items()},
@@ -542,7 +549,9 @@ class ConservationReport:
 
         lines.extend([
             "",
-            "ENERGY:",
+            "ENERGY FLOW:",
+            f"  KE In:          {self.kinetic_energy_in:.6e}",
+            f"  KE Out:         {self.kinetic_energy_out:.6e}",
             f"  Deposited:      {self.deposited_energy:.6e}",
             "",
             "WEIGHT CLOSURE (Policy-A):",
@@ -552,6 +561,8 @@ class ConservationReport:
             f"  Closed:         {'YES' if weight_closure['is_closed'] else 'NO'}",
             "",
             "ENERGY CLOSURE:",
+            f"  E_in:           {energy_closure['E_in']:.6e}",
+            f"  E_out:          {energy_closure['E_out']:.6e}",
             f"  E_deposit:      {energy_closure['E_deposit']:.6e}",
             f"  E_escape:       {energy_closure['E_escape']:.6e}",
             f"  E_residual:     {energy_closure['E_residual']:.6e}",
@@ -669,12 +680,67 @@ def reset_gpu_accumulators(escapes_gpu: np.ndarray) -> None:
     escapes_gpu.fill(0.0)
 
 
+def compute_total_kinetic_energy(
+    psi: np.ndarray,
+    E_centers: np.ndarray,
+) -> float:
+    """Compute total kinetic energy in phase space.
+
+    For proton transport, the conserved quantity is ENERGY, not particle count.
+    This function computes the total kinetic energy by summing over all phase space bins:
+        E_total = Σ(i,j,k,l) ψ[i,j,k,l] × E_centers[i]
+
+    Where:
+        ψ: Phase space distribution [Ne, Ntheta, Nz, Nx]
+        E_centers: Energy bin centers [Ne]
+
+    Args:
+        psi: Phase space distribution array [Ne, Ntheta, Nz, Nx]
+        E_centers: Energy bin centers [MeV], shape (Ne,)
+
+    Returns:
+        Total kinetic energy [MeV] = sum(psi × E_centers)
+
+    """
+    # Broadcast E_centers to 4D shape [Ne, 1, 1, 1] and compute
+    E_4d = E_centers[:, np.newaxis, np.newaxis, np.newaxis]
+    return float(np.sum(psi * E_4d))
+
+
+def compute_total_kinetic_energy_gpu(
+    psi_gpu: "cp.ndarray",
+    E_centers: np.ndarray,
+) -> float:
+    """Compute total kinetic energy in phase space (GPU version).
+
+    GPU-optimized version of compute_total_kinetic_energy.
+
+    Args:
+        psi_gpu: CuPy phase space distribution array [Ne, Ntheta, Nz, Nx]
+        E_centers: Energy bin centers [MeV], shape (Ne,)
+
+    Returns:
+        Total kinetic energy [MeV] = sum(psi × E_centers)
+
+    """
+    try:
+        import cupy as cp
+        E_4d = cp.asarray(E_centers)[:, cp.newaxis, cp.newaxis, cp.newaxis]
+        return float(cp.sum(psi_gpu * E_4d))
+    except ImportError:
+        # Fall back to CPU if CuPy not available
+        psi_cpu = cp.asnumpy(psi_gpu) if hasattr(psi_gpu, "__cuda_array_interface__") else psi_gpu
+        return compute_total_kinetic_energy(psi_cpu, E_centers)
+
+
 def create_conservation_report(
     step_number: int,
     mass_in: float,
     mass_out: float,
     escapes_gpu: np.ndarray,
     deposited_energy: float = 0.0,
+    kinetic_energy_in: float = 0.0,
+    kinetic_energy_out: float = 0.0,
     tolerance: float = 1e-6,
 ) -> ConservationReport:
     """Create a conservation report from GPU accumulators.
@@ -687,6 +753,8 @@ def create_conservation_report(
         mass_out: Total weight remaining in domain
         escapes_gpu: GPU accumulator array [NUM_CHANNELS]
         deposited_energy: Total energy deposited as dose
+        kinetic_energy_in: Total kinetic energy at start of step [MeV]
+        kinetic_energy_out: Total kinetic energy remaining in domain [MeV]
         tolerance: Tolerance for conservation check
 
     Returns:
@@ -716,6 +784,8 @@ def create_conservation_report(
         step_number=step_number,
         mass_in=mass_in,
         mass_out=mass_out,
+        kinetic_energy_in=kinetic_energy_in,
+        kinetic_energy_out=kinetic_energy_out,
         escape_weights=escape_weights,
         escape_energy=escape_energy,
         deposited_energy=deposited_energy,
@@ -736,6 +806,8 @@ __all__ = [
     "create_gpu_accumulators",
     "reset_gpu_accumulators",
     "create_conservation_report",
+    "compute_total_kinetic_energy",
+    "compute_total_kinetic_energy_gpu",
     "CHANNEL_NAMES",
     # Policy-A constants
     "KERNEL_POLICY",
