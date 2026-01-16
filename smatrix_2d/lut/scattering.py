@@ -322,6 +322,7 @@ def load_scattering_lut(
     material: MaterialProperties2D,
     lut_dir: Path | None = None,
     regen: bool = False,
+    use_physics_data: bool = True,
 ) -> ScatteringLUT | None:
     """Load scattering LUT for material.
 
@@ -329,13 +330,15 @@ def load_scattering_lut(
 
     Loading priority:
     1. Memory cache (if previously loaded)
-    2. File cache (if exists on disk)
-    3. Regenerate from Highland formula (if regen=True)
+    2. Physics data processed directory (if use_physics_data=True)
+    3. Legacy file cache (if exists on disk)
+    4. Regenerate from Highland formula (if regen=True)
 
     Args:
         material: Material properties
-        lut_dir: LUT directory (default: data/lut/)
+        lut_dir: Legacy LUT directory (default: data/lut/)
         regen: Force regeneration from Highland formula
+        use_physics_data: Try to load from new physics_data module
 
     Returns:
         ScatteringLUT object, or None if LUT unavailable
@@ -348,7 +351,59 @@ def load_scattering_lut(
     if material.name in _lut_cache:
         return _lut_cache[material.name]
 
-    # Try to load from file
+    # Try to load from new physics_data module
+    if use_physics_data:
+        try:
+            from smatrix_2d.physics_data.processors.scattering import (
+                ScatteringDistributionData,
+                get_scattering_angle,
+            )
+
+            # Check for processed data file
+            processed_dir = Path("smatrix_2d/data/processed")
+            processed_path = processed_dir / f"scattering_{material.name.lower()}.npy"
+
+            if processed_path.exists():
+                data = ScatteringDistributionData.load(processed_path)
+
+                # Convert to ScatteringLUT format
+                # The distribution contains RMS scattering angles
+                sigma_norm = data.distribution  # This is RMS at each energy
+
+                # Normalize to per-sqrt(mm): sigma_norm = sigma / sqrt(1mm)
+                # Since our data is already for 1mm, it's already normalized
+
+                metadata = ScatteringLUTMetadata(
+                    material_name=material.name,
+                    energy_grid=(
+                        float(data.energy_grid[0]),
+                        float(data.energy_grid[-1]),
+                        len(data.energy_grid),
+                        "custom",
+                    ),
+                    generation_date=data.metadata.get("generate_date", ""),
+                    formula_version=data.model,
+                    checksum="",
+                )
+
+                lut = ScatteringLUT(
+                    material_name=material.name,
+                    E_grid=data.energy_grid,
+                    sigma_norm=sigma_norm,
+                    metadata=metadata,
+                )
+                _lut_cache[material.name] = lut
+                return lut
+
+        except ImportError:
+            pass  # physics_data module not available
+        except Exception as e:
+            warnings.warn(
+                f"Failed to load from physics_data module: {e}",
+                UserWarning, stacklevel=2,
+            )
+
+    # Try to load from legacy file
     filepath = lut_dir / f"scattering_lut_{material.name}.npy"
 
     if not regen and filepath.exists():
