@@ -31,31 +31,11 @@ except ImportError:
 
 try:
     from smatrix_2d.gpu.block_sparse import (
-        BlockMask,
         BlockSparseConfig,
+        DualBlockMask,
+        BlockSparseGPUTransportStep,
         compute_block_mask_from_psi,
         get_block_index,
-    )
-except ImportError:
-    pass
-
-try:
-    from smatrix_2d.gpu.dual_block_mask import (
-        DualBlockMask,
-    )
-except ImportError:
-    pass
-
-try:
-    from smatrix_2d.gpu.block_sparse_kernels import (
-        BlockSparseGPUTransportStep,
-    )
-except ImportError:
-    pass
-
-try:
-    from smatrix_2d.gpu.block_sparse_kernels_c2 import (
-        BlockSparseGPUTransportStepC2,
     )
 except ImportError:
     pass
