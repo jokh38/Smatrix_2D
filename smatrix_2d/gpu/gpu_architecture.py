@@ -31,6 +31,7 @@ Usage:
 import numpy as np
 from typing import Dict, Tuple, Optional, List
 from dataclasses import dataclass, field
+from pathlib import Path
 
 try:
     import cupy as cp
@@ -38,6 +39,12 @@ try:
 except ImportError:
     GPU_AVAILABLE = False
     cp = None
+
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
 
 
 # ============================================================================
@@ -90,282 +97,155 @@ class GPUProfile:
 
 
 # ============================================================================
-# Predefined GPU Profiles
+# GPU Profile Loader
 # ============================================================================
 
-PREDEFINED_GPU_PROFILES: Dict[str, GPUProfile] = {
-    # NVIDIA Ampere Architecture
-    'NVIDIA A100-SXM4-80GB': GPUProfile(
-        name='NVIDIA A100-SXM4-80GB',
-        compute_capability=(8, 0),
-        sm_count=108,
-        max_threads_per_sm=1536,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=163840,
-        max_shared_memory_per_block=163840,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=41943040,
-        memory_bandwidth=2039.0,
-        memory_clock=1593.0,
-        memory_bus_width=5120,
-    ),
-    'NVIDIA A100-SXM4-40GB': GPUProfile(
-        name='NVIDIA A100-SXM4-40GB',
-        compute_capability=(8, 0),
-        sm_count=108,
-        max_threads_per_sm=1536,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=163840,
-        max_shared_memory_per_block=163840,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=41943040,
-        memory_bandwidth=1555.0,
-        memory_clock=1215.0,
-        memory_bus_width=5120,
-    ),
-    'NVIDIA A100-PCIe-80GB': GPUProfile(
-        name='NVIDIA A100-PCIe-80GB',
-        compute_capability=(8, 0),
-        sm_count=108,
-        max_threads_per_sm=1536,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=163840,
-        max_shared_memory_per_block=163840,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=41943040,
-        memory_bandwidth=1935.0,
-        memory_clock=1593.0,
-        memory_bus_width=5120,
-    ),
+def _get_gpu_profiles_path() -> Path:
+    """Get the path to the GPU profiles YAML file.
 
-    # NVIDIA RTX 30 Series (Ampere)
-    'NVIDIA GeForce RTX 3090': GPUProfile(
-        name='NVIDIA GeForce RTX 3090',
-        compute_capability=(8, 6),
-        sm_count=82,
-        max_threads_per_sm=1536,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=102400,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=6291456,
-        memory_bandwidth=936.0,
-        memory_clock=1185.0,
-        memory_bus_width=384,
-    ),
-    'NVIDIA GeForce RTX 3080': GPUProfile(
-        name='NVIDIA GeForce RTX 3080',
-        compute_capability=(8, 6),
-        sm_count=68,
-        max_threads_per_sm=1536,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=102400,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=5242880,
-        memory_bandwidth=760.0,
-        memory_clock=1185.0,
-        memory_bus_width=320,
-    ),
-    'NVIDIA GeForce RTX 3070': GPUProfile(
-        name='NVIDIA GeForce RTX 3070',
-        compute_capability=(8, 6),
-        sm_count=46,
-        max_threads_per_sm=1536,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=102400,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=4194304,
-        memory_bandwidth=448.0,
-        memory_clock=1400.0,
-        memory_bus_width=256,
-    ),
+    Returns:
+        Path to gpu_profiles.yaml
 
-    # NVIDIA RTX 20 Series (Turing)
-    'NVIDIA GeForce RTX 2080 Ti': GPUProfile(
-        name='NVIDIA GeForce RTX 2080 Ti',
-        compute_capability=(7, 5),
-        sm_count=68,
-        max_threads_per_sm=1024,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=65536,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=6291456,
-        memory_bandwidth=616.0,
-        memory_clock=1400.0,
-        memory_bus_width=352,
-    ),
-    'NVIDIA GeForce RTX 2080': GPUProfile(
-        name='NVIDIA GeForce RTX 2080',
-        compute_capability=(7, 5),
-        sm_count=46,
-        max_threads_per_sm=1024,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=65536,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=4194304,
-        memory_bandwidth=448.0,
-        memory_clock=1400.0,
-        memory_bus_width=256,
-    ),
+    Raises:
+        FileNotFoundError: If YAML file is not found
+    """
+    # Try the module directory first
+    module_dir = Path(__file__).parent
+    yaml_path = module_dir / 'gpu_profiles.yaml'
 
-    # NVIDIA GTX 16 Series (Turing)
-    'NVIDIA GeForce GTX 1660 Ti': GPUProfile(
-        name='NVIDIA GeForce GTX 1660 Ti',
-        compute_capability=(7, 5),
-        sm_count=24,
-        max_threads_per_sm=1024,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=65536,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=3145728,
-        memory_bandwidth=288.0,
-        memory_clock=12000.0,  # Effective QDR
-        memory_bus_width=192,
-    ),
-    'NVIDIA GeForce GTX 1650': GPUProfile(
-        name='NVIDIA GeForce GTX 1650',
-        compute_capability=(7, 5),
-        sm_count=16,
-        max_threads_per_sm=1024,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=65536,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=2097152,
-        memory_bandwidth=128.0,
-        memory_clock=8000.0,  # Effective GDDR5
-        memory_bus_width=128,
-    ),
+    if yaml_path.exists():
+        return yaml_path
 
-    # NVIDIA Tesla/V100 (Volta)
-    'NVIDIA Tesla V100-SXM2-32GB': GPUProfile(
-        name='NVIDIA Tesla V100-SXM2-32GB',
-        compute_capability=(7, 0),
-        sm_count=80,
-        max_threads_per_sm=2048,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=98304,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=6291456,
-        memory_bandwidth=900.0,
-        memory_clock=877.0,
-        memory_bus_width=4096,
-    ),
+    # Fallback to package data location
+    import smatrix_2d
+    package_dir = Path(smatrix_2d.__file__).parent
+    yaml_path = package_dir / 'gpu' / 'gpu_profiles.yaml'
 
-    # NVIDIA T4 (Turing)
-    'NVIDIA Tesla T4': GPUProfile(
-        name='NVIDIA Tesla T4',
-        compute_capability=(7, 5),
-        sm_count=40,
-        max_threads_per_sm=1024,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=65536,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=4194304,
-        memory_bandwidth=320.0,
-        memory_clock=1250.0,
-        memory_bus_width=256,
-    ),
+    if yaml_path.exists():
+        return yaml_path
 
-    # NVIDIA GTX 10 Series (Pascal)
-    'NVIDIA GeForce GTX 1080 Ti': GPUProfile(
-        name='NVIDIA GeForce GTX 1080 Ti',
-        compute_capability=(6, 1),
-        sm_count=28,
-        max_threads_per_sm=2048,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=98304,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=2883584,
-        memory_bandwidth=484.0,
-        memory_clock=1376.0,
-        memory_bus_width=352,
-    ),
-    'NVIDIA GeForce GTX 1080': GPUProfile(
-        name='NVIDIA GeForce GTX 1080',
-        compute_capability=(6, 1),
-        sm_count=20,
-        max_threads_per_sm=2048,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=98304,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=2097152,
-        memory_bandwidth=320.0,
-        memory_clock=1250.0,
-        memory_bus_width=256,
-    ),
-    'NVIDIA GeForce GTX 1060': GPUProfile(
-        name='NVIDIA GeForce GTX 1060',
-        compute_capability=(6, 1),
-        sm_count=10,
-        max_threads_per_sm=2048,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=98304,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=2097152,
-        memory_bandwidth=192.0,
-        memory_clock=2002.0,  # Effective GDDR5
-        memory_bus_width=192,
-    ),
+    raise FileNotFoundError(
+        f"GPU profiles YAML file not found. Expected at {module_dir / 'gpu_profiles.yaml'}"
+    )
 
-    # NVIDIA P100 (Pascal)
-    'NVIDIA Tesla P100-PCIE-16GB': GPUProfile(
-        name='NVIDIA Tesla P100-PCIE-16GB',
-        compute_capability=(6, 0),
-        sm_count=56,
-        max_threads_per_sm=2048,
-        max_threads_per_block=1024,
-        warp_size=32,
-        max_shared_memory_per_sm=98304,
-        max_shared_memory_per_block=49152,
-        max_registers_per_sm=65536,
-        max_registers_per_block=65536,
-        l2_cache_size=4194304,
-        memory_bandwidth=732.0,
-        memory_clock=715.0,
-        memory_bus_width=4096,
-    ),
-}
+
+def _load_profile_from_dict(key: str, data: dict) -> GPUProfile:
+    """Create a GPUProfile from a YAML dict entry.
+
+    Args:
+        key: Profile identifier key
+        data: Dictionary of profile attributes
+
+    Returns:
+        GPUProfile instance
+    """
+    # Convert compute_capability list to tuple
+    cc = data.get('compute_capability', [0, 0])
+    if isinstance(cc, list):
+        compute_capability = (cc[0], cc[1])
+    else:
+        compute_capability = cc
+
+    return GPUProfile(
+        name=data.get('name', key),
+        compute_capability=compute_capability,
+        sm_count=data.get('sm_count', 1),
+        max_threads_per_sm=data.get('max_threads_per_sm', 1024),
+        max_threads_per_block=data.get('max_threads_per_block', 1024),
+        warp_size=data.get('warp_size', 32),
+        max_shared_memory_per_sm=data.get('max_shared_memory_per_sm', 65536),
+        max_shared_memory_per_block=data.get('max_shared_memory_per_block', 49152),
+        max_registers_per_sm=data.get('max_registers_per_sm', 65536),
+        max_registers_per_block=data.get('max_registers_per_block', 65536),
+        l2_cache_size=data.get('l2_cache_size', 4194304),
+        memory_bandwidth=data.get('memory_bandwidth', 600.0),
+        memory_clock=data.get('memory_clock', 1413.0),
+        memory_bus_width=data.get('memory_bus_width', 384),
+    )
+
+
+def load_gpu_profiles() -> Dict[str, GPUProfile]:
+    """Load GPU profiles from YAML file.
+
+    Returns:
+        Dictionary mapping profile names to GPUProfile instances
+
+    Raises:
+        FileNotFoundError: If YAML file is not found
+        ImportError: If PyYAML is not installed
+    """
+    if not YAML_AVAILABLE:
+        raise ImportError(
+            "PyYAML is required to load GPU profiles. "
+            "Install it with: pip install pyyaml"
+        )
+
+    yaml_path = _get_gpu_profiles_path()
+
+    with open(yaml_path, 'r') as f:
+        yaml_data = yaml.safe_load(f)
+
+    profiles = {}
+    for key, data in yaml_data.get('profiles', {}).items():
+        # Create profile with YAML key as identifier, store with display name as key
+        profile = _load_profile_from_dict(key, data)
+        profiles[profile.name] = profile
+
+    return profiles
+
+
+# Lazy-loaded profiles dict for backward compatibility
+_PREDEFINED_GPU_PROFILES_CACHE: Optional[Dict[str, GPUProfile]] = None
+
+
+def get_predefined_gpu_profiles() -> Dict[str, GPUProfile]:
+    """Get predefined GPU profiles (lazy-loaded from YAML).
+
+    This function maintains backward compatibility with the original
+    PREDEFINED_GPU_PROFILES dictionary while loading data from YAML.
+
+    Returns:
+        Dictionary mapping GPU names to GPUProfile instances
+    """
+    global _PREDEFINED_GPU_PROFILES_CACHE
+
+    if _PREDEFINED_GPU_PROFILES_CACHE is None:
+        _PREDEFINED_GPU_PROFILES_CACHE = load_gpu_profiles()
+
+    return _PREDEFINED_GPU_PROFILES_CACHE
+
+
+# Backward compatibility: expose as dict-like attribute
+class _ProfilesDict:
+    """Dict-like wrapper for backward compatibility."""
+
+    def __getitem__(self, key: str) -> GPUProfile:
+        return get_predefined_gpu_profiles()[key]
+
+    def get(self, key: str, default=None):
+        return get_predefined_gpu_profiles().get(key, default)
+
+    def __contains__(self, key: str) -> bool:
+        return key in get_predefined_gpu_profiles()
+
+    def __iter__(self):
+        return iter(get_predefined_gpu_profiles())
+
+    def __len__(self) -> int:
+        return len(get_predefined_gpu_profiles())
+
+    def keys(self):
+        return get_predefined_gpu_profiles().keys()
+
+    def values(self):
+        return get_predefined_gpu_profiles().values()
+
+    def items(self):
+        return get_predefined_gpu_profiles().items()
+
+
+# Expose as module-level dict for backward compatibility
+PREDEFINED_GPU_PROFILES = _ProfilesDict()
 
 
 # ============================================================================
@@ -900,6 +780,8 @@ __all__ = [
     'get_gpu_properties',
     'get_predefined_profile',
     'list_available_profiles',
+    'load_gpu_profiles',
+    'get_predefined_gpu_profiles',
     'OccupancyCalculator',
     'OptimalBlockSizeCalculator',
     'print_gpu_profile',

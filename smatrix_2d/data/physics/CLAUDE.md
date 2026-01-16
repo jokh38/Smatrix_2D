@@ -7,7 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #596 | 2:12 AM | 🔵 | Verified gpu_architecture module exports in package __init__.py | ~393 |
-| #587 | 2:09 AM | 🔄 | GPU profile data externalized from Python to YAML configuration | ~371 |
 | #586 | 2:08 AM | 🔄 | Refactored hardcoded data to external YAML configuration files | ~433 |
 </claude-mem-context>
