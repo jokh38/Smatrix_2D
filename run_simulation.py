@@ -618,6 +618,109 @@ def export_summary_csv(deposited_dose, grid, z_peak, d_peak, fwhm,
     return filename
 
 
+def export_lateral_profile_csv(psi_final, deposited_dose, grid, filename="lateral_profile_detailed.csv"):
+    """Export detailed lateral profile data for operator tracking.
+
+    For each z position, exports particle weight, dose, and theta distribution
+    across all x positions. This creates a 2D matrix that can be used to track
+    how operators transform the state vector.
+
+    Format:
+    - Header row with column names
+    - Data row: z_idx, z_mm, x_idx, x_mm, weight, dose, theta_mean, theta_rms
+
+    Args:
+        psi_final: Final phase space distribution [Ne, Ntheta, Nz, Nx]
+        deposited_dose: 2D dose array [Nz, Nx]
+        grid: PhaseSpaceGridV2 object
+        filename: Output CSV filename
+
+    Returns:
+        Path to output file
+    """
+    with open(filename, "w", newline="") as f:
+        writer = csv.writer(f)
+
+        # Write header
+        header = [
+            "z_idx",
+            "z_mm",
+            "x_idx",
+            "x_mm",
+            "particle_weight",  # Sum over Ne, Ntheta at this (z,x)
+            "deposited_dose",   # Dose at this (z,x)
+            "theta_mean_deg",   # Mean theta at this (z,x)
+            "theta_rms_deg",    # RMS theta at this (z,x)
+            "E_mean_MeV",       # Mean energy at this (z,x)
+            "E_rms_MeV",        # RMS energy at this (z,x)
+        ]
+        writer.writerow(header)
+
+        # Get grid arrays
+        z_centers = grid.z_centers
+        x_centers = grid.x_centers
+        th_centers_rad = grid.th_centers_rad
+        E_centers = grid.E_centers
+
+        Nz, Nx = grid.Nz, grid.Nx
+        Ntheta = grid.Ntheta
+        Ne = grid.Ne
+
+        # For each z position
+        for iz in range(Nz):
+            z_mm = z_centers[iz]
+            # For each x position
+            for ix in range(Nx):
+                x_mm = x_centers[ix]
+
+                # Extract phase space at this (z, x) position: [Ne, Ntheta]
+                psi_zx = psi_final[:, :, iz, ix]
+
+                # Sum over all dimensions to get total particle weight
+                weight = float(np.sum(psi_zx))
+
+                # Get deposited dose
+                dose = float(deposited_dose[iz, ix])
+
+                if weight > 1e-15:
+                    # Calculate theta statistics
+                    theta_weights = np.sum(psi_zx, axis=0)  # Sum over energy: [Ntheta]
+                    theta_mean_rad = np.sum(theta_weights * th_centers_rad) / weight
+                    theta_mean_deg = float(np.rad2deg(theta_mean_rad))
+
+                    theta_var = np.sum(theta_weights * (th_centers_rad - theta_mean_rad) ** 2) / weight
+                    theta_rms_deg = float(np.rad2deg(np.sqrt(theta_var)))
+
+                    # Calculate energy statistics
+                    E_weights = np.sum(psi_zx, axis=1)  # Sum over theta: [Ne]
+                    E_mean = float(np.sum(E_weights * E_centers) / weight)
+                    E_var = np.sum(E_weights * (E_centers - E_mean) ** 2) / weight
+                    E_rms = float(np.sqrt(E_var))
+                else:
+                    theta_mean_deg = 0.0
+                    theta_rms_deg = 0.0
+                    E_mean = 0.0
+                    E_rms = 0.0
+
+                row = [
+                    iz,
+                    f"{z_mm:.3f}",
+                    ix,
+                    f"{x_mm:.3f}",
+                    f"{weight:.8e}",
+                    f"{dose:.8e}",
+                    f"{theta_mean_deg:.3f}",
+                    f"{theta_rms_deg:.3f}",
+                    f"{E_mean:.3f}",
+                    f"{E_rms:.3f}",
+                ]
+                writer.writerow(row)
+
+    print(f"  ✓ Lateral profile CSV: {filename}")
+    print(f"    Shape: [{Nz} z positions] × [{Nx} x positions] = {Nz * Nx} rows")
+    return filename
+
+
 def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
                           grid, z_peak, d_peak, idx_peak, reports,
                           config, output_dir=None, dpi=150):
@@ -681,8 +784,32 @@ def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
         cmap="viridis",
     )
     plt.colorbar(im, ax=ax2, label="Dose [MeV]")
+
+    # Find beam center axis from data (weighted x-centroid at each depth)
+    x_center_axis = []
+    for iz in range(grid.Nz):
+        dose_slice = deposited_dose[iz, :]
+        total = np.sum(dose_slice)
+        if total > 0:
+            # Weighted centroid in x at this depth
+            x_centroid = np.sum(dose_slice * grid.x_centers) / total
+            x_center_axis.append(x_centroid)
+        else:
+            x_center_axis.append(0.0)
+
+    x_center_axis = np.array(x_center_axis)
+    # Overall beam center (average across depths where dose > 0)
+    valid_mask = np.sum(deposited_dose, axis=1) > 0
+    x_beam_center = float(np.mean(x_center_axis[valid_mask])) if np.any(valid_mask) else 0.0
+
+    # Plot Bragg Peak (vertical line)
     ax2.axvline(z_peak, linestyle="--", color="red", alpha=0.7,
                 label=f"Bragg Peak ({z_peak:.1f} mm)")
+
+    # Plot beam center axis (horizontal line at data-calculated center)
+    ax2.axhline(x_beam_center, linestyle="-.", color="yellow", alpha=0.8,
+                linewidth=1.5, label=f"Beam Center (x={x_beam_center:.2f} mm)")
+
     ax2.set_xlabel("Depth z [mm]")
     ax2.set_ylabel("Lateral x [mm]")
     ax2.set_title("2D Dose Distribution")
@@ -690,7 +817,7 @@ def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
     plt.tight_layout()
     plt.savefig(dose_map_file, dpi=dpi)
     plt.close()
-    print(f"  ✓ Saved: {dose_map_file}")
+    print(f"  ✓ Saved: {dose_map_file} (beam center at x={x_beam_center:.2f} mm)")
 
     # Figure 3: Lateral Spreading Analysis
     fig3, axes3 = plt.subplots(1, 2, figsize=(14, 5))
@@ -1062,13 +1189,13 @@ def main():
             # Keep on GPU - minimal CPU access
             weight_gpu = cp.sum(sim.psi_gpu)
             weight = float(weight_gpu)  # Only sync scalar
-            deposited_dose_gpu = sim.accumulators.get_dose_gpu()
+            deposited_dose_gpu = sim.accumulators.dose_gpu
             dose_gpu = cp.sum(deposited_dose_gpu)
             dose = float(dose_gpu)
             total_escape = 0.0  # Not synced every step
 
         # Calculate per-step dose on GPU (no CPU sync)
-        deposited_dose_gpu = sim.accumulators.get_dose_gpu()
+        deposited_dose_gpu = sim.accumulators.dose_gpu
         step_dose_gpu = deposited_dose_gpu - previous_dose_gpu
         previous_dose_gpu = deposited_dose_gpu.copy()
 
@@ -1124,6 +1251,10 @@ def main():
     final_weight = np.sum(final_psi)
     deposited_dose_cpu = cp.asnumpy(sim.accumulators.get_dose_cpu())
     final_dose = np.sum(deposited_dose_cpu)
+
+    # Export detailed lateral profile CSV for operator tracking
+    lateral_profile_file = output_dir / "lateral_profile_detailed.csv"
+    export_lateral_profile_csv(final_psi, deposited_dose_cpu, grid, filename=str(lateral_profile_file))
 
     # Get conservation reports (limit to last N to save memory)
     reports = sim.reports
