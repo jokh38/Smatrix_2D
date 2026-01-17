@@ -263,15 +263,17 @@ class TransportSimulation:
         theta_idx = self.config.grid.Ntheta // 2  # 90° is middle of [0, 180]
         e_idx = self.config.grid.Ne - 1  # E_max is last bin
 
-        # Gaussian profile in x (centered)
+        # Gaussian profile in x (centered at middle of x-domain)
         x = cp.linspace(
             self.config.grid.x_min,
             self.config.grid.x_max,
             self.config.grid.Nx,
             dtype=self.config.numerics.psi_dtype,
         )
+        # Beam center at middle of x-domain (e.g., x=6 mm for domain [0, 12])
+        x_center = (self.config.grid.x_min + self.config.grid.x_max) / 2.0
         sigma = 2.0  # 2 mm beam width
-        beam_profile = cp.exp(-0.5 * (x / sigma) ** 2)
+        beam_profile = cp.exp(-0.5 * ((x - x_center) / sigma) ** 2)
         beam_profile /= cp.sum(beam_profile)  # Normalize to unit weight
 
         # Set psi
