@@ -174,7 +174,7 @@ class TransportSimulation:
         Uses GPUTransportStepV3 which integrates with GPUAccumulators.
         """
         from smatrix_2d.core.grid import GridSpecsV2, create_phase_space_grid
-        from smatrix_2d.core.lut import StoppingPowerLUT
+        from smatrix_2d.core.lut import create_water_stopping_power_lut
         from smatrix_2d.gpu.kernels import create_gpu_transport_step_v3
         from smatrix_2d.operators.sigma_buckets import SigmaBuckets
 
@@ -222,8 +222,8 @@ class TransportSimulation:
             delta_s=self.config.transport.delta_s,
         )
 
-        # Create stopping power LUT
-        stopping_power_lut = StoppingPowerLUT()
+        # Create stopping power LUT (load from processed file for higher resolution)
+        stopping_power_lut = create_water_stopping_power_lut()
 
         # Create GPU transport step V3
         self.transport_step = create_gpu_transport_step_v3(

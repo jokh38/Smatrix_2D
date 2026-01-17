@@ -29,6 +29,7 @@ import yaml
 # Add project to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+from smatrix_2d.config.enums import EnergyGridType
 from smatrix_2d.config.simulation_config import (
     GridConfig,
     NumericsConfig,
@@ -1057,6 +1058,7 @@ def main():
     print("-" * 70)
 
     # Create grid configuration (deltas are computed from boundaries and N)
+    # Use NON_UNIFORM energy grid for better Bragg peak resolution
     grid_config = GridConfig(
         Nx=Nx,
         Nz=Nz,
@@ -1071,6 +1073,7 @@ def main():
         E_min=E_min,
         E_max=E_max,
         E_cutoff=E_cutoff,
+        energy_grid_type=EnergyGridType.NON_UNIFORM,
     )
 
     # Create transport configuration

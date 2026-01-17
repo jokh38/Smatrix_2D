@@ -13,4 +13,10 @@
 | #1063 | 12:36 PM | 🔵 | Physics model implementations located in multiple modules | ~225 |
 | #1061 | " | 🔵 | Material support infrastructure spans multiple modules | ~318 |
 | #977 | 9:41 AM | 🔵 | Fetchers module provides NIST PSTAR and PDG data acquisition | ~219 |
+
+### Jan 17, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #1247 | 12:25 AM | 🔵 | Root Cause: GPU Transport Operator Missing Energy Loss Logic | ~191 |
 </claude-mem-context>

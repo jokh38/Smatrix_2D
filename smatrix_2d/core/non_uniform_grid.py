@@ -77,9 +77,10 @@ class NonUniformGridSpecs:
     delta_z: float = field(default_factory=lambda: get_default('spatial_grid.delta_z'))
 
     # Energy grid (non-uniform)
-    E_spacing_low: float = 0.2   # 2-10 MeV
-    E_spacing_mid: float = 0.5   # 10-30 MeV
-    E_spacing_high: float = 2.0  # 30-70 MeV
+    E_spacing_very_low: float = 0.1  # E_min to 2 MeV (Bragg peak region)
+    E_spacing_low: float = 0.2       # 2-10 MeV
+    E_spacing_mid: float = 0.5       # 10-30 MeV
+    E_spacing_high: float = 2.0      # 30-70 MeV
 
     # Angular grid (non-uniform)
     theta_core_range: float = 10.0  # ±5 degrees from theta0
@@ -92,16 +93,18 @@ def create_non_uniform_energy_grid(
     E_min: float,
     E_max: float,
     E_cutoff: float,
-    spacing_low: float = 0.2,
-    spacing_mid: float = 0.5,
-    spacing_high: float = 2.0,
+    spacing_very_low: float = 0.1,  # NEW: E_min to 2 MeV (Bragg peak region)
+    spacing_low: float = 0.2,  # 2-10 MeV
+    spacing_mid: float = 0.5,  # 10-30 MeV
+    spacing_high: float = 2.0,  # 30-70 MeV
 ) -> tuple[np.ndarray, np.ndarray, int]:
     """Create non-uniform energy grid.
 
     Energy grid is finer near the cutoff (Bragg peak region) and coarser
     at high energies where particles have more energy and scatter less.
 
-    Grid specification (from R-GRID-E-001):
+    Grid specification (extended for Bragg peak):
+    - E_min to 2 MeV: spacing_very_low (default 0.1 MeV) - Bragg peak formation
     - 2-10 MeV: 0.2 MeV spacing (40 bins)
     - 10-30 MeV: 0.5 MeV spacing (40 bins)
     - 30-70 MeV: 2.0 MeV spacing (20 bins)
@@ -110,6 +113,7 @@ def create_non_uniform_energy_grid(
         E_min: Minimum energy (MeV)
         E_max: Maximum energy (MeV)
         E_cutoff: Energy cutoff for particle stopping (MeV)
+        spacing_very_low: Energy spacing for very low range (E_min to 2 MeV)
         spacing_low: Energy spacing for low range (2-10 MeV)
         spacing_mid: Energy spacing for mid range (10-30 MeV)
         spacing_high: Energy spacing for high range (30-70 MeV)
@@ -122,10 +126,7 @@ def create_non_uniform_energy_grid(
 
     """
     # Define region boundaries
-    if E_cutoff < 2.0:
-        E_low_min = 2.0
-    else:
-        E_low_min = E_cutoff
+    E_very_low_max = 2.0  # NEW: Bragg peak region boundary
     E_low_max = 10.0
     E_mid_max = 30.0
 
@@ -136,9 +137,17 @@ def create_non_uniform_energy_grid(
     # Create energy edges for each region
     edges = []
 
-    # Low energy region (near Bragg peak) - finest resolution
-    if E_low_min < E_low_max:
-        E_low = np.arange(E_low_min, min(E_low_max, E_max) + spacing_low/2, spacing_low)
+    # Very low energy region (E_min to 2 MeV) - finest resolution for Bragg peak
+    if E_min < E_very_low_max:
+        E_very_low = np.arange(E_min, min(E_very_low_max, E_max) + spacing_very_low/2, spacing_very_low)
+        edges.extend(E_very_low.tolist())
+
+    # Low energy region (2-10 MeV) - fine resolution
+    if E_very_low_max < E_low_max:
+        # Include E_very_low_max if not already included
+        if len(edges) == 0 or edges[-1] < E_very_low_max:
+            edges.append(E_very_low_max)
+        E_low = np.arange(E_very_low_max, min(E_low_max, E_max) + spacing_low/2, spacing_low)
         edges.extend(E_low.tolist())
 
     # Mid energy region - medium resolution
@@ -293,6 +302,7 @@ def create_non_uniform_grids(
         E_min=specs.E_min,
         E_max=specs.E_max,
         E_cutoff=specs.E_cutoff,
+        spacing_very_low=specs.E_spacing_very_low,
         spacing_low=specs.E_spacing_low,
         spacing_mid=specs.E_spacing_mid,
         spacing_high=specs.E_spacing_high,

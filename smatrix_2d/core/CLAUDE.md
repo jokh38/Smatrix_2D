@@ -10,7 +10,12 @@
 | #970 | 8:49 AM | 🔵 | NIST PSTAR data embedded directly in code | ~256 |
 | #967 | " | 🔵 | Located physics data retrieval in 3 files | ~160 |
 | #958 | 8:35 AM | 🟣 | YAML Configuration Migration: Foundation Implemented, System in Transitional State | ~858 |
-| #928 | 8:16 AM | 🔵 | Configuration Import Pattern in Non-Uniform Grid Module | ~398 |
 | #864 | 4:03 AM | ✅ | Updated core package __all__ exports to use modern accounting API | ~326 |
 | #857 | 4:02 AM | 🔵 | Extensive deprecation documentation and legacy code patterns identified across codebase | ~416 |
+
+### Jan 17, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #1235 | 12:07 AM | ✅ | Committed beam center and visualization improvements | ~287 |
 </claude-mem-context>
