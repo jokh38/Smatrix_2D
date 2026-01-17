@@ -5,6 +5,7 @@ physics data, particularly stopping power data from NIST PSTAR.
 These LUTs are designed for efficient GPU texture/constant memory usage.
 """
 
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -213,7 +214,7 @@ class StoppingPowerLUT:
 def create_water_stopping_power_lut() -> StoppingPowerLUT:
     """Create stopping power LUT for protons in liquid water.
 
-    Uses default NIST PSTAR data with energy range 0.01-100 MeV.
+    Loads from processed file if available, otherwise uses default NIST PSTAR data.
 
     Returns:
         StoppingPowerLUT for liquid water
@@ -223,4 +224,15 @@ def create_water_stopping_power_lut() -> StoppingPowerLUT:
         >>> S_100MeV = lut.get_stopping_power(100.0)
 
     """
+    # Try to load from processed file first (higher resolution)
+    processed_path = Path("smatrix_2d/data/processed/stopping_power_water.npy")
+
+    if processed_path.exists():
+        data = np.load(processed_path, allow_pickle=True).item()
+        return StoppingPowerLUT(
+            energy_grid=data["energy_grid"],
+            stopping_power=data["stopping_power"],
+        )
+
+    # Fall back to hardcoded NIST data
     return StoppingPowerLUT()

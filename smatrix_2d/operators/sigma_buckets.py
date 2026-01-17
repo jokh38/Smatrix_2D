@@ -105,9 +105,16 @@ class SigmaBuckets:
         if use_lut and self.sigma_lut is None:
             try:
                 from smatrix_2d.lut.scattering import load_scattering_lut
-                self.sigma_lut = load_scattering_lut(material, regen=True)
+                self.sigma_lut = load_scattering_lut(material, regen=False)
                 if self.sigma_lut is not None:
                     self._using_lut = True
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"Loaded scattering LUT: E=[{self.sigma_lut.E_grid[0]:.3f}, {self.sigma_lut.E_grid[-1]:.1f}] MeV")
+                else:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning("Scattering LUT load returned None, using Highland formula")
             except ImportError:
                 warnings.warn(
                     "Scattering LUT module not available, falling back to Highland formula",

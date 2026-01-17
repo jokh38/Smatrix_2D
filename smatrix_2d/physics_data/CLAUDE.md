@@ -7,6 +7,9 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #1078 | 12:38 PM | ✅ | Committed configuration refactoring with context preservation | ~296 |
+| #1041 | 12:34 PM | 🔴 | Fixed CLI data path resolution bug | ~281 |
+| #1039 | " | 🔵 | CLI path resolution bug identified | ~275 |
 | #976 | 9:41 AM | 🔵 | Physics data module exports core fetching and processing functions | ~246 |
 | #975 | " | 🔵 | CLI provides physics data fetching and LUT generation commands | ~287 |
 </claude-mem-context>

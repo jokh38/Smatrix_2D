@@ -63,10 +63,10 @@ grid:
 
   # Energy grid (energy loss straggling)
   energy:
-    min: 1.0             # MeV
+    min: 0.1             # MeV (extended to capture Bragg peak formation)
     max: 70.0            # MeV
     delta: 0.2           # MeV
-    cutoff: 2.0          # MeV (particles below this energy are absorbed)
+    cutoff: 1.1          # MeV (particles below this energy are absorbed - E_cutoff - E_min >= 1.0 for stability)
     unit: MeV
     description: "Energy loss domain"
 
