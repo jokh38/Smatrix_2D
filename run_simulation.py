@@ -1323,6 +1323,12 @@ def main():
     E_centers_gpu = cp.asarray(grid.E_centers)
 
     for step in range(start_step, max_steps):
+        # CRITICAL: Capture psi_gpu BEFORE transport step to avoid survivorship bias.
+        # Statistics accumulated from psi_in represent ALL particles at step start,
+        # not just survivors after escape. This fixes the lateral spread underestimation
+        # where particles with large scattering angles were systematically excluded.
+        psi_before_step = sim.psi_gpu.copy()
+
         report = sim.step()
 
         # Only sync to CPU at specified intervals (not every step!)
@@ -1353,9 +1359,11 @@ def main():
         previous_dose_gpu = deposited_dose_gpu.copy()
 
         # Accumulate particle statistics for this step (GPU-only, no sync)
-        # This tracks ALL particles that pass through each (z,x) position
+        # Using psi_before_step captures ALL particles before escape, eliminating survivorship bias.
+        # This provides accurate lateral spread statistics including particles that will scatter
+        # beyond angular/spatial boundaries in subsequent steps.
         accumulate_particle_statistics(
-            psi_gpu=sim.psi_gpu,
+            psi_gpu=psi_before_step,
             accumulators=particle_stats,
             th_centers_gpu=th_centers_gpu,
             E_centers_gpu=E_centers_gpu,

@@ -7,6 +7,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #1288 | 2:38 PM | 🔵 | Stopping power processor converts NIST PSTAR data to interpolated lookup tables | ~301 |
 | #1102 | 12:16 PM | 🔵 | Molière Scattering Function Wraps Highland Formula | ~256 |
 | #1098 | 12:15 PM | 🔵 | Physics Data Processors Documentation Empty | ~63 |
 | #1087 | " | 🔵 | Scattering Physics Implementation Uses Molière Theory | ~240 |
