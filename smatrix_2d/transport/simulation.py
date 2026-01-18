@@ -182,6 +182,24 @@ class TransportSimulation:
         delta_x = (self.config.grid.x_max - self.config.grid.x_min) / self.config.grid.Nx
         delta_z = (self.config.grid.z_max - self.config.grid.z_min) / self.config.grid.Nz
 
+        # Convert energy_grid_type and angular_grid_type from config.enums to core.grid enums
+        from smatrix_2d.config.enums import EnergyGridType as ConfigEnergyGridType
+        from smatrix_2d.config.enums import AngularGridType as ConfigAngularGridType
+
+        config_energy_type = self.config.grid.energy_grid_type
+        if isinstance(config_energy_type, str):
+            energy_grid_type = EnergyGridType(config_energy_type)
+        else:
+            energy_type_str = config_energy_type.value
+            energy_grid_type = EnergyGridType(energy_type_str)
+
+        config_angular_type = self.config.grid.angular_grid_type
+        if isinstance(config_angular_type, str):
+            angular_grid_type = AngularGridType(config_angular_type)
+        else:
+            angular_type_str = config_angular_type.value
+            angular_grid_type = AngularGridType(angular_type_str)
+
         # Create grid using factory function
         specs = GridSpecsV2(
             Nx=self.config.grid.Nx,
@@ -199,6 +217,8 @@ class TransportSimulation:
             E_min=self.config.grid.E_min,
             E_max=self.config.grid.E_max,
             E_cutoff=self.config.grid.E_cutoff,
+            energy_grid_type=energy_grid_type,  # FIX: Pass from config
+            angular_grid_type=angular_grid_type,  # FIX: Pass from config
         )
 
         grid = create_phase_space_grid(specs)
