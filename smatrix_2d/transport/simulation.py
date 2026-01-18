@@ -146,6 +146,10 @@ class TransportSimulation:
             enable_history=enable_history,
         )
 
+        # IMPORTANT: Initialize grid and Ne BEFORE beam initialization
+        # because beam shape depends on actual grid Ne (may differ from config for NON_UNIFORM)
+        self._initialize_grid()
+
         # Initialize phase space
         if psi_init is not None:
             self.psi_gpu = cp.asarray(psi_init, dtype=self.config.numerics.psi_dtype)
@@ -168,63 +172,36 @@ class TransportSimulation:
                 "step,mass_in,mass_out,deposited_energy,residual,relative_error,is_valid\n"
             )
 
+    def _initialize_grid(self):
+        """Initialize grid and store actual grid dimensions.
+
+        This must be called BEFORE beam initialization because the beam
+        array shape depends on the actual grid dimensions (especially Ne
+        for NON_UNIFORM energy grids which may differ from config).
+
+        """
+        from smatrix_2d.core.grid import GridSpecs, create_phase_space_grid
+
+        # Create grid specs from config (handles all conversions internally)
+        specs = GridSpecs.from_simulation_config(self.config)
+        self._grid = create_phase_space_grid(specs)
+
+        # Store E_centers and actual grid Ne for kinetic energy computation
+        self.E_centers = self._grid.E_centers
+        self.Ne = self._grid.Ne  # Actual grid Ne (may differ from config for NON_UNIFORM grids)
+
     def _initialize_kernels(self):
         """Initialize GPU transport kernels with new accumulator API.
 
         Uses GPUTransportStepV3 which integrates with GPUAccumulators.
+        Requires _initialize_grid() to have been called first.
         """
-        from smatrix_2d.core.grid import GridSpecsV2, create_phase_space_grid
         from smatrix_2d.core.lut import create_water_stopping_power_lut
         from smatrix_2d.gpu.kernels import create_gpu_transport_step_v3
         from smatrix_2d.operators.sigma_buckets import SigmaBuckets
 
-        # Create grid specs (calculate spacing)
-        delta_x = (self.config.grid.x_max - self.config.grid.x_min) / self.config.grid.Nx
-        delta_z = (self.config.grid.z_max - self.config.grid.z_min) / self.config.grid.Nz
-
-        # Convert energy_grid_type and angular_grid_type from config.enums to core.grid enums
-        from smatrix_2d.config.enums import EnergyGridType as ConfigEnergyGridType
-        from smatrix_2d.config.enums import AngularGridType as ConfigAngularGridType
-
-        config_energy_type = self.config.grid.energy_grid_type
-        if isinstance(config_energy_type, str):
-            energy_grid_type = EnergyGridType(config_energy_type)
-        else:
-            energy_type_str = config_energy_type.value
-            energy_grid_type = EnergyGridType(energy_type_str)
-
-        config_angular_type = self.config.grid.angular_grid_type
-        if isinstance(config_angular_type, str):
-            angular_grid_type = AngularGridType(config_angular_type)
-        else:
-            angular_type_str = config_angular_type.value
-            angular_grid_type = AngularGridType(angular_type_str)
-
-        # Create grid using factory function
-        specs = GridSpecsV2(
-            Nx=self.config.grid.Nx,
-            Nz=self.config.grid.Nz,
-            Ntheta=self.config.grid.Ntheta,
-            Ne=self.config.grid.Ne,
-            delta_x=delta_x,
-            delta_z=delta_z,
-            x_min=self.config.grid.x_min,
-            x_max=self.config.grid.x_max,
-            z_min=self.config.grid.z_min,
-            z_max=self.config.grid.z_max,
-            theta_min=self.config.grid.theta_min,
-            theta_max=self.config.grid.theta_max,
-            E_min=self.config.grid.E_min,
-            E_max=self.config.grid.E_max,
-            E_cutoff=self.config.grid.E_cutoff,
-            energy_grid_type=energy_grid_type,  # FIX: Pass from config
-            angular_grid_type=angular_grid_type,  # FIX: Pass from config
-        )
-
-        grid = create_phase_space_grid(specs)
-
-        # Store E_centers for kinetic energy computation (Plan 2: energy conservation)
-        self.E_centers = grid.E_centers
+        # Use the grid that was already created in _initialize_grid()
+        grid = self._grid
 
         # Create sigma buckets
         from smatrix_2d.core.constants import PhysicsConstants2D
@@ -266,9 +243,11 @@ class TransportSimulation:
         Returns:
             GPU array with initial psi [Ne, Ntheta, Nz, Nx]
 
+        Note: Requires _initialize_grid() to have been called first.
         """
+        # Use actual grid Ne (set by _initialize_grid())
         shape = (
-            self.config.grid.Ne,
+            self.Ne,
             self.config.grid.Ntheta,
             self.config.grid.Nz,
             self.config.grid.Nx,
@@ -281,7 +260,7 @@ class TransportSimulation:
         # Find indices
         z_idx = 0  # z=0 is at index 0
         theta_idx = self.config.grid.Ntheta // 2  # 90° is middle of [0, 180]
-        e_idx = self.config.grid.Ne - 1  # E_max is last bin
+        e_idx = self.Ne - 1  # E_max is last bin (use actual grid Ne)
 
         # Gaussian profile in x (centered at middle of x-domain)
         x = cp.linspace(

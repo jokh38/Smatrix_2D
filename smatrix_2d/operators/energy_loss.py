@@ -15,7 +15,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from smatrix_2d.core.grid import PhaseSpaceGridV2
+from smatrix_2d.core.grid import PhaseSpaceGrid
 from smatrix_2d.core.lut import StoppingPowerLUT
 
 
@@ -40,7 +40,7 @@ class EnergyLossV2:
 
     def __init__(
         self,
-        grid: PhaseSpaceGridV2,
+        grid: PhaseSpaceGrid,
         stopping_power_lut: StoppingPowerLUT,
         E_cutoff: float = 1.0,
     ):

@@ -130,14 +130,14 @@ class TileManager:
 
     def __init__(
         self,
-        grid: object,  # PhaseSpaceGrid2D or PhaseSpaceGridV2 (duck-typed)
+        grid: object,  # PhaseSpaceGrid (duck-typed)
         tile_size_nz: int = 10,
         halo_size: int = 1,
     ):
         """Initialize TileManager.
 
         Args:
-            grid: Phase space grid defining domain (PhaseSpaceGrid2D or PhaseSpaceGridV2)
+            grid: Phase space grid defining domain (PhaseSpaceGrid)
             tile_size_nz: Number of z-slices per tile (default: 10)
             halo_size: Halo cells on each side (default: 1 for delta_s=1mm)
 
@@ -156,25 +156,25 @@ class TileManager:
         self._compute_tile_layout()
 
     def _get_grid_Nz(self) -> int:
-        """Get Nz from grid (supports both PhaseSpaceGridV2 and PhaseSpaceGrid2D)."""
+        """Get Nz from grid (supports PhaseSpaceGrid)."""
         if hasattr(self.grid, "Nz"):
             return self.grid.Nz
         return len(self.grid.z_centers)
 
     def _get_grid_Nx(self) -> int:
-        """Get Nx from grid (supports both PhaseSpaceGridV2 and PhaseSpaceGrid2D)."""
+        """Get Nx from grid (supports PhaseSpaceGrid)."""
         if hasattr(self.grid, "Nx"):
             return self.grid.Nx
         return len(self.grid.x_centers)
 
     def _get_grid_Ntheta(self) -> int:
-        """Get Ntheta from grid (supports both PhaseSpaceGridV2 and PhaseSpaceGrid2D)."""
+        """Get Ntheta from grid (supports PhaseSpaceGrid)."""
         if hasattr(self.grid, "Ntheta"):
             return self.grid.Ntheta
         return len(self.grid.th_centers)
 
     def _get_grid_Ne(self) -> int:
-        """Get Ne from grid (supports both PhaseSpaceGridV2 and PhaseSpaceGrid2D)."""
+        """Get Ne from grid (supports PhaseSpaceGrid)."""
         if hasattr(self.grid, "Ne"):
             return self.grid.Ne
         return len(self.grid.E_centers)
@@ -528,7 +528,7 @@ class TileManager:
 
 
 def create_tile_manager(
-    grid: object,  # PhaseSpaceGrid2D or PhaseSpaceGridV2 (duck-typed)
+    grid: object,  # PhaseSpaceGrid (duck-typed)
     tile_size_nz: int = 10,
     halo_size: int = 1,
 ) -> TileManager:
@@ -537,7 +537,7 @@ def create_tile_manager(
     Factory function for TileManager creation with common defaults.
 
     Args:
-        grid: Phase space grid (PhaseSpaceGrid2D or PhaseSpaceGridV2)
+        grid: Phase space grid (PhaseSpaceGrid)
         tile_size_nz: Number of z-slices per tile (default: 10)
         halo_size: Halo cells on each side (default: 1 for delta_s=1mm)
 

@@ -37,6 +37,11 @@ from smatrix_2d.config.simulation_config import (
     TransportConfig,
 )
 from smatrix_2d.core.accounting import EscapeChannel
+from smatrix_2d.gpu.accumulators import (
+    ParticleStatisticsAccumulators,
+    accumulate_particle_statistics,
+    compute_cumulative_statistics,
+)
 from smatrix_2d.transport.simulation import create_simulation
 
 
@@ -619,19 +624,36 @@ def export_summary_csv(deposited_dose, grid, z_peak, d_peak, fwhm,
     return filename
 
 
-def export_lateral_profile_csv(psi_final, deposited_dose, grid, filename="lateral_profile_detailed.csv"):
-    """Export detailed lateral profile data for operator tracking.
+def export_lateral_profile_cumulative(
+    weight_cumulative: np.ndarray,
+    theta_mean_cumulative: np.ndarray,
+    theta_rms_cumulative: np.ndarray,
+    E_mean_cumulative: np.ndarray,
+    E_rms_cumulative: np.ndarray,
+    deposited_dose: np.ndarray,
+    grid,
+    filename: str = "lateral_profile_detailed.csv",
+) -> str:
+    """Export cumulative lateral profile data for operator tracking.
 
-    For each z position, exports particle weight, dose, and theta distribution
-    across all x positions. This creates a 2D matrix that can be used to track
-    how operators transform the state vector.
+    For each (z, x) position, exports the CUMULATIVE statistics of ALL particles
+    that passed through that position during the entire simulation. This is different
+    from a snapshot which only shows particles at one instant.
+
+    The cumulative statistics are tracked during the simulation loop by accumulating
+    particle weight, theta, and energy at each step.
 
     Format:
     - Header row with column names
-    - Data row: z_idx, z_mm, x_idx, x_mm, weight, dose, theta_mean, theta_rms
+    - Data row: z_idx, z_mm, x_idx, x_mm, cumulative_weight, deposited_dose,
+                theta_mean_deg, theta_rms_deg, E_mean_MeV, E_rms_MeV
 
     Args:
-        psi_final: Final phase space distribution [Ne, Ntheta, Nz, Nx]
+        weight_cumulative: Total particle weight passed through [Nz, Nx]
+        theta_mean_cumulative: Mean theta in degrees [Nz, Nx]
+        theta_rms_cumulative: RMS theta in degrees [Nz, Nx]
+        E_mean_cumulative: Mean energy in MeV [Nz, Nx]
+        E_rms_cumulative: RMS energy in MeV [Nz, Nx]
         deposited_dose: 2D dose array [Nz, Nx]
         grid: PhaseSpaceGridV2 object
         filename: Output CSV filename
@@ -648,60 +670,30 @@ def export_lateral_profile_csv(psi_final, deposited_dose, grid, filename="latera
             "z_mm",
             "x_idx",
             "x_mm",
-            "particle_weight",  # Sum over Ne, Ntheta at this (z,x)
-            "deposited_dose",   # Dose at this (z,x)
-            "theta_mean_deg",   # Mean theta at this (z,x)
-            "theta_rms_deg",    # RMS theta at this (z,x)
-            "E_mean_MeV",       # Mean energy at this (z,x)
-            "E_rms_MeV",        # RMS energy at this (z,x)
+            "particle_weight",     # Cumulative weight passed through
+            "deposited_dose",      # Dose deposited at this (z,x)
+            "theta_mean_deg",      # Mean theta of particles
+            "theta_rms_deg",       # RMS theta of particles
+            "E_mean_MeV",          # Mean energy of particles
+            "E_rms_MeV",           # RMS energy of particles
         ]
         writer.writerow(header)
 
-        # Get grid arrays
-        z_centers = grid.z_centers
-        x_centers = grid.x_centers
-        th_centers_rad = grid.th_centers_rad
-        E_centers = grid.E_centers
-
         Nz, Nx = grid.Nz, grid.Nx
-        Ntheta = grid.Ntheta
-        Ne = grid.Ne
 
         # For each z position
         for iz in range(Nz):
-            z_mm = z_centers[iz]
+            z_mm = grid.z_centers[iz]
             # For each x position
             for ix in range(Nx):
-                x_mm = x_centers[ix]
+                x_mm = grid.x_centers[ix]
 
-                # Extract phase space at this (z, x) position: [Ne, Ntheta]
-                psi_zx = psi_final[:, :, iz, ix]
-
-                # Sum over all dimensions to get total particle weight
-                weight = float(np.sum(psi_zx))
-
-                # Get deposited dose
+                weight = float(weight_cumulative[iz, ix])
                 dose = float(deposited_dose[iz, ix])
-
-                if weight > 1e-15:
-                    # Calculate theta statistics
-                    theta_weights = np.sum(psi_zx, axis=0)  # Sum over energy: [Ntheta]
-                    theta_mean_rad = np.sum(theta_weights * th_centers_rad) / weight
-                    theta_mean_deg = float(np.rad2deg(theta_mean_rad))
-
-                    theta_var = np.sum(theta_weights * (th_centers_rad - theta_mean_rad) ** 2) / weight
-                    theta_rms_deg = float(np.rad2deg(np.sqrt(theta_var)))
-
-                    # Calculate energy statistics
-                    E_weights = np.sum(psi_zx, axis=1)  # Sum over theta: [Ne]
-                    E_mean = float(np.sum(E_weights * E_centers) / weight)
-                    E_var = np.sum(E_weights * (E_centers - E_mean) ** 2) / weight
-                    E_rms = float(np.sqrt(E_var))
-                else:
-                    theta_mean_deg = 0.0
-                    theta_rms_deg = 0.0
-                    E_mean = 0.0
-                    E_rms = 0.0
+                theta_mean = float(theta_mean_cumulative[iz, ix])
+                theta_rms = float(theta_rms_cumulative[iz, ix])
+                E_mean = float(E_mean_cumulative[iz, ix])
+                E_rms = float(E_rms_cumulative[iz, ix])
 
                 row = [
                     iz,
@@ -710,8 +702,8 @@ def export_lateral_profile_csv(psi_final, deposited_dose, grid, filename="latera
                     f"{x_mm:.3f}",
                     f"{weight:.8e}",
                     f"{dose:.8e}",
-                    f"{theta_mean_deg:.3f}",
-                    f"{theta_rms_deg:.3f}",
+                    f"{theta_mean:.3f}",
+                    f"{theta_rms:.3f}",
                     f"{E_mean:.3f}",
                     f"{E_rms:.3f}",
                 ]
@@ -1166,11 +1158,19 @@ def main():
     max_steps = transport_config.max_steps
     import cupy as cp
 
+    # Grid reference (need this before creating accumulators)
+    grid = sim.transport_step.sigma_buckets.grid
+
     # Initialize previous dose on GPU for difference calculation
     previous_dose_gpu = cp.zeros((Nz, Nx), dtype=np.float32)
 
-    # Grid reference
-    grid = sim.transport_step.sigma_buckets.grid
+    # Create cumulative particle statistics accumulators
+    # This tracks ALL particles that passed through each (z,x) during simulation
+    particle_stats = ParticleStatisticsAccumulators.create(spatial_shape=(Nz, Nx))
+
+    # Pre-upload grid centers to GPU (once, for efficiency)
+    th_centers_gpu = cp.asarray(grid.th_centers_rad)
+    E_centers_gpu = cp.asarray(grid.E_centers)
 
     for step in range(start_step, max_steps):
         report = sim.step()
@@ -1201,6 +1201,15 @@ def main():
         deposited_dose_gpu = sim.accumulators.dose_gpu
         step_dose_gpu = deposited_dose_gpu - previous_dose_gpu
         previous_dose_gpu = deposited_dose_gpu.copy()
+
+        # Accumulate particle statistics for this step (GPU-only, no sync)
+        # This tracks ALL particles that pass through each (z,x) position
+        accumulate_particle_statistics(
+            psi_gpu=sim.psi_gpu,
+            accumulators=particle_stats,
+            th_centers_gpu=th_centers_gpu,
+            E_centers_gpu=E_centers_gpu,
+        )
 
         # Stream profile data to HDF5 (minimal memory footprint)
         if step % streaming_config['profile_save_interval'] == 0:
@@ -1255,9 +1264,35 @@ def main():
     deposited_dose_cpu = cp.asnumpy(sim.accumulators.get_dose_cpu())
     final_dose = np.sum(deposited_dose_cpu)
 
-    # Export detailed lateral profile CSV for operator tracking
+    # Compute cumulative particle statistics from accumulators
+    # This gives us the total weight, theta, and E for ALL particles that passed through each (z,x)
+    weight_gpu, theta_mean_gpu, theta_rms_gpu, E_mean_gpu, E_rms_gpu = compute_cumulative_statistics(
+        particle_stats
+    )
+
+    # Convert to CPU for export
+    weight_cumulative = cp.asnumpy(weight_gpu)
+    theta_mean_cumulative = cp.asnumpy(cp.rad2deg(theta_mean_gpu))
+    theta_rms_cumulative = cp.asnumpy(cp.rad2deg(theta_rms_gpu))
+    E_mean_cumulative = cp.asnumpy(E_mean_gpu)
+    E_rms_cumulative = cp.asnumpy(E_rms_gpu)
+
+    print(f"  Cumulative statistics computed")
+    print(f"    Total particle weight tracked: {np.sum(weight_cumulative):.4f}")
+    print(f"    Initial beam weight: 1.0000")
+
+    # Export detailed lateral profile CSV with cumulative statistics
     lateral_profile_file = output_dir / "lateral_profile_detailed.csv"
-    export_lateral_profile_csv(final_psi, deposited_dose_cpu, grid, filename=str(lateral_profile_file))
+    export_lateral_profile_cumulative(
+        weight_cumulative=weight_cumulative,
+        theta_mean_cumulative=theta_mean_cumulative,
+        theta_rms_cumulative=theta_rms_cumulative,
+        E_mean_cumulative=E_mean_cumulative,
+        E_rms_cumulative=E_rms_cumulative,
+        deposited_dose=deposited_dose_cpu,
+        grid=grid,
+        filename=str(lateral_profile_file),
+    )
 
     # Get conservation reports (limit to last N to save memory)
     reports = sim.reports

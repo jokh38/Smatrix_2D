@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Optional
 import numpy as np
 
 from smatrix_2d.core.constants import PhysicsConstants2D
-from smatrix_2d.core.grid import PhaseSpaceGrid2D
+from smatrix_2d.core.grid import PhaseSpaceGrid
 
 if TYPE_CHECKING:
     from smatrix_2d.core.materials import MaterialProperties2D
@@ -66,7 +66,7 @@ class SigmaBuckets:
 
     def __init__(
         self,
-        grid: PhaseSpaceGrid2D,
+        grid: PhaseSpaceGrid,
         material: MaterialProperties2D,
         constants: PhysicsConstants2D,
         n_buckets: int = 32,

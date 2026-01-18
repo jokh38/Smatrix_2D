@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Tuple
 import numpy as np
 
 if TYPE_CHECKING:
-    from smatrix_2d.core.grid import PhaseSpaceGridV2
+    from smatrix_2d.core.grid import PhaseSpaceGrid
     from smatrix_2d.operators.sigma_buckets import SigmaBuckets
 
 
@@ -96,7 +96,7 @@ class AngularScatteringV2:
 
     def __init__(
         self,
-        grid: PhaseSpaceGridV2,
+        grid: PhaseSpaceGrid,
         sigma_buckets: SigmaBuckets,
     ):
         """Initialize angular scattering operator v2.

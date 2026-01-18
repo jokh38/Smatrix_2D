@@ -84,7 +84,7 @@ class GPUTransportStepBase:
         """Initialize GPU transport step.
 
         Args:
-            grid: PhaseSpaceGridV2 grid object
+            grid: PhaseSpaceGrid grid object
             sigma_buckets: SigmaBuckets with precomputed kernels
             stopping_power_lut: StoppingPowerLUT for energy loss
             delta_s: Step length [mm]
@@ -405,7 +405,7 @@ def create_gpu_transport_step_v3(
     """Factory function to create baseline GPU transport step V3.
 
     Args:
-        grid: PhaseSpaceGridV2 grid object
+        grid: PhaseSpaceGrid grid object
         sigma_buckets: SigmaBuckets instance
         stopping_power_lut: StoppingPowerLUT instance
         delta_s: Step length [mm]
@@ -430,7 +430,7 @@ def create_gpu_transport_step_v3_sharedmem(
     """Factory function to create shared memory optimized variant.
 
     Args:
-        grid: PhaseSpaceGridV2 grid object
+        grid: PhaseSpaceGrid grid object
         sigma_buckets: SigmaBuckets instance
         stopping_power_lut: StoppingPowerLUT instance
         delta_s: Step length [mm]
@@ -451,7 +451,7 @@ def create_gpu_transport_step_warp(
     """Factory function to create warp-optimized variant.
 
     Args:
-        grid: PhaseSpaceGridV2 grid object
+        grid: PhaseSpaceGrid grid object
         sigma_buckets: SigmaBuckets instance
         stopping_power_lut: StoppingPowerLUT instance
         delta_s: Step length [mm]

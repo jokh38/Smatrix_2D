@@ -348,8 +348,167 @@ def get_dose_pointer(accumulators: GPUAccumulators) -> int:
     return accumulators.dose_gpu.data.ptr
 
 
+@dataclass
+class ParticleStatisticsAccumulators:
+    """GPU accumulators for cumulative particle statistics.
+
+    Tracks all particles that passed through each (z,x) during simulation.
+    Statistics are accumulated over ALL steps, not just a snapshot.
+
+    For each (z,x) position, we track:
+    - Total particle weight passed through (0th moment)
+    - Weighted theta sum and theta^2 sum (for mean/rms)
+    - Weighted E sum and E^2 sum (for mean/rms)
+
+    Attributes:
+        weight_accum_gpu: Total particle weight passed through [Nz, Nx]
+        theta_sum_gpu: Weighted theta sum [Nz, Nx]
+        theta_sq_sum_gpu: Weighted theta^2 sum [Nz, Nx]
+        E_sum_gpu: Weighted energy sum [Nz, Nx]
+        E_sq_sum_gpu: Weighted energy^2 sum [Nz, Nx]
+
+    """
+
+    weight_accum_gpu: cp.ndarray
+    theta_sum_gpu: cp.ndarray
+    theta_sq_sum_gpu: cp.ndarray
+    E_sum_gpu: cp.ndarray
+    E_sq_sum_gpu: cp.ndarray
+
+    def __post_init__(self):
+        """Validate accumulator initialization."""
+        if not CUPY_AVAILABLE:
+            raise RuntimeError("CuPy is required for particle statistics accumulators")
+
+    @classmethod
+    def create(cls, spatial_shape: tuple[int, int]) -> "ParticleStatisticsAccumulators":
+        """Create zero-initialized cumulative statistics accumulators.
+
+        Args:
+            spatial_shape: Shape of spatial grid (Nz, Nx)
+
+        Returns:
+            Initialized ParticleStatisticsAccumulators instance
+
+        """
+        if not CUPY_AVAILABLE:
+            raise RuntimeError("CuPy is required for particle statistics accumulators")
+
+        Nz, Nx = spatial_shape
+        return cls(
+            weight_accum_gpu=cp.zeros((Nz, Nx), dtype=cp.float64),
+            theta_sum_gpu=cp.zeros((Nz, Nx), dtype=cp.float64),
+            theta_sq_sum_gpu=cp.zeros((Nz, Nx), dtype=cp.float64),
+            E_sum_gpu=cp.zeros((Nz, Nx), dtype=cp.float64),
+            E_sq_sum_gpu=cp.zeros((Nz, Nx), dtype=cp.float64),
+        )
+
+    def reset(self) -> None:
+        """Reset all accumulators to zero."""
+        self.weight_accum_gpu.fill(0.0)
+        self.theta_sum_gpu.fill(0.0)
+        self.theta_sq_sum_gpu.fill(0.0)
+        self.E_sum_gpu.fill(0.0)
+        self.E_sq_sum_gpu.fill(0.0)
+
+    def get_cpu(self) -> dict:
+        """Fetch all accumulators from GPU to CPU.
+
+        Returns:
+            Dictionary with NumPy arrays: weight, theta_sum, theta_sq_sum, E_sum, E_sq_sum
+
+        """
+        return {
+            "weight": cp.asnumpy(self.weight_accum_gpu),
+            "theta_sum": cp.asnumpy(self.theta_sum_gpu),
+            "theta_sq_sum": cp.asnumpy(self.theta_sq_sum_gpu),
+            "E_sum": cp.asnumpy(self.E_sum_gpu),
+            "E_sq_sum": cp.asnumpy(self.E_sq_sum_gpu),
+        }
+
+
+def accumulate_particle_statistics(
+    psi_gpu: cp.ndarray,
+    accumulators: ParticleStatisticsAccumulators,
+    th_centers_gpu: cp.ndarray,
+    E_centers_gpu: cp.ndarray,
+) -> None:
+    """Accumulate particle statistics for current psi (GPU-only, no sync).
+
+    For each (z,x) position, accumulates:
+    - Total particle weight
+    - Weighted theta and theta^2 (for angular statistics)
+    - Weighted E and E^2 (for energy statistics)
+
+    Args:
+        psi_gpu: Phase space distribution [Ne, Ntheta, Nz, Nx]
+        accumulators: ParticleStatisticsAccumulators to update
+        th_centers_gpu: Theta grid centers [Ntheta] in radians
+        E_centers_gpu: Energy grid centers [Ne] in MeV
+
+    """
+    # Broadcast grid centers for vectorized multiplication
+    # Shape: [Ne, Ntheta, Nz, Nx]
+    E_broadcast = E_centers_gpu[:, None, None, None]
+    theta_broadcast = th_centers_gpu[None, :, None, None]
+
+    # Accumulate 0th moment: total weight
+    # Sum over Ne and Ntheta axes to get [Nz, Nx]
+    accumulators.weight_accum_gpu += cp.sum(psi_gpu, axis=(0, 1))
+
+    # Accumulate 1st moments: weighted sums
+    # E * psi, then sum over Ne and Ntheta
+    accumulators.E_sum_gpu += cp.sum(psi_gpu * E_broadcast, axis=(0, 1))
+    accumulators.theta_sum_gpu += cp.sum(psi_gpu * theta_broadcast, axis=(0, 1))
+
+    # Accumulate 2nd moments for variance
+    accumulators.E_sq_sum_gpu += cp.sum(psi_gpu * E_broadcast**2, axis=(0, 1))
+    accumulators.theta_sq_sum_gpu += cp.sum(psi_gpu * theta_broadcast**2, axis=(0, 1))
+
+
+def compute_cumulative_statistics(
+    accumulators: ParticleStatisticsAccumulators,
+) -> tuple[cp.ndarray, cp.ndarray, cp.ndarray, cp.ndarray, cp.ndarray]:
+    """Compute mean/rms from cumulative accumulators (GPU).
+
+    Args:
+        accumulators: ParticleStatisticsAccumulators with accumulated data
+
+    Returns:
+        Tuple of (weight, theta_mean_rad, theta_rms_rad, E_mean, E_rms)
+        All arrays are [Nz, Nx] GPU arrays
+
+    """
+    weight = accumulators.weight_accum_gpu
+    eps = 1e-12
+    safe_weight = cp.maximum(weight, eps)
+
+    # Means
+    theta_mean = accumulators.theta_sum_gpu / safe_weight
+    E_mean = accumulators.E_sum_gpu / safe_weight
+
+    # RMS using variance = E[X^2] - (E[X])^2
+    theta_var = (accumulators.theta_sq_sum_gpu / safe_weight) - theta_mean**2
+    theta_rms = cp.sqrt(cp.maximum(theta_var, 0.0))
+
+    E_var = (accumulators.E_sq_sum_gpu / safe_weight) - E_mean**2
+    E_rms = cp.sqrt(cp.maximum(E_var, 0.0))
+
+    # Set values to 0 where weight is near zero
+    mask = weight < eps
+    theta_mean = cp.where(mask, 0.0, theta_mean)
+    theta_rms = cp.where(mask, 0.0, theta_rms)
+    E_mean = cp.where(mask, 0.0, E_mean)
+    E_rms = cp.where(mask, 0.0, E_rms)
+
+    return weight, theta_mean, theta_rms, E_mean, E_rms
+
+
 __all__ = [
     "GPUAccumulators",
+    "ParticleStatisticsAccumulators",
+    "accumulate_particle_statistics",
+    "compute_cumulative_statistics",
     "create_accumulators",
     "get_dose_pointer",
     "get_escapes_pointer",
