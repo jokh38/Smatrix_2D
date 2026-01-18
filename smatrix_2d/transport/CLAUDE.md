@@ -25,6 +25,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #1218 | 2:16 PM | 🟣 | Beam width now configurable via initial_info.yaml | ~247 |
 | #1164 | 1:37 PM | 🔵 | Initial Beam Profile Implementation Found | ~402 |
 | #1163 | " | 🔵 | Initial Beam Configuration Found in Simulation Code | ~360 |
 | #1081 | 11:47 AM | 🔄 | Cleaned up beam initialization to use actual grid dimensions | ~262 |

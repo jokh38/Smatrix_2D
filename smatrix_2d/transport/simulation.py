@@ -271,7 +271,7 @@ class TransportSimulation:
         )
         # Beam center at middle of x-domain (e.g., x=6 mm for domain [0, 12])
         x_center = (self.config.grid.x_min + self.config.grid.x_max) / 2.0
-        sigma = 2.0  # 2 mm beam width
+        sigma = self.config.numerics.beam_width_sigma  # Beam width from config
         beam_profile = cp.exp(-0.5 * ((x - x_center) / sigma) ** 2)
         beam_profile /= cp.sum(beam_profile)  # Normalize to unit weight
 

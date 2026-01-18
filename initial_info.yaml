@@ -18,6 +18,12 @@ particle:
     unit: degrees
     description: "Initial beam direction (90° = along +z axis)"
 
+  # Initial beam width (Gaussian spot size)
+  beam_width:
+    value: 2.0           # mm (sigma of Gaussian profile)
+    unit: mm
+    description: "Initial beam width (Gaussian sigma, sigma=2mm for small spot scanning)"
+
   # Initial spatial position
   position:
     x:
