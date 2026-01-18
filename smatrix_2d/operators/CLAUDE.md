@@ -24,6 +24,9 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #1289 | 2:38 PM | 🔵 | Energy loss operator implements CSDA with conservative bin splitting and dose deposition | ~50 |
+| #1287 | " | 🔵 | Angular scattering operator implements deterministic convolution with escape accounting | ~408 |
+| #1286 | " | 🔵 | Spatial streaming operator implements gather-based advection with bilinear interpolation | ~307 |
 | #1175 | 1:56 PM | 🔵 | Angular Boundary Escape Mechanism Located in Source Code | ~511 |
 | #1164 | 1:37 PM | 🔵 | Initial Beam Profile Implementation Found | ~402 |
 | #1134 | 12:48 PM | 🔵 | Escape Channel Tracking Implementation Confirms User's Understanding | ~211 |

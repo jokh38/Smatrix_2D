@@ -25,6 +25,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #1285 | 2:37 PM | 🔵 | Transport simulation implements GPU-only zero-sync architecture | ~404 |
 | #1229 | 2:20 PM | 🔄 | Beam width now configurable via initial_info.yaml following SSOT principles | ~373 |
 | #1218 | 2:16 PM | 🟣 | Beam width now configurable via initial_info.yaml | ~247 |
 | #1164 | 1:37 PM | 🔵 | Initial Beam Profile Implementation Found | ~402 |

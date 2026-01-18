@@ -13,6 +13,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #1298 | 2:39 PM | 🔵 | NIST PSTAR fetcher provides hardcoded stopping power data with corrected 70 MeV value | ~348 |
 | #1093 | 12:15 PM | 🔵 | PDG Constants Provide Physics Parameters for Scattering | ~230 |
 | #1041 | 11:38 AM | 🔵 | Material system supports multiple material identifiers with H2O as primary implementation | ~285 |
 </claude-mem-context>

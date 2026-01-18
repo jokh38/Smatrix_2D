@@ -11,6 +11,4 @@
 | #671 | " | 🔄 | GPU availability check centralized in gpu/utils.py | ~250 |
 | #599 | 2:13 AM | ✅ | GPU profile YAML refactoring committed to version control | ~324 |
 | #596 | 2:12 AM | 🔵 | Verified gpu_architecture module exports in package __init__.py | ~393 |
-| #587 | 2:09 AM | 🔄 | GPU profile data externalized from Python to YAML configuration | ~371 |
-| #586 | 2:08 AM | 🔄 | Refactored hardcoded data to external YAML configuration files | ~433 |
 </claude-mem-context>
