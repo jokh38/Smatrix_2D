@@ -20,9 +20,9 @@ particle:
 
   # Initial beam width (Gaussian spot size)
   beam_width:
-    value: 2.0           # mm (sigma of Gaussian profile)
+    value: 1.0           # mm (sigma of Gaussian profile)
     unit: mm
-    description: "Initial beam width (Gaussian sigma, sigma=2mm for small spot scanning)"
+    description: "Initial beam width (Gaussian sigma, sigma=1mm for narrow pencil beam)"
 
   # Initial spatial position
   position:
