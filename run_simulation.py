@@ -122,6 +122,144 @@ class ProfileDataStreamer:
         return self._dataset[:self.current_step]
 
 
+class PerStepLateralProfileTracker:
+    """Track lateral beam profile at each transport step.
+
+    This tracks how the beam evolves as it propagates through the medium.
+    At each step, we record the lateral (x) distribution of particles,
+    showing beam spreading with depth.
+
+    The CSV output shows:
+    - step_idx: Transport step number
+    - z_mm: Average z-position of particles at this step
+    - x_idx, x_mm: Lateral position
+    - particle_weight: Weight of particles at this (step, x)
+    - theta_mean_deg, theta_rms_deg: Angular statistics
+    - E_mean_MeV, E_rms_MeV: Energy statistics
+    """
+
+    def __init__(self, filename: str, max_steps: int):
+        """Initialize per-step lateral profile tracker.
+
+        Args:
+            filename: Output CSV filename
+            max_steps: Maximum number of steps to allocate
+        """
+        self.filename = filename
+        self.max_steps = max_steps
+        self._file = None
+        self._writer = None
+        self._data_buffer = []  # Buffer rows before writing
+
+    def __enter__(self):
+        """Open CSV file and write header."""
+        self._file = open(self.filename, 'w', newline='')
+        self._writer = csv.writer(self._file)
+        header = [
+            "step_idx",
+            "z_mean_mm",
+            "x_idx",
+            "x_mm",
+            "particle_weight",
+            "theta_mean_deg",
+            "theta_rms_deg",
+            "E_mean_MeV",
+            "E_rms_MeV",
+        ]
+        self._writer.writerow(header)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close CSV file."""
+        if self._file is not None:
+            self._file.close()
+
+    def append_step(self, psi_gpu, grid, step_idx: int,
+                    th_centers_gpu, E_centers_gpu):
+        """Record lateral profile for current transport step.
+
+        Args:
+            psi_gpu: Phase space distribution [Ne, Ntheta, Nz, Nx]
+            grid: PhaseSpaceGridV2 object
+            step_idx: Current transport step
+            th_centers_gpu: Theta grid centers in radians
+            E_centers_gpu: Energy grid centers in MeV
+        """
+        import cupy as cp
+
+        # Sum over energy and theta to get [Nz, Nx] spatial distribution
+        spatial_dist = cp.sum(psi_gpu, axis=(0, 1))  # [Nz, Nx]
+
+        # Compute mean z-position (weighted by particle density)
+        total_weight = cp.sum(spatial_dist)
+        if total_weight > 1e-12:
+            z_broadcast = cp.asarray(grid.z_centers)[:, None]  # [Nz, 1]
+            z_mean = cp.sum(spatial_dist * z_broadcast) / total_weight
+        else:
+            z_mean = 0.0
+
+        # Convert to CPU for CSV writing
+        spatial_cpu = cp.asnumpy(spatial_dist)
+        z_mean_cpu = float(z_mean)
+
+        Nz, Nx = spatial_cpu.shape
+
+        # For each x-position, compute statistics
+        for ix in range(Nx):
+            x_mm = grid.x_centers[ix]
+
+            # Extract column at this x-position across all z
+            x_column = spatial_cpu[:, ix]  # [Nz]
+            x_weight = float(cp.sum(spatial_dist[:, ix]))
+
+            if x_weight < 1e-12:
+                continue
+
+            # Compute angular and energy statistics for this x-column
+            # We need to sum over z and all energy/theta for this x
+            x_slice_psi = psi_gpu[:, :, :, ix]  # [Ne, Ntheta, Nz]
+
+            # Compute weighted statistics
+            E_broadcast = E_centers_gpu[:, None, None]  # [Ne, 1, 1]
+            theta_broadcast = th_centers_gpu[None, :, None]  # [1, Ntheta, 1]
+
+            # Weighted sums
+            w_sum = cp.sum(x_slice_psi)  # Total weight in this x-column
+            E_sum = cp.sum(x_slice_psi * E_broadcast)
+            theta_sum = cp.sum(x_slice_psi * theta_broadcast)
+            E_sq_sum = cp.sum(x_slice_psi * E_broadcast**2)
+            theta_sq_sum = cp.sum(x_slice_psi * theta_broadcast**2)
+
+            # Compute mean and rms
+            E_mean = float(E_sum / w_sum) if w_sum > 1e-12 else 0.0
+            theta_mean_rad = float(theta_sum / w_sum) if w_sum > 1e-12 else 0.0
+
+            # Variance and RMS
+            E_var = float(E_sq_sum / w_sum) - E_mean**2 if w_sum > 1e-12 else 0.0
+            theta_var = float(theta_sq_sum / w_sum) - theta_mean_rad**2 if w_sum > 1e-12 else 0.0
+
+            E_rms = float(np.sqrt(max(E_var, 0.0)))
+            theta_rms_rad = float(np.sqrt(max(theta_var, 0.0)))
+
+            # Convert theta to degrees
+            theta_mean_deg = float(np.rad2deg(theta_mean_rad))
+            theta_rms_deg = float(np.rad2deg(theta_rms_rad))
+
+            # Write row
+            row = [
+                step_idx,
+                f"{z_mean_cpu:.3f}",
+                ix,
+                f"{x_mm:.3f}",
+                f"{x_weight:.8e}",
+                f"{theta_mean_deg:.3f}",
+                f"{theta_rms_deg:.3f}",
+                f"{E_mean:.3f}",
+                f"{E_rms:.3f}",
+            ]
+            self._writer.writerow(row)
+
+
 class ChunkedCSVWriter:
     """Write CSV files in chunks to avoid memory buildup.
 
@@ -1150,6 +1288,15 @@ def main():
 
     print(f"  ✓ Profile streaming to: {profile_h5_file}")
 
+    # Initialize per-step lateral profile tracker
+    lateral_profile_file = output_dir / "lateral_profile_per_step.csv"
+    lateral_tracker = PerStepLateralProfileTracker(
+        filename=str(lateral_profile_file),
+        max_steps=transport_config.max_steps
+    )
+    lateral_tracker.__enter__()
+    print(f"  ✓ Per-step lateral profile tracker: {lateral_profile_file}")
+
     # ========================================================================
     # 6. Run Simulation
     # ========================================================================
@@ -1214,6 +1361,15 @@ def main():
             E_centers_gpu=E_centers_gpu,
         )
 
+        # Track per-step lateral profile (shows beam spreading with depth)
+        lateral_tracker.append_step(
+            psi_gpu=sim.psi_gpu,
+            grid=grid,
+            step_idx=step,
+            th_centers_gpu=th_centers_gpu,
+            E_centers_gpu=E_centers_gpu,
+        )
+
         # Stream profile data to HDF5 (minimal memory footprint)
         if step % streaming_config['profile_save_interval'] == 0:
             step_dose_cpu = cp.asnumpy(step_dose_gpu)
@@ -1254,6 +1410,10 @@ def main():
     profile_streamer.finalize()
     profile_streamer.__exit__(None, None, None)
     print(f"  ✓ Profile data saved: {profile_h5_file}")
+
+    # Finalize lateral profile tracker
+    lateral_tracker.__exit__(None, None, None)
+    print(f"  ✓ Per-step lateral profile saved: {lateral_profile_file}")
 
     # ========================================================================
     # 7. Final Statistics

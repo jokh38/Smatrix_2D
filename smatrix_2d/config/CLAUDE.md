@@ -39,6 +39,8 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #1229 | 2:20 PM | 🔄 | Beam width now configurable via initial_info.yaml following SSOT principles | ~373 |
+| #1228 | " | 🟣 | Beam width configuration system completed and committed to git | ~283 |
 | #1223 | 2:18 PM | 🔵 | run_simulation.py reads beam_width from config but parameter doesn't exist in initial_info.yaml | ~308 |
 | #1221 | 2:17 PM | 🔄 | Beam width moved from hardcoded value to NumericsConfig dataclass | ~215 |
 | #1220 | " | 🔵 | Simulation configuration uses dataclass structure in simulation_config.py | ~273 |
