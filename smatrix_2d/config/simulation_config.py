@@ -60,7 +60,9 @@ class GridConfig:
     E_min: float = field(default_factory=lambda: get_default('energy_grid.e_min'))
     E_max: float = field(default_factory=lambda: get_default('energy_grid.e_max'))
     E_cutoff: float = field(default_factory=lambda: get_default('energy_grid.e_cutoff'))
-    energy_grid_type: EnergyGridType = EnergyGridType.UNIFORM
+    energy_grid_type: EnergyGridType = field(
+        default_factory=lambda: EnergyGridType(get_default('energy_grid.energy_grid_type'))
+    )
 
     def validate(self) -> list[str]:
         """Validate grid configuration.
@@ -414,7 +416,7 @@ class SimulationConfig:
             E_max=grid_data.get("E_max", get_default('energy_grid.e_max')),
             E_cutoff=grid_data.get("E_cutoff", get_default('energy_grid.e_cutoff')),
             energy_grid_type=parse_enum(
-                EnergyGridType, grid_data.get("energy_grid_type", "uniform"),
+                EnergyGridType, grid_data.get("energy_grid_type", get_default('energy_grid.energy_grid_type')),
             ),
         )
 
@@ -422,7 +424,7 @@ class SimulationConfig:
             delta_s=transport_data.get("delta_s", get_default('transport.delta_s')),
             max_steps=transport_data.get("max_steps", get_default('transport.max_steps')),
             splitting_type=parse_enum(
-                SplittingType, transport_data.get("splitting_type", "first_order"),
+                SplittingType, transport_data.get("splitting_type", get_default('transport.splitting_type')),
             ),
             sub_steps=transport_data.get("sub_steps", get_default('transport.sub_steps')),
             n_buckets=transport_data.get("n_buckets", get_default('sigma_buckets.n_buckets')),

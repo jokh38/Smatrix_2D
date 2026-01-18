@@ -53,6 +53,10 @@ energy_grid:
   # Default number of energy bins
   ne: 100
 
+  # Energy grid type - how energy bins are distributed
+  # Options: UNIFORM (equal spacing), NON_UNIFORM (higher resolution near Bragg peak)
+  energy_grid_type: "non_uniform"
+
 # =============================================================================
 # Spatial Grid Defaults
 # =============================================================================
@@ -94,6 +98,14 @@ angular_grid:
 # Transport Defaults (Code-Level)
 # =============================================================================
 transport:
+  # Default transport step size [mm]
+  # Should be <= min(delta_x, delta_z) to avoid bin-skipping artifacts
+  delta_s: 1.0
+
+  # Default maximum number of transport steps
+  # Simulation stops when this limit is reached (even if beam hasn't fully stopped)
+  max_steps: 100
+
   # Default number of sub-steps per operator
   # Increasing this improves stability at the cost of performance
   sub_steps: 1

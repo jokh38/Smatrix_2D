@@ -7,13 +7,20 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #1084 | 12:40 PM | 🟣 | Implemented stopping power processor with flexible energy binning | ~235 |
-| #1073 | 12:37 PM | 🟣 | Created processors submodule initialization | ~181 |
-| #974 | 9:41 AM | 🔵 | Physics data module components enumerated | ~157 |
+| #1065 | 12:36 PM | 🔵 | Scattering processor implements Molière theory for angular distributions | ~318 |
+| #1063 | " | 🔵 | Physics model implementations located in multiple modules | ~225 |
+| #1061 | " | 🔵 | Material support infrastructure spans multiple modules | ~318 |
 
 ### Jan 17, 2026
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #1262 | 12:31 AM | 🔴 | Bragg Peak Missing in Proton Transport Simulation | ~347 |
+| #1245 | 12:25 AM | 🔵 | Energy Loss Not Implemented in Particle Transport | ~222 |
+| #1247 | " | 🔵 | Root Cause: GPU Transport Operator Missing Energy Loss Logic | ~191 |
+
+### Jan 18, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #1349 | 10:15 AM | 🔵 | Comprehensive Code Review Found 14+ Hardcoded Values Overriding SSOT Configuration | ~374 |
 </claude-mem-context>

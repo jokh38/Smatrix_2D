@@ -19,4 +19,11 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #1247 | 12:25 AM | 🔵 | Root Cause: GPU Transport Operator Missing Energy Loss Logic | ~191 |
+
+### Jan 18, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #1352 | 10:17 AM | 🔵 | NIST PSTAR LUT Data Is Correct and Uses MeV cm²/g Units | ~289 |
+| #1301 | 10:11 AM | 🔵 | NIST PSTAR Data Source Uses MeV cm²/g Units | ~304 |
 </claude-mem-context>
