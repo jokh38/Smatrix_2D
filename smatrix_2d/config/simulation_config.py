@@ -193,6 +193,7 @@ class NumericsConfig:
     Attributes:
         weight_threshold: Minimum particle weight for tracking
         beta_sq_min: Minimum beta squared for Highland formula
+        beam_width_sigma: Initial beam width (Gaussian sigma) in mm for beam initialization
         psi_dtype: Data type for phase space tensor
         dose_dtype: Data type for dose/deposited energy
         acc_dtype: Data type for accumulators (MUST be float64 for conservation)
@@ -206,6 +207,9 @@ class NumericsConfig:
 
     weight_threshold: float = field(default_factory=lambda: get_default('numerical.weight_threshold'))
     beta_sq_min: float = field(default_factory=lambda: get_default('numerical.beta_sq_min'))
+
+    # Beam initialization
+    beam_width_sigma: float = 2.0  # mm (Gaussian sigma for initial beam profile)
 
     # Data type policies
     psi_dtype: Literal["float32", "float64"] = field(

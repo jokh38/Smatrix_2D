@@ -39,6 +39,9 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #1223 | 2:18 PM | 🔵 | run_simulation.py reads beam_width from config but parameter doesn't exist in initial_info.yaml | ~308 |
+| #1221 | 2:17 PM | 🔄 | Beam width moved from hardcoded value to NumericsConfig dataclass | ~215 |
+| #1220 | " | 🔵 | Simulation configuration uses dataclass structure in simulation_config.py | ~273 |
 | #1160 | 1:37 PM | 🔵 | Angular Scattering Configuration Parameters Found | ~296 |
 | #1054 | 11:39 AM | 🔄 | Refactored defaults.yaml to clarify developer-focused purpose and organize GPU configuration | ~468 |
 | #1052 | " | 🔵 | defaults.yaml contains comprehensive code-level default values organized by category | ~380 |

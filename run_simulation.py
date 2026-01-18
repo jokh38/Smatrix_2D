@@ -1003,6 +1003,7 @@ def main():
     z_init = particle["position"]["z"]["value"]
     theta_init = particle["angle"]["value"]
     weight_init = particle["weight"]["value"]
+    beam_width_sigma = particle["beam_width"]["value"]  # Gaussian beam width
 
     # Extract grid parameters
     grid_cfg = config["grid"]
@@ -1039,6 +1040,7 @@ def main():
     print(f"  Beam energy: {E_init} MeV")
     print(f"  Initial position: (x={x_init}, z={z_init}) mm")
     print(f"  Beam angle: {theta_init}°")
+    print(f"  Beam width (sigma): {beam_width_sigma} mm")
     print(f"  Grid: {Nx}×{Nz} spatial, {Ntheta} angular, {Ne} energy")
     print(f"  Spatial domain: x=[{x_min}, {x_max}] mm, z=[{z_min}, {z_max}] mm")
     print(f"  Streaming: sync every {streaming_config['streaming_sync_interval']} steps")
@@ -1080,6 +1082,7 @@ def main():
     numerics_config = NumericsConfig(
         sync_interval=0,  # Zero-sync mode (no per-step synchronization)
         psi_dtype=np.float32,
+        beam_width_sigma=beam_width_sigma,  # Initial beam width from config
     )
 
     # Combine into simulation config
