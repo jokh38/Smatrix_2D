@@ -20,7 +20,7 @@ from typing import Tuple
 
 import numpy as np
 
-from smatrix_2d.core.grid import PhaseSpaceGridV2
+from smatrix_2d.core.grid import PhaseSpaceGrid
 
 
 @dataclass
@@ -62,7 +62,7 @@ class SpatialStreamingV2:
             - Do not read from psi (treat as zero)
     """
 
-    def __init__(self, grid: PhaseSpaceGridV2):
+    def __init__(self, grid: PhaseSpaceGrid):
         """Initialize spatial streaming operator.
 
         Args:

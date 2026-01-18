@@ -563,7 +563,7 @@ def benchmark_constant_vs_global_memory(
 
 
 def create_constant_memory_lut_manager_from_grid(
-    grid: PhaseSpaceGridV2,
+    grid: PhaseSpaceGrid,
     stopping_power_lut: StoppingPowerLUT,
     scattering_lut: ScatteringLUT | None = None,
     enable_constant_memory: bool = True,
@@ -583,9 +583,9 @@ def create_constant_memory_lut_manager_from_grid(
 
     Example:
         >>> from smatrix_2d.core.lut import create_water_stopping_power_lut
-        >>> from smatrix_2d.core.grid import create_default_grid_v2
+        >>> from smatrix_2d.core.grid import GridSpecs, create_phase_space_grid
         >>>
-        >>> grid = create_default_grid_v2()
+        >>> grid = create_phase_space_grid(GridSpecs.from_simulation_config())
         >>> sp_lut = create_water_stopping_power_lut()
         >>> manager = create_constant_memory_lut_manager_from_grid(grid, sp_lut)
         >>> print(manager.get_memory_stats())

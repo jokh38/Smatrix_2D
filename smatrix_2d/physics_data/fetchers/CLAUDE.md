@@ -7,23 +7,12 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #1176 | 1:27 PM | 🟣 | Git commit and push workflow executed | ~177 |
-| #1153 | 1:13 PM | ✅ | Restored CLAUDE.md documentation files and pushed to remote | ~218 |
-| #1149 | 1:12 PM | 🔴 | Synchronized stopping power corrections across duplicate LUT implementations | ~296 |
-| #1063 | 12:36 PM | 🔵 | Physics model implementations located in multiple modules | ~225 |
-| #1061 | " | 🔵 | Material support infrastructure spans multiple modules | ~318 |
 | #977 | 9:41 AM | 🔵 | Fetchers module provides NIST PSTAR and PDG data acquisition | ~219 |
-
-### Jan 17, 2026
-
-| ID | Time | T | Title | Read |
-|----|------|---|-------|------|
-| #1247 | 12:25 AM | 🔵 | Root Cause: GPU Transport Operator Missing Energy Loss Logic | ~191 |
 
 ### Jan 18, 2026
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #1352 | 10:17 AM | 🔵 | NIST PSTAR LUT Data Is Correct and Uses MeV cm²/g Units | ~289 |
-| #1301 | 10:11 AM | 🔵 | NIST PSTAR Data Source Uses MeV cm²/g Units | ~304 |
+| #1093 | 12:15 PM | 🔵 | PDG Constants Provide Physics Parameters for Scattering | ~230 |
+| #1041 | 11:38 AM | 🔵 | Material system supports multiple material identifiers with H2O as primary implementation | ~285 |
 </claude-mem-context>

@@ -41,7 +41,7 @@ class ProfiledGPUTransportStep(GPUTransportStepV3):
         """Initialize profiled transport step.
 
         Args:
-            grid: PhaseSpaceGridV2 grid object
+            grid: PhaseSpaceGrid grid object
             sigma_buckets: SigmaBuckets with precomputed kernels
             stopping_power_lut: StoppingPowerLUT for energy loss
             delta_s: Step length [mm]

@@ -22,17 +22,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #1177 | 1:27 PM | 🟣 | Git push successful to remote repository | ~155 |
-| #1176 | " | 🟣 | Git commit and push workflow executed | ~177 |
-| #1163 | 1:22 PM | 🔵 | defaults.yaml configures sync_interval=0 for Zero-Sync mode and memory pool settings | ~211 |
-| #1162 | " | 🔵 | SimulationConfig provides SSOT configuration with sync_interval controlling GPU-CPU synchronization | ~240 |
-| #1153 | 1:13 PM | ✅ | Restored CLAUDE.md documentation files and pushed to remote | ~218 |
-| #1150 | 1:12 PM | ✅ | Updated CLAUDE.md documentation with recent configuration work | ~150 |
-| #1134 | 1:04 PM | 🔵 | Located defaults.yaml configuration file | ~136 |
-| #1078 | 12:38 PM | ✅ | Committed configuration refactoring with context preservation | ~296 |
-| #1077 | 12:37 PM | 🔄 | Updated defaults.yaml with GPU configuration and clear developer/user separation | ~439 |
-| #1074 | " | 🔄 | Updated defaults.yaml with GPU configuration and clarified code-level defaults | ~397 |
-| #1058 | 12:35 PM | 🔵 | Configuration parameters overlap between user and default files | ~322 |
 | #686 | 3:04 AM | 🟣 | Base validation helper methods added to ConfigValidator class | ~326 |
 | #685 | " | 🔵 | Configuration validation architecture examined in validation.py | ~322 |
 | #684 | 3:03 AM | 🔵 | Configuration validation system provides centralized parameter checking | ~304 |
@@ -50,10 +39,8 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #1402 | 10:34 AM | 🔵 | Reviewed Modified simulation_config.py Code | ~174 |
-| #1400 | " | ✅ | Modified SimulationConfig.from_dict() to Use SSOT for energy_grid_type | ~208 |
-| #1384 | 10:31 AM | 🔵 | Reviewed Transport Defaults in defaults.yaml | ~234 |
-| #1366 | 10:30 AM | 🔵 | Examined defaults.yaml SSOT Configuration File | ~309 |
-| #1349 | 10:15 AM | 🔵 | Comprehensive Code Review Found 14+ Hardcoded Values Overriding SSOT Configuration | ~374 |
-| #1334 | 10:13 AM | 🔵 | GridConfig Has energy_grid_type Field with Default UNIFORM | ~284 |
+| #1160 | 1:37 PM | 🔵 | Angular Scattering Configuration Parameters Found | ~296 |
+| #1054 | 11:39 AM | 🔄 | Refactored defaults.yaml to clarify developer-focused purpose and organize GPU configuration | ~468 |
+| #1052 | " | 🔵 | defaults.yaml contains comprehensive code-level default values organized by category | ~380 |
+| #1032 | 11:37 AM | 🔵 | Configuration parameters duplicated between initial_info.yaml and defaults.yaml | ~311 |
 </claude-mem-context>

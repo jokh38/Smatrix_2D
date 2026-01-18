@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Example usage of R-CFG-003: SimulationConfig <-> GridSpecsV2 factory functions
+"""Example usage of R-CFG-003: SimulationConfig <-> GridSpecs factory functions
 
 This example demonstrates the bidirectional conversion between SimulationConfig
-and GridSpecsV2 using the factory methods implemented in R-CFG-003.
+and GridSpecs using the factory methods implemented in R-CFG-003.
 """
 
 from smatrix_2d.config.simulation_config import SimulationConfig
-from smatrix_2d.core.grid import GridSpecsV2, create_phase_space_grid
+from smatrix_2d.core.grid import GridSpecs, create_phase_space_grid
 
 
 def example_1_basic_conversion():
-    """Example 1: Basic SimulationConfig to GridSpecsV2 conversion."""
+    """Example 1: Basic SimulationConfig to GridSpecs conversion."""
     print("\n" + "=" * 70)
     print("Example 1: Basic Conversion")
     print("=" * 70)
@@ -18,8 +18,8 @@ def example_1_basic_conversion():
     # Create default simulation configuration
     config = SimulationConfig()
 
-    # Convert to GridSpecsV2
-    grid_specs = GridSpecsV2.from_simulation_config(config)
+    # Convert to GridSpecs
+    grid_specs = GridSpecs.from_simulation_config(config)
 
     print("Grid configuration extracted:")
     print(f"  Spatial: {grid_specs.Nx}x{grid_specs.Nz} bins")
@@ -58,8 +58,8 @@ def example_2_custom_config():
     # Create SimulationConfig from dictionary
     config = SimulationConfig.from_dict(custom_dict)
 
-    # Convert to GridSpecsV2
-    grid_specs = GridSpecsV2.from_simulation_config(config)
+    # Convert to GridSpecs
+    grid_specs = GridSpecs.from_simulation_config(config)
 
     print("Custom grid configuration:")
     print(f"  Spatial: {grid_specs.Nx}x{grid_specs.Nz} bins")
@@ -85,8 +85,8 @@ def example_3_round_trip():
     # Create original configuration
     original = SimulationConfig()
 
-    # Convert to GridSpecsV2 and back
-    grid_specs = GridSpecsV2.from_simulation_config(original)
+    # Convert to GridSpecs and back
+    grid_specs = GridSpecs.from_simulation_config(original)
     reconstructed = grid_specs.to_simulation_config()
 
     # Verify equivalence
@@ -110,13 +110,13 @@ def example_3_round_trip():
 
 
 def example_4_direct_gridspecs():
-    """Example 4: Create GridSpecsV2 directly, convert to SimulationConfig."""
+    """Example 4: Create GridSpecs directly, convert to SimulationConfig."""
     print("\n" + "=" * 70)
-    print("Example 4: Direct GridSpecsV2 Creation")
+    print("Example 4: Direct GridSpecs Creation")
     print("=" * 70)
 
-    # Create GridSpecsV2 directly
-    grid_specs = GridSpecsV2(
+    # Create GridSpecs directly
+    grid_specs = GridSpecs(
         Nx=128,
         Nz=128,
         Ntheta=180,
@@ -134,7 +134,7 @@ def example_4_direct_gridspecs():
         E_cutoff=3.0,
     )
 
-    print("Direct GridSpecsV2 created:")
+    print("Direct GridSpecs created:")
     print(f"  Spatial: {grid_specs.Nx}x{grid_specs.Nz} bins")
     print(f"  Domain: x=[{grid_specs.x_min}, {grid_specs.x_max}] mm, "
           f"z=[{grid_specs.z_min}, {grid_specs.z_max}] mm")
@@ -185,22 +185,22 @@ def example_5_workflow():
         print(f"Configuration errors: {errors}")
         return
 
-    # Step 4: Convert to GridSpecsV2 for grid creation
-    grid_specs = GridSpecsV2.from_simulation_config(config)
+    # Step 4: Convert to GridSpecs for grid creation
+    grid_specs = GridSpecs.from_simulation_config(config)
 
     # Step 5: Create phase space grid
     phase_space = create_phase_space_grid(grid_specs)
 
     print("Workflow complete:")
     print("  1. Configuration loaded and validated")
-    print("  2. GridSpecsV2 created from configuration")
-    print("  3. PhaseSpaceGrid created from GridSpecsV2")
+    print("  2. GridSpecs created from configuration")
+    print("  3. PhaseSpaceGrid created from GridSpecs")
     print(f"  4. Ready for simulation with shape: {phase_space.shape}")
 
 
 if __name__ == "__main__":
     print("\n" + "=" * 70)
-    print("R-CFG-003: SimulationConfig <-> GridSpecsV2 Factory Examples")
+    print("R-CFG-003: SimulationConfig <-> GridSpecs Factory Examples")
     print("=" * 70)
 
     example_1_basic_conversion()

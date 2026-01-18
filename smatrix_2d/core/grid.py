@@ -1,6 +1,6 @@
-"""Grid specifications and phase space definitions following SPEC v2.1.
+"""Grid specifications and phase space definitions.
 
-Implements grid configuration following spec v2.1 requirements:
+Implements grid configuration following SPEC requirements:
 - Spatial domain: [-50, +50] mm in x, [-50, +50] mm in z (centered)
 - Angular domain: [0, 180] degrees (absolute angles, NOT circular)
 - Energy domain: [0, 100] MeV
@@ -21,14 +21,14 @@ from smatrix_2d.config.enums import AngularGridType, EnergyGridType
 
 
 @dataclass
-class GridSpecsV2:
-    """Grid configuration for 2D operator-factorized transport (SPEC v2.1).
+class GridSpecs:
+    """Grid configuration for 2D operator-factorized transport.
 
-    Key changes from v1:
+    Configuration:
         - Absolute angles: 0-180 degrees (not circular 0-2π)
         - Centered x domain: -50 to +50 mm (not 0 to X_max)
         - Centered z domain: -50 to +50 mm (not 0 to Z_max)
-        - Memory layout: [iE, ith, iz, ix] as specified in v2.1
+        - Memory layout: [iE, ith, iz, ix]
 
     Attributes:
         Nx: Number of spatial bins in x-direction
@@ -141,22 +141,22 @@ class GridSpecsV2:
         return self.Ne * self.Ntheta * self.Nz * self.Nx
 
     @classmethod
-    def from_simulation_config(cls, config: "SimulationConfig") -> "GridSpecsV2":
-        """Create GridSpecsV2 from SimulationConfig (R-CFG-003).
+    def from_simulation_config(cls, config: "SimulationConfig") -> "GridSpecs":
+        """Create GridSpecs from SimulationConfig.
 
         This factory function extracts grid parameters from SimulationConfig.grid
-        and creates a GridSpecsV2 instance with proper parameter mapping.
+        and creates a GridSpecs instance with proper parameter mapping.
 
         Args:
             config: SimulationConfig instance containing GridConfig
 
         Returns:
-            GridSpecsV2 instance with parameters from SimulationConfig
+            GridSpecs instance with parameters from SimulationConfig
 
         Example:
             >>> from smatrix_2d.config.simulation_config import SimulationConfig
             >>> config = SimulationConfig()
-            >>> grid_specs = GridSpecsV2.from_simulation_config(config)
+            >>> grid_specs = GridSpecs.from_simulation_config(config)
 
         """
         from smatrix_2d.config.simulation_config import SimulationConfig
@@ -203,16 +203,16 @@ class GridSpecsV2:
         )
 
     def to_simulation_config(self) -> "SimulationConfig":
-        """Create SimulationConfig from GridSpecsV2 (R-CFG-003).
+        """Create SimulationConfig from GridSpecs.
 
         This reverse factory creates a SimulationConfig with GridConfig populated
-        from this GridSpecsV2 instance. Other config sections use defaults.
+        from this GridSpecs instance. Other config sections use defaults.
 
         Returns:
             SimulationConfig with GridConfig from this instance
 
         Example:
-            >>> grid_specs = GridSpecsV2(Nx=100, Nz=100, ...)
+            >>> grid_specs = GridSpecs(Nx=100, Nz=100, ...)
             >>> config = grid_specs.to_simulation_config()
 
         """
@@ -249,13 +249,13 @@ class GridSpecsV2:
 
 
 @dataclass
-class PhaseSpaceGridV2:
-    """Phase space grid with bin centers and edges (SPEC v2.1).
+class PhaseSpaceGrid:
+    """Phase space grid with bin centers and edges.
 
-    Key changes from v1:
+    Configuration:
         - Absolute angles: stored in degrees internally, not circular
         - Centered spatial coordinates: x and z are centered around 0
-        - Memory layout: [iE, ith, iz, ix] matching SPEC v2.1
+        - Memory layout: [iE, ith, iz, ix]
         - Texture memory attributes for GPU optimization
 
     GPU Memory Layout:
@@ -431,11 +431,11 @@ def create_angular_grid(
     raise ValueError(f"Unknown angular grid type: {grid_type}")
 
 
-def create_phase_space_grid(specs: GridSpecsV2) -> PhaseSpaceGridV2:
-    """Create PhaseSpaceGridV2 from GridSpecsV2.
+def create_phase_space_grid(specs: GridSpecs) -> PhaseSpaceGrid:
+    """Create PhaseSpaceGrid from GridSpecs.
 
     Args:
-        specs: Grid specification following SPEC v2.1
+        specs: Grid specification
 
     Returns:
         PhaseSpaceGrid with all bin centers and edges
@@ -476,7 +476,7 @@ def create_phase_space_grid(specs: GridSpecsV2) -> PhaseSpaceGridV2:
     z_edges = np.linspace(specs.z_min, specs.z_max, specs.Nz + 1)
     z_centers = 0.5 * (z_edges[:-1] + z_edges[1:])
 
-    return PhaseSpaceGridV2(
+    return PhaseSpaceGrid(
         x_edges=x_edges,
         x_centers=x_centers,
         z_edges=z_edges,
@@ -497,128 +497,23 @@ def create_phase_space_grid(specs: GridSpecsV2) -> PhaseSpaceGridV2:
     )
 
 
-def create_default_grid_specs(
-    Nx: int | None = None,
-    Nz: int | None = None,
-    Ntheta: int = 180,
-    Ne: int | None = None,
-    use_texture_memory: bool = False,
-) -> GridSpecsV2:
-    """Create default GridSpecsV2 following SPEC v2.1 baseline.
-
-    Args:
-        Nx: Number of x bins (default: 100 for 1mm resolution)
-        Nz: Number of z bins (default: 100 for 1mm resolution)
-        Ntheta: Number of angular bins (default: 180 for 1 degree resolution)
-        Ne: Number of energy bins (default: 100 for 1 MeV resolution)
-        use_texture_memory: Enable texture memory (default: False)
-
-    Returns:
-        GridSpecsV2 configured for SPEC v2.1 baseline grid
-
-    """
-    # Use defaults from YAML config if not specified
-    if Nx is None:
-        Nx = get_default('spatial_grid.nx')
-    if Nz is None:
-        Nz = get_default('spatial_grid.nz')
-    if Ne is None:
-        Ne = get_default('energy_grid.ne')
-
-    return GridSpecsV2(
-        Nx=Nx,
-        Nz=Nz,
-        Ntheta=Ntheta,
-        Ne=Ne,
-        delta_x=get_default('spatial_grid.delta_x'),
-        delta_z=get_default('spatial_grid.delta_z'),
-        x_min=-get_default('spatial_grid.half_size'),
-        x_max=get_default('spatial_grid.half_size'),
-        z_min=-get_default('spatial_grid.half_size'),
-        z_max=get_default('spatial_grid.half_size'),
-        theta_min=get_default('angular_grid.theta_min'),
-        theta_max=get_default('angular_grid.theta_max'),
-        E_min=get_default('energy_grid.e_min'),
-        E_max=get_default('energy_grid.e_max'),
-        E_cutoff=get_default('energy_grid.e_cutoff'),
-        energy_grid_type=EnergyGridType.UNIFORM,
-        use_texture_memory=use_texture_memory,
-    )
-
-
-def create_non_uniform_grid_specs(
-    Nx: int | None = None,
-    Nz: int | None = None,
-    use_texture_memory: bool = False,
-    theta0: float = 90.0,
-) -> GridSpecsV2:
-    """Create GridSpecsV2 with Phase C-3 non-uniform energy and angular grids.
-
-    This factory creates a grid specification with non-uniform grids that
-    focus resolution where physically important:
-    - Energy: Finer near Bragg peak (2-10 MeV), coarser at high energy
-    - Angle: Finer in forward direction (beam core), coarser in tails
-
-    Args:
-        Nx: Number of x bins (default: 100 for 1mm resolution)
-        Nz: Number of z bins (default: 100 for 1mm resolution)
-        use_texture_memory: Enable texture memory (default: False)
-        theta0: Central beam angle for angular grid [degrees] (default: 90)
-
-    Returns:
-        GridSpecsV2 configured with Phase C-3 non-uniform grids
-
-    Note:
-        Ne and Ntheta are determined by the non-uniform grid generation,
-        not specified as inputs. The actual bin counts are returned by
-        the grid generation functions.
-
-    """
-    # Use defaults from YAML config if not specified
-    if Nx is None:
-        Nx = get_default('spatial_grid.nx')
-    if Nz is None:
-        Nz = get_default('spatial_grid.nz')
-
-    # For non-uniform grids, use placeholder values for Ne, Ntheta
-    # They will be overridden by grid generation
-    return GridSpecsV2(
-        Nx=Nx,
-        Nz=Nz,
-        Ntheta=100,  # Placeholder, actual count determined by non-uniform grid
-        Ne=100,      # Placeholder, actual count determined by non-uniform grid
-        delta_x=get_default('spatial_grid.delta_x'),
-        delta_z=get_default('spatial_grid.delta_z'),
-        x_min=-get_default('spatial_grid.half_size'),
-        x_max=get_default('spatial_grid.half_size'),
-        z_min=-get_default('spatial_grid.half_size'),
-        z_max=get_default('spatial_grid.half_size'),
-        theta_min=get_default('angular_grid.theta_min'),
-        theta_max=get_default('angular_grid.theta_max'),
-        E_min=get_default('energy_grid.e_min'),
-        E_max=get_default('energy_grid.e_max'),
-        E_cutoff=get_default('energy_grid.e_cutoff'),
-        energy_grid_type=EnergyGridType.NON_UNIFORM,
-        angular_grid_type=AngularGridType.NON_UNIFORM,
-        use_texture_memory=use_texture_memory,
-    )
-
-
 # Type aliases for backward compatibility
-GridSpecs2D = GridSpecsV2
-PhaseSpaceGrid2D = PhaseSpaceGridV2
+GridSpecsV2 = GridSpecs
+PhaseSpaceGridV2 = PhaseSpaceGrid
+GridSpecs2D = GridSpecs
+PhaseSpaceGrid2D = PhaseSpaceGrid
 
 
 __all__ = [
     "AngularGridType",
     "EnergyGridType",
+    "GridSpecs",
     "GridSpecs2D",  # Backward compatibility
-    "GridSpecsV2",
+    "GridSpecsV2",  # Backward compatibility
+    "PhaseSpaceGrid",
     "PhaseSpaceGrid2D",  # Backward compatibility
-    "PhaseSpaceGridV2",
+    "PhaseSpaceGridV2",  # Backward compatibility
     "create_angular_grid",
-    "create_default_grid_specs",
     "create_energy_grid",
-    "create_non_uniform_grid_specs",
     "create_phase_space_grid",
 ]

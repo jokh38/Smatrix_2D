@@ -30,10 +30,8 @@ from smatrix_2d.core.config_resolver import (
 )
 from smatrix_2d.core.constants import PhysicsConstants2D
 from smatrix_2d.core.grid import (
-    GridSpecs2D,  # alias
-    GridSpecsV2,
-    PhaseSpaceGrid2D,  # alias
-    PhaseSpaceGridV2,
+    GridSpecs,
+    PhaseSpaceGrid,
     create_phase_space_grid,
 )
 from smatrix_2d.core.lut import StoppingPowerLUT, create_water_stopping_power_lut
@@ -45,12 +43,21 @@ from smatrix_2d.core.non_uniform_grid import (
     create_non_uniform_grids,
 )
 
+# Backward compatibility aliases
+GridSpecsV2 = GridSpecs
+GridSpecs2D = GridSpecs
+PhaseSpaceGridV2 = PhaseSpaceGrid
+PhaseSpaceGrid2D = PhaseSpaceGrid
+
 __all__ = [
-    "GridSpecsV2",
-    "PhaseSpaceGridV2",
+    "GridSpecs",
+    "PhaseSpaceGrid",
     "create_phase_space_grid",
-    "GridSpecs2D",  # alias
-    "PhaseSpaceGrid2D",  # alias
+    # Backward compatibility aliases
+    "GridSpecsV2",
+    "GridSpecs2D",
+    "PhaseSpaceGridV2",
+    "PhaseSpaceGrid2D",
     "MaterialProperties2D",
     "PhysicsConstants2D",
     "StoppingPowerLUT",

@@ -1,4 +1,4 @@
-"""Operator-Factorized Generalized 2D Transport System (SPEC v2.1)
+"""Operator-Factorized Generalized 2D Transport System
 
 A deterministic transport engine using operator factorization.
 Implements continuous slowing-down approximation (CSDA) and multiple
@@ -19,10 +19,8 @@ __version__ = "2.1"
 # Core data structures
 from smatrix_2d.core.constants import PhysicsConstants2D
 from smatrix_2d.core.grid import (
-    GridSpecs2D,  # alias
-    GridSpecsV2,
-    PhaseSpaceGrid2D,  # alias
-    PhaseSpaceGridV2,
+    GridSpecs,
+    PhaseSpaceGrid,
     create_phase_space_grid,
 )
 from smatrix_2d.core.lut import StoppingPowerLUT, create_water_stopping_power_lut
@@ -47,15 +45,24 @@ from smatrix_2d.transport import (
     create_simulation,
 )
 
+# Backward compatibility aliases
+GridSpecsV2 = GridSpecs
+GridSpecs2D = GridSpecs
+PhaseSpaceGridV2 = PhaseSpaceGrid
+PhaseSpaceGrid2D = PhaseSpaceGrid
+
 __all__ = [
     # Version
     "__version__",
     # Core
-    "GridSpecsV2",
-    "PhaseSpaceGridV2",
+    "GridSpecs",
+    "PhaseSpaceGrid",
     "create_phase_space_grid",
-    "GridSpecs2D",  # alias
-    "PhaseSpaceGrid2D",  # alias
+    # Backward compatibility aliases
+    "GridSpecsV2",
+    "GridSpecs2D",
+    "PhaseSpaceGridV2",
+    "PhaseSpaceGrid2D",
     "MaterialProperties2D",
     "create_water_material",
     "PhysicsConstants2D",
