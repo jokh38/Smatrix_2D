@@ -144,6 +144,7 @@ class TransportSimulation:
             spatial_shape=spatial_shape,
             max_steps=self.config.transport.max_steps,
             enable_history=enable_history,
+            enable_path_length=True,  # Enable for Bragg peak physics
         )
 
         # IMPORTANT: Initialize grid and Ne BEFORE beam initialization
@@ -222,12 +223,18 @@ class TransportSimulation:
         # Create stopping power LUT (load from processed file for higher resolution)
         stopping_power_lut = create_water_stopping_power_lut()
 
+        # Get initial beam energy for path tracking
+        # PhaseSpaceGrid stores E_centers array, max is the last element
+        E_initial = float(grid.E_centers[-1])  # Maximum energy in the grid (beam energy)
+
         # Create GPU transport step V3
         self.transport_step = create_gpu_transport_step_v3(
             grid=grid,
             sigma_buckets=sigma_buckets,
             stopping_power_lut=stopping_power_lut,
             delta_s=self.config.transport.delta_s,
+            enable_path_tracking=True,  # Enable for Bragg peak physics
+            E_initial=E_initial,
         )
 
         self._kernels_initialized = True

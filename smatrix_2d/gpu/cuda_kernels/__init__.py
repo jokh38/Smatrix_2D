@@ -23,6 +23,7 @@ from smatrix_2d.gpu.cuda_kernels.kernel_loader import (
     load_angular_scattering_kernel,
     load_angular_scattering_warp_kernel,
     load_energy_loss_kernel,
+    load_energy_loss_path_tracking_kernel,
     load_energy_loss_warp_kernel,
     load_expand_halo_dual_kernel,
     load_kernel,
@@ -45,6 +46,7 @@ __all__ = [
     # Baseline transport kernels
     "load_angular_scattering_kernel",
     "load_energy_loss_kernel",
+    "load_energy_loss_path_tracking_kernel",
     "load_spatial_streaming_kernel",
     "load_spatial_streaming_shared_kernel",
     # Warp-optimized kernels

@@ -46,19 +46,21 @@ class StoppingPowerLUT:
     # NIST PSTAR stopping power data for protons in liquid water
     # Source: NIST PSTAR database (https://physics.nist.gov/PhysRefData/Star/Text/PSTAR.html)
     # Units: MeV cm²/g (will be converted to MeV/mm by dividing by 10)
-    # Corrected values based on ICRU Report 49 and NIST PSTAR 2024
+    # Values from nist_pstar_h2o.csv (NIST PSTAR 2024)
     _NIST_STOPPING_POWER = np.array([
+        # 0.01-1.0 MeV (indices 0-29)
         231.8, 173.5, 147.2, 131.5, 120.7, 112.5, 106.0, 100.7, 96.2, 92.5,
         79.8, 72.1, 66.7, 62.6, 59.3, 56.6, 54.3, 52.3, 50.5, 49.0,
         47.6, 46.3, 45.2, 44.1, 43.2, 42.3, 41.5, 40.8, 38.3, 36.3,
+        # 1.75-10 MeV (indices 30-49)
         34.8, 33.5, 31.4, 29.8, 28.6, 27.6, 26.8, 26.1, 25.5, 25.0,
         24.5, 24.1, 23.7, 23.4, 23.1, 22.8, 22.5, 22.3, 21.8, 21.4,
+        # 11-30 MeV (indices 50-59)
         21.1, 20.8, 20.6, 20.3, 20.1, 19.9, 19.8, 19.6, 19.0, 18.6,
-        # Values for 55-200 MeV (indices 60-83, 24 values total)
-        # NIST PSTAR ICRU-49 values from nist_pstar_h2o.csv
-        # At 70 MeV: 13.7 MeV cm²/g (index 67) matching NIST PSTAR 2024
-        15.2, 14.7, 14.2, 13.7, 13.3, 12.9, 12.5, 11.9, 11.3, 10.7,
-        10.2, 9.6, 9.0, 8.6, 8.2, 7.8, 7.4, 7.0, 6.6, 6.2,
+        # 35-200 MeV (indices 60-83) - corrected from NIST PSTAR 2024
+        17.8, 17.1, 16.4, 15.8, 15.2, 14.7, 14.2, 13.7, 13.3, 12.9,
+        12.5, 11.9, 11.3, 10.7, 10.2, 9.6, 9.0, 8.6, 8.2, 7.8,
+        7.4, 7.0, 6.6, 6.2,
     ], dtype=np.float32)
 
     def __init__(

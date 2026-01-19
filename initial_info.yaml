@@ -54,7 +54,7 @@ grid:
 
     z:
       min: 0.0           # mm
-      max: 50.0          # mm
+      max: 60.0          # mm (expanded to capture Bragg peak at ~40mm)
       delta: 1.0         # mm
       unit: mm
       description: "Depth domain (along beam direction)"
@@ -62,8 +62,8 @@ grid:
   # Angular grid (scattering angle distribution)
   angular:
     center: 90.0         # degrees (beam direction)
-    half_range: 20.0     # degrees
-    delta: 1.0           # degrees
+    half_range: 40.0     # degrees (expanded to reduce particle escape and observe Bragg peak)
+    delta: 2.0           # degrees (coarser resolution to cover wider range)
     unit: degrees
     description: "Angular scattering domain (θ = center ± half_range)"
 
@@ -100,7 +100,7 @@ numerical:
 # ==============================================================================
 transport:
   delta_s: 1.0            # mm - step size
-  max_steps: 100          # Maximum number of transport steps
+  max_steps: 130          # Maximum number of transport steps (increased for 60mm domain)
 
 # ==============================================================================
 # RESOLUTION CONFIGURATION

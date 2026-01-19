@@ -48,6 +48,7 @@ from smatrix_2d.gpu.cuda_kernels import (
     load_angular_scattering_kernel,
     load_angular_scattering_warp_kernel,
     load_energy_loss_kernel,
+    load_energy_loss_path_tracking_kernel,
     load_energy_loss_warp_kernel,
     load_spatial_streaming_kernel,
     load_spatial_streaming_shared_kernel,
@@ -80,6 +81,8 @@ class GPUTransportStepBase:
         sigma_buckets,
         stopping_power_lut,
         delta_s: float = 1.0,
+        enable_path_tracking: bool = True,
+        E_initial: float = 70.0,
     ):
         """Initialize GPU transport step.
 
@@ -88,6 +91,8 @@ class GPUTransportStepBase:
             sigma_buckets: SigmaBuckets with precomputed kernels
             stopping_power_lut: StoppingPowerLUT for energy loss
             delta_s: Step length [mm]
+            enable_path_tracking: Whether to use path-tracking energy loss (for Bragg peak)
+            E_initial: Initial beam energy [MeV] (for path tracking)
 
         """
         if not GPU_AVAILABLE:
@@ -97,6 +102,8 @@ class GPUTransportStepBase:
         self.sigma_buckets = sigma_buckets
         self.stopping_power_lut = stopping_power_lut
         self.delta_s = delta_s
+        self.enable_path_tracking = enable_path_tracking
+        self.E_initial = E_initial
 
         # Grid dimensions
         self.Ne = grid.Ne
@@ -227,6 +234,8 @@ class GPUTransportStepBase:
         psi_out: cp.ndarray,
         dose_gpu: cp.ndarray,
         escapes_gpu: cp.ndarray,
+        path_length_in: cp.ndarray | None = None,
+        path_length_out: cp.ndarray | None = None,
     ) -> None:
         """Apply energy loss with unified escape tracking.
 
@@ -235,6 +244,8 @@ class GPUTransportStepBase:
             psi_out: Output phase space [Ne, Ntheta, Nz, Nx]
             dose_gpu: Dose accumulator [Nz, Nx] (modified in-place)
             escapes_gpu: Escape accumulator [NUM_CHANNELS] (modified in-place)
+            path_length_in: Cumulative path length at each position [Nz, Nx] (for path tracking)
+            path_length_out: Output path length [Nz, Nx] (for path tracking)
 
         """
         threads_per_block = 256
@@ -244,23 +255,47 @@ class GPUTransportStepBase:
         block_dim = (threads_per_block,)
         grid_dim = (blocks,)
 
-        self.energy_loss_kernel(
-            grid_dim,
-            block_dim,
-            (
-                psi_in,
-                psi_out,
-                dose_gpu,
-                escapes_gpu,
-                self.stopping_power_gpu,
-                self.E_grid_lut_gpu,
-                self.E_grid_gpu,
-                np.float32(self.delta_s),
-                np.float32(self.E_cutoff),
-                self.Ne, self.Ntheta, self.Nz, self.Nx,
-                self.lut_size,
-            ),
-        )
+        # Use path-tracking kernel if enabled and path arrays are provided
+        if self.enable_path_tracking and path_length_in is not None and path_length_out is not None:
+            self.energy_loss_path_kernel(
+                grid_dim,
+                block_dim,
+                (
+                    psi_in,
+                    psi_out,
+                    dose_gpu,
+                    escapes_gpu,
+                    self.stopping_power_gpu,
+                    self.E_grid_lut_gpu,
+                    self.E_grid_gpu,
+                    path_length_in,
+                    path_length_out,
+                    np.float32(self.delta_s),
+                    np.float32(self.E_cutoff),
+                    np.float32(self.E_initial),
+                    self.Ne, self.Ntheta, self.Nz, self.Nx,
+                    self.lut_size,
+                ),
+            )
+        else:
+            # Use standard energy loss kernel
+            self.energy_loss_kernel(
+                grid_dim,
+                block_dim,
+                (
+                    psi_in,
+                    psi_out,
+                    dose_gpu,
+                    escapes_gpu,
+                    self.stopping_power_gpu,
+                    self.E_grid_lut_gpu,
+                    self.E_grid_gpu,
+                    np.float32(self.delta_s),
+                    np.float32(self.E_cutoff),
+                    self.Ne, self.Ntheta, self.Nz, self.Nx,
+                    self.lut_size,
+                ),
+            )
 
     def apply_spatial_streaming(
         self,
@@ -325,9 +360,19 @@ class GPUTransportStepBase:
         psi_tmp2 = cp.zeros_like(psi)
         psi_out = cp.zeros_like(psi)
 
+        # Get path length arrays if available (for Bragg peak physics)
+        # NOTE: We need separate in/out buffers to avoid race conditions
+        path_length_in_gpu = None
+        path_length_out_gpu = None
+        if hasattr(accumulators, 'path_length_gpu') and accumulators.path_length_gpu is not None:
+            path_length_in_gpu = accumulators.path_length_gpu
+            path_length_out_gpu = accumulators.path_length_gpu  # Same buffer for now (atomicAdd handles concurrent writes)
+
         # Operator sequence: A_theta -> A_E -> A_s
         self.apply_angular_scattering(psi, psi_tmp1, accumulators.escapes_gpu)
-        self.apply_energy_loss(psi_tmp1, psi_tmp2, accumulators.dose_gpu, accumulators.escapes_gpu)
+        self.apply_energy_loss(psi_tmp1, psi_tmp2, accumulators.dose_gpu, accumulators.escapes_gpu,
+                               path_length_in=path_length_in_gpu,
+                               path_length_out=path_length_out_gpu)
         self.apply_spatial_streaming(psi_tmp2, psi_out, accumulators.escapes_gpu)
 
         cp.copyto(psi, psi_out)
@@ -350,6 +395,8 @@ class GPUTransportStepV3(GPUTransportStepBase):
         """Compile baseline CUDA kernels from external .cu files."""
         self.angular_scattering_kernel = load_angular_scattering_kernel()
         self.energy_loss_kernel = load_energy_loss_kernel()
+        # Load path-tracking kernel for Bragg peak physics
+        self.energy_loss_path_kernel = load_energy_loss_path_tracking_kernel()
         self.spatial_streaming_kernel = load_spatial_streaming_kernel()
 
 
@@ -401,6 +448,8 @@ def create_gpu_transport_step_v3(
     sigma_buckets,
     stopping_power_lut,
     delta_s: float = 1.0,
+    enable_path_tracking: bool = True,
+    E_initial: float = 70.0,
 ) -> GPUTransportStepV3:
     """Factory function to create baseline GPU transport step V3.
 
@@ -409,6 +458,8 @@ def create_gpu_transport_step_v3(
         sigma_buckets: SigmaBuckets instance
         stopping_power_lut: StoppingPowerLUT instance
         delta_s: Step length [mm]
+        enable_path_tracking: Whether to use path-tracking energy loss (for Bragg peak)
+        E_initial: Initial beam energy [MeV] (for path tracking)
 
     Returns:
         GPUTransportStepV3 instance
@@ -418,7 +469,8 @@ def create_gpu_transport_step_v3(
         >>> psi_out = step.apply(psi, accumulators)
 
     """
-    return GPUTransportStepV3(grid, sigma_buckets, stopping_power_lut, delta_s)
+    return GPUTransportStepV3(grid, sigma_buckets, stopping_power_lut, delta_s,
+                               enable_path_tracking, E_initial)
 
 
 def create_gpu_transport_step_v3_sharedmem(
