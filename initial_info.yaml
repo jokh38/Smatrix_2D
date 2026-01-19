@@ -120,39 +120,100 @@ convergence:
 # ==============================================================================
 # OUTPUT CONFIGURATION
 # ==============================================================================
+# Centralized control for all simulation outputs.
+# Set enabled: false for any output type to disable it and save disk space/I/O.
 output:
   # Output directory for all generated files
   directory: "output"
 
-  # CSV data files
-  csv:
+  # HDF5 profile data (always enabled for internal processing)
+  hdf5_profiles:
     enabled: true
-    detailed_file: "output/proton_transport_steps.csv"
-    summary_file: "output/proton_transport_summary.csv"
+    description: "Stream 2D profiles to HDF5 (memory efficient, required for some exports)"
+
+  # Per-step lateral profile tracking
+  lateral_per_step_csv:
+    enabled: true
+    description: "Track lateral beam profile evolution at each transport step"
+
+  # Detailed energy debug tracking
+  energy_debug_csv:
+    enabled: true
+    description: "Track energy, stopping power, and energy loss per (z,x) position"
+
+  # Cumulative lateral profile with statistics
+  lateral_detailed_csv:
+    enabled: true
+    description: "Export cumulative lateral profile with theta/E statistics for all particles"
+
+  # Detailed step-by-step transport data
+  detailed_steps_csv:
+    enabled: true
     description: "Save particle distribution data for each transport step"
+
+  # Centroid tracking data
+  centroids_csv:
+    enabled: true
+    description: "Save centroid and RMS statistics for each step"
+
+  # Summary statistics
+  summary_csv:
+    enabled: true
+    description: "Save simulation summary statistics"
+
+  # Full profile data export (large file - disabled by default)
+  profile_csv:
+    enabled: false
+    description: "Export full profile data to CSV (can be very large)"
+
+  # Profile analysis text file
+  profile_analysis:
+    enabled: true
+    description: "Generate profile analysis text report"
 
   # Figures
   figures:
     enabled: true
     format: "png"        # Options: png, pdf, svg
     dpi: 150
+    combined_results:
+      enabled: true
+      description: "Generate combined 2x2 results figure"
+    separate_figures:
+      enabled: true
+      description: "Generate separate individual figures"
     files:
       depth_dose:
-        filename: "output/proton_pdd.png"
+        enabled: true
+        filename: "proton_pdd"
         title: "Proton Percentage Depth Dose (PDD)"
         description: "Depth-dose curve showing Bragg peak"
       dose_map_2d:
-        filename: "output/proton_dose_map_2d.png"
+        enabled: true
+        filename: "proton_dose_map_2d"
         title: "2D Dose Distribution"
         description: "2D spatial dose distribution map"
       lateral_spreading:
-        filename: "output/lateral_spreading_analysis.png"
+        enabled: true
+        filename: "lateral_spreading_analysis"
         title: "Lateral Spreading Analysis"
         description: "Analysis of lateral beam spreading with depth"
+
+  # Checkpoint system
+  checkpoints:
+    enabled: true
+    interval: 50         # Save checkpoint every N steps
+    description: "Enable crash recovery with checkpoint files"
 
   # Console output verbosity
   verbosity: 1           # 0=minimal, 1=normal, 2=verbose
   description: "Level of detail for console output"
+
+  # Streaming control (advanced)
+  streaming:
+    profile_save_interval: 1    # Save profile data every N steps
+    sync_interval: 10           # Sync to CPU every N steps for monitoring
+    description: "Control data streaming frequency"
 
 # ==============================================================================
 # METADATA
