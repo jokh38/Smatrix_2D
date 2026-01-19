@@ -64,7 +64,7 @@ class NonUniformGridSpecs:
     E_cutoff: float = 2.0
     theta_min: float = 60.0
     theta_max: float = 120.0
-    theta0: float = 90.0  # Beam direction
+    theta0: float = 0.0  # Beam direction (0° = forward along +z axis)
 
     # Spatial grid (uniform) - SSOT: Use defaults from YAML config
     Nx: int = field(default_factory=lambda: get_default('spatial_grid.nx'))
@@ -190,7 +190,7 @@ def create_non_uniform_energy_grid(
 def create_non_uniform_angular_grid(
     theta_min: float,
     theta_max: float,
-    theta0: float = 90.0,
+    theta0: float = 0.0,  # Central beam angle (0° = forward along +z)
     core_range: float = 10.0,
     core_spacing: float = 0.2,
     wing_spacing: float = 0.5,

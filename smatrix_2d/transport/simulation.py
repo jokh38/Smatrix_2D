@@ -119,7 +119,7 @@ class TransportSimulation:
         Args:
             config: Simulation configuration (SSOT). If None, uses defaults.
             psi_init: Initial phase space distribution [Ne, Ntheta, Nz, Nx].
-                If None, initializes with beam at z=0, theta=90°, E=E_beam.
+                If None, initializes with beam at z=0, theta=0°, E=E_beam.
 
         Raises:
             ConfigurationError: If config validation fails
@@ -249,7 +249,7 @@ class TransportSimulation:
 
         Creates a narrow beam at:
         - z = 0 (upstream boundary)
-        - theta = 90° (forward direction)
+        - theta = 0° (forward direction along +z axis)
         - E = E_max (beam energy)
 
         Returns:
@@ -268,10 +268,12 @@ class TransportSimulation:
         # Initialize to zero
         psi_gpu = cp.zeros(shape, dtype=self.config.numerics.psi_dtype)
 
-        # Set beam at z=0, theta=90°, E=E_max
+        # Set beam at z=0, theta=0°, E=E_max
         # Find indices
         z_idx = 0  # z=0 is at index 0
-        theta_idx = self.config.grid.Ntheta // 2  # 90° is middle of [0, 180]
+        # Find index for theta=0 (forward direction)
+        theta_centers = self.config.grid.th_centers
+        theta_idx = np.argmin(np.abs(theta_centers - 0.0))
         e_idx = self.Ne - 1  # E_max is last bin (use actual grid Ne)
 
         # Gaussian profile in x (centered at middle of x-domain)

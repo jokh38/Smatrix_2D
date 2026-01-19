@@ -171,9 +171,10 @@ class GPUTransportStepBase:
         )
         self.lut_size = len(self.stopping_power_lut.energy_grid)
 
-        # Velocity LUTs
-        sin_theta = np.sin(np.deg2rad(self.grid.th_centers))
-        cos_theta = np.cos(np.deg2rad(self.grid.th_centers))
+        # Velocity LUTs: vx = sin(theta), vz = cos(theta)
+        # With theta=0° as forward (along +z): vx = 0, vz = 1
+        sin_theta = np.sin(np.deg2rad(self.grid.th_centers))  # lateral component
+        cos_theta = np.cos(np.deg2rad(self.grid.th_centers))  # forward component
 
         self.sin_theta_gpu = cp.asarray(sin_theta, dtype=cp.float32)
         self.cos_theta_gpu = cp.asarray(cos_theta, dtype=cp.float32)

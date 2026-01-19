@@ -17,7 +17,7 @@ Nx = int((x_max - x_min) / delta_x)
 Nz = int((z_max - z_min) / delta_z)
 
 # Angular grid
-theta_center = 90.0  # degrees
+theta_center = 0.0  # degrees (beam direction = forward along +z)
 theta_half_range = 40.0  # degrees
 delta_theta = 2.0  # degrees
 theta_min = theta_center - theta_half_range
@@ -39,7 +39,8 @@ print(f"\nTransport parameters:")
 print(f"  delta_s = {delta_s} mm")
 
 # Beam initial conditions
-theta_idx = Ntheta // 2  # 90° should be at middle
+# For theta centered at 0°, the middle index corresponds to theta=0°
+theta_idx = Ntheta // 2
 theta_beam = theta_min + theta_idx * delta_theta + delta_theta / 2
 z_idx = 0
 x_idx = Nx // 2  # center of x domain
@@ -54,8 +55,8 @@ sin_th = np.sin(theta_rad)
 cos_th = np.cos(theta_rad)
 
 print(f"\nDirection vectors for theta = {theta_beam}°:")
-print(f"  sin(theta) = {sin_th:.6f}")
-print(f"  cos(theta) = {cos_th:.6f}")
+print(f"  sin(theta) = {sin_th:.6f}  # lateral component (x)")
+print(f"  cos(theta) = {cos_th:.6f}  # forward component (z)")
 
 # Trace particle position through multiple steps
 print(f"\n" + "=" * 70)
@@ -154,7 +155,8 @@ print(f"\n" + "=" * 70)
 print("PHYSICS VERIFICATION")
 print("=" * 70)
 print(f"\nExpected behavior:")
-print(f"  - Particles at theta=90° move in +z direction")
+print(f"  - Particles at theta=0° move in +z direction (forward)")
+print(f"  - Velocity: vx = sin(theta) for lateral, vz = cos(theta) for forward")
 print(f"  - Each step: z_new = z_old + {delta_s} mm")
 print(f"  - After 10 steps: z ≈ 0 + 10 * {delta_s} = {10 * delta_s} mm")
 print(f"  - After 80 steps: z ≈ 0 + 80 * {delta_s} = {80 * delta_s} mm (Bragg peak region)")

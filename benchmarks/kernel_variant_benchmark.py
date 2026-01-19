@@ -129,14 +129,16 @@ def create_test_grid(
 def initialize_beam_psi(grid: Any) -> cp.ndarray:
     """Initialize a simple beam for testing.
 
-    Creates a narrow beam at z=0, theta=90°, E=E_max.
+    Creates a narrow beam at z=0, theta=0°, E=E_max.
     """
     shape = (grid.Ne, grid.Ntheta, grid.Nz, grid.Nx)
     psi = cp.zeros(shape, dtype=cp.float32)
 
-    # Set beam at z=0, theta=90°, E=E_max
+    # Set beam at z=0, theta=0°, E=E_max
     z_idx = 0
-    theta_idx = grid.Ntheta // 2
+    # Find index for theta=0 (forward direction)
+    theta_centers = grid.th_centers
+    theta_idx = np.argmin(np.abs(theta_centers - 0.0))
     e_idx = grid.Ne - 1
 
     # Gaussian beam in x

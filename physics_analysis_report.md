@@ -106,12 +106,12 @@ From `initial_info.yaml`:
 ```yaml
 grid:
   angular:
-    center: 90.0      # degrees (beam direction)
+    center: 0.0       # degrees (beam direction)
     half_range: 20.0  # degrees  <-- TOO SMALL
     delta: 1.0        # degrees
 ```
 
-This creates an angular grid of **[70°, 110°]** = ±20° from beam center.
+This creates an angular grid of **[-20°, +20°]** = ±20° from beam center.
 
 #### Theoretical vs. Actual Loss
 

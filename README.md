@@ -1,227 +1,239 @@
-# Operator-Factorized Generalized 2D Transport System
+# Smatrix_2D: Operator-Factorized 2D Proton Transport System
 
 **Version**: 7.2
 **Status**: Implementation Complete (Alpha)
+**Last Updated**: 2026-01-19
 
 ## Overview
 
-A deterministic transport engine using operator factorization instead of explicit S-matrix construction. Implements continuous slowing-down approximation (CSDA) and multiple Coulomb scattering (MCS) with strict probability conservation.
+A deterministic transport engine for proton beam simulation using operator factorization. The system simulates proton beam transport through water using continuous slowing-down approximation (CSDA) and multiple Coulomb scattering (MCS) with strict probability conservation.
 
-**Key Principles**:
-- **Operator factorization**: `psi_next = A_E(A_stream(A_theta(psi)))`
+**Key Features**:
+- **Operator factorization**: `psi_next = A_s(A_E(A_theta(psi)))`
 - **No global S-matrix construction**: Memory-efficient, GPU-friendly
 - **GPU-optimized memory layout**: `psi[E, theta, z, x]` with canonical ordering
-- **First-order and Strang splitting**: Support for both accuracy levels
-- **Backward transport modes**: HARD_REJECT, ANGULAR_CAP, SMALL_BACKWARD_ALLOWANCE
-- **Coordinate-based energy advection**: Supports non-uniform energy grids
+- **Physics-validated**: Uses NIST PSTAR stopping power data and Highland scattering formula
+- **Exact mass conservation**: With escape tracking across 4 channels
+
+### Physics Implementation
+
+The simulation models proton transport through a 4D phase space:
+- **x**: Lateral position [mm]
+- **z**: Depth position [mm] (beam direction)
+- **theta**: Scattering angle [degrees] (0° to 180°)
+- **E**: Proton energy [MeV]
+
+**Transport operators applied sequentially:**
+1. **Angular Scattering (A_θ)**: Multiple Coulomb scattering via Highland formula
+2. **Energy Loss (A_E)**: CSDA with NIST PSTAR stopping power data
+3. **Spatial Streaming (A_s)**: Bilinear interpolation advection
+
+---
+
+## Installation
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd Smatrix_2D
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install package
+pip install -e .
+```
+
+**Requirements**:
+- Python >= 3.8
+- NumPy
+- CuPy (optional, for GPU acceleration)
+- PyYAML
+- h5py
+
+---
+
+## Quick Start
+
+### Running a Simulation
+
+The main simulation entry point is `run_simulation.py`:
+
+```bash
+python run_simulation.py initial_info.yaml
+```
+
+### Configuration File
+
+The simulation is configured via `initial_info.yaml`:
+
+```yaml
+# Grid parameters
+grid:
+  Nx: 12           # Lateral grid points
+  Nz: 60           # Depth grid points
+  Ntheta: 41       # Angular grid points
+  Ne: 35           # Energy grid points
+  x_min: 0.0       # [mm]
+  x_max: 12.0      # [mm]
+  z_min: 0.0       # [mm]
+  z_max: 60.0      # [mm]
+  E_min: 0.1       # [MeV]
+  E_max: 70.0      # [MeV]
+  E_cutoff: 0.1    # [MeV]
+
+# Beam parameters
+beam:
+  E_init: 70.0     # Initial energy [MeV]
+  theta_init: 0.0 # Initial angle [degrees] (forward along +z)
+  beam_width_sigma: 1.0  # Gaussian width [mm]
+
+# Transport parameters
+transport:
+  delta_s: auto     # Step length [mm] (auto or manual)
+  n_buckets: 32    # Sigma bucket count for scattering
+```
+
+### Python API Usage
+
+```python
+from smatrix_2d.transport import create_simulation
+from smatrix_2d.config import load_config
+
+# Load configuration
+config = load_config("initial_info.yaml")
+
+# Create simulation
+sim = create_simulation(config)
+
+# Run simulation
+result = sim.run()
+
+# Access results
+dose_profile = result.dose
+bragg_peak_z = result.bragg_peak_position
+```
+
+---
+
+## Physics Documentation
+
+For detailed physics implementation, see **[PHYSICS_INTERACTIONS.md](PHYSICS_INTERACTIONS.md)**.
+
+### Physics Summary
+
+| Physics | Implementation | Data Source |
+|---------|----------------|-------------|
+| **Stopping Power** | CSDA with NIST PSTAR LUT | NIST PSTAR database |
+| **Multiple Coulomb Scattering** | Highland formula | Molière theory |
+| **Scattering Kernel** | Gaussian convolution | High-energy approximation |
+| **Energy Grid** | Range-based logarithmic | CSDA range calculation |
+| **Radiation Length** | X₀ = 360.8 mm (water) | ICRU Report 49 |
+
+### Key Equations
+
+**Angular Scattering (Highland formula)**:
+```
+sigma_theta = (13.6 MeV / beta*cp) * sqrt(L/X0) * [1 + 0.038*ln(L/X0)]
+```
+
+**Energy Loss (CSDA)**:
+```
+dE/ds = -S(E)
+E_new = E_old - S(E) * delta_s
+```
+
+**Spatial Advection**:
+```
+r_new = r_old + v * delta_s
+v = (sin(theta), cos(theta))  # vx=sin for lateral (x), vz=cos for forward (z)
+```
+
+---
 
 ## Implementation Structure
 
 ```
-2D_prototype/
-├── __init__.py              # Package exports
-├── core/
+Smatrix_2D/
+├── smatrix_2d/
 │   ├── __init__.py
-│   ├── constants.py          # PhysicsConstants2D
-│   ├── grid.py              # GridSpecs2D, PhaseSpaceGrid2D
-│   ├── state.py             # TransportState
-│   └── materials.py         # MaterialProperties2D
-├── operators/
-│   ├── __init__.py
-│   ├── angular_scattering.py # AngularScatteringOperator (A_theta)
-│   ├── spatial_streaming.py  # SpatialStreamingOperator (A_stream)
-│   └── energy_loss.py       # EnergyLossOperator (A_E)
-├── transport/
-│   ├── __init__.py
-│   └── transport_step.py   # TransportStep, SplittingType
-├── validation/
-│   ├── __init__.py
-│   ├── metrics.py           # L2, Linf, gamma, rotational invariance
-│   └── tests.py            # TransportValidator
-├── gpu/
-│   ├── __init__.py
-│   ├── kernels.py           # GPUTransportStep, CUDA kernels
-│   └── memory_layout.py      # GPUMemoryLayout, layout contract
-├── utils/
-│   ├── __init__.py
-│   └── visualization.py     # Plotting utilities
-├── examples/
-│   └── demo_transport.py    # Complete workflow demo
-├── tests/                  # Unit tests (future)
-├── spec.md                 # Implementation specification v7.2
-├── README.md               # This file
-└── setup.py               # Package installation
+│   ├── core/
+│   │   ├── constants.py          # PhysicsConstants2D
+│   │   ├── grid.py              # GridSpecs2D, PhaseSpaceGrid2D
+│   │   ├── state.py             # TransportState
+│   │   └── config.py            # Configuration loading
+│   ├── operators/
+│   │   ├── angular_scattering.py # A_theta operator
+│   │   ├── spatial_streaming.py  # A_s operator
+│   │   ├── energy_loss.py       # A_E operator
+│   │   └── sigma_buckets.py     # Scattering kernel LUT
+│   ├── transport/
+│   │   ├── simulation.py        # Main simulation loop
+│   │   └── runners/             # Workflow orchestration
+│   ├── gpu/
+│   │   ├── kernels.py           # GPU transport step
+│   │   ├── accumulators.py      # Zero-sync accumulators
+│   │   ├── cuda_kernels/        # CUDA kernel sources
+│   │   │   ├── angular_scattering.cu
+│   │   │   ├── energy_loss.cu
+│   │   │   └── spatial_streaming.cu
+│   │   └── kernel_loader.py     # Dynamic kernel loading
+│   ├── physics_data/
+│   │   ├── fetchers/            # NIST data fetching
+│   │   └── processors/          # LUT generation
+│   └── data/
+│       ├── raw/                 # Original NIST data
+│       └── processed/           # Generated LUT files
+├── run_simulation.py            # Main entry point
+├── initial_info.yaml            # Configuration file
+├── PHYSICS_INTERACTIONS.md      # Detailed physics documentation
+└── README.md                    # This file
 ```
 
-## Usage Example
+---
 
-```python
-from smatrix_2d import GridSpecs2D, PhaseSpaceGrid2D, EnergyGridType
-from smatrix_2d import MaterialProperties2D, create_water_material
-from smatrix_2d import TransportState, create_initial_state
-from smatrix_2d import (
-    AngularScatteringOperator,
-    SpatialStreamingOperator,
-    EnergyLossOperator,
-    BackwardTransportMode,
-)
-from smatrix_2d import FirstOrderSplitting, TransportStep
+## Output Files
 
-# Create grid
-specs = GridSpecs2D(
-    Nx=20, Nz=20, Ntheta=72, Ne=50,
-    delta_x=2.0, delta_z=2.0,
-    E_min=1.0, E_max=100.0, E_cutoff=2.0,
-    energy_grid_type=EnergyGridType.RANGE_BASED,
-)
-grid = create_phase_space_grid(specs)
+The simulation generates several output files in the `output/` directory:
 
-# Create material
-material = create_water_material()
+| File | Description |
+|------|-------------|
+| `dose_profile.h5` | 3D dose distribution [MeV] |
+| `lateral_profile_per_step.csv` | Lateral beam profile evolution |
+| `transport_statistics.json` | Mass conservation, escape channels |
+| `checkpoints/*.npz` | Simulation state checkpoints |
 
-# Create operators
-constants = PhysicsConstants2D()
-A_theta = AngularScatteringOperator(grid, material, constants)
-A_stream = SpatialStreamingOperator(
-    grid, constants, BackwardTransportMode.HARD_REJECT
-)
-A_E = EnergyLossOperator(grid)
+### Escape Channels
 
-# Create transport step
-transport = FirstOrderSplitting(A_theta, A_stream, A_E)
+Mass conservation is tracked through 4 escape channels:
 
-# Initialize state
-state = create_initial_state(
-    grid=grid,
-    x_init=20.0,  # mm
-    z_init=0.0,   # mm
-    theta_init=np.pi / 2.0,  # 90 degrees (+z)
-    E_init=50.0,  # MeV
-    initial_weight=1.0,
-)
+| Index | Channel | Description |
+|-------|---------|-------------|
+| 0 | `theta_cutoff` | Scattering kernel truncation |
+| 1 | `theta_boundary` | Angular domain boundary loss |
+| 2 | `energy_stopped` | Particles reaching E_cutoff |
+| 3 | `spatial_leak` | Particles leaving spatial domain |
 
-# Define stopping power function
-def stopping_power(E_MeV):
-    return 2.0e-3  # Simplified constant [MeV/mm]
+**Conservation equation**: `mass_in = mass_out + sum(escapes)`
 
-# Run transport simulation
-for step in range(100):
-    state = transport.apply(state, stopping_power)
-
-    # Check convergence
-    if state.total_weight() < 1e-6:
-        break
-
-print(f"Transport complete in {step} steps")
-print(f"Total dose deposited: {state.total_dose():.2f} MeV")
-```
-
-## Validation
-
-The system includes comprehensive validation tests:
-
-### Vacuum Transport Test
-- Shoots beam at 45 degrees in vacuum
-- Verifies straight-line motion (no scattering, no energy loss)
-- Checks centroid drift and conservation
-
-### Rotational Invariance Test
-- Runs identical beam at 0° and 45°
-- Rotates 45° result back to 0° frame
-- Compares using L2, Linf, and gamma metrics
-- Detects ray effects from angular discretization
-
-### Conservation Tests
-- Column sum verification: `sum(psi_out) = sum(psi_in)`
-- Positivity check: `psi >= 0` everywhere
-- Sink accounting: leak + absorbed + rejected = initial - final
-
-## Architecture Decisions
-
-### Memory Layout
-Canonical order: `psi[E, theta, z, x]`
-- Optimizes A_theta (contiguous theta)
-- Optimizes A_stream (contiguous x, z)
-- A_E requires strided access (acceptable for CPU)
-
-### Backward Transport
-Three modes implemented:
-1. **HARD_REJECT**: Default for clinical forward beams
-2. **ANGULAR_CAP**: Allows angles <= 120° (configurable)
-3. **SMALL_BACKWARD_ALLOWANCE**: Allows mu in (-0.1, 0] (configurable)
-
-### Energy Grid Support
-Coordinate-based interpolation works with:
-- Uniform grids
-- Logarithmic grids
-- Range-based grids (recommended for Bragg peak resolution)
-
-## GPU Path
-
-The code structure allows CuPy migration:
-- Replace `np.*` calls with `cp.*`
-- Use `cp.cuda.Stream` for async execution
-- Implement shared memory kernels for A_stream (scatter-add)
-- Use atomic operations vs block-local accumulation (modes)
-
-## Performance Characteristics
-
-**Memory**: `O(N_active)` for state, `O(kernel)` for operators
-**Computation**: Per operator, no global matrix multiply
-**Scalability**: Linear in grid size, operator application dominates
-
-## Implementation Status
-
-**Version**: 7.2
-**Status**: ✅ Complete (Production Ready)
-
-**Code Metrics**:
-- ~2,800 lines of Python code
-- 20 Python files
-- 9 modules
-- CPU: Production-ready
-- GPU: Production-ready (CuPy backend)
-
-**Deliverables**:
-- ✅ Core data structures (grid, state, materials)
-- ✅ All three operators (A_θ, A_stream, A_E)
-- ✅ Transport orchestration (first-order & Strang splitting)
-- ✅ Validation suite (conservation, positivity, gamma, rotational invariance)
-- ✅ Visualization tools
-- ✅ GPU kernels and memory layout
-- ✅ Comprehensive documentation
-- ✅ Working demo with 50-step simulation
-- ✅ setup.py for pip installation
-
-## Limitations
-
-- Numerical diffusion from discrete grid (characteristic of grid-based methods)
-- Ray effect for coarse angular resolution (mitigate with Ntheta >= 72)
-- Energy straggling not included (spec v7.2 design choice)
-- 2D geometry only (azimuthal symmetry assumed)
+---
 
 ## GPU Acceleration
 
-### GPU Implementation (`gpu/`)
+### GPU Implementation
 
 The codebase includes GPU-accelerated kernels using CuPy:
 
 ```python
-from smatrix_2d.gpu import (
-    create_gpu_transport_step,
-    AccumulationMode,
-    GPU_AVAILABLE,
-)
+from smatrix_2d.gpu import create_gpu_transport_step
 
 if GPU_AVAILABLE:
     gpu_step = create_gpu_transport_step(
         Ne=100, Ntheta=72, Nz=100, Nx=50,
-        accumulation_mode=AccumulationMode.FAST,
     )
-    
+
     # Run on GPU
-    psi_gpu = cp.asarray(psi)
-    psi_out, weight_leaked, deposited_energy = gpu_step.apply_step(
+    psi_out, escapes, dose = gpu_step.apply_step(
         psi_gpu, E_grid, sigma_theta, theta_beam, delta_s,
         stopping_power, E_cutoff,
     )
@@ -229,52 +241,147 @@ if GPU_AVAILABLE:
 
 ### GPU Kernels
 
-**A_θ (Angular Scattering)**:
-- FFT-based circular convolution
-- Shared memory kernel caching
-- Optimized for theta-contiguous access
-
-**A_stream (Spatial Streaming)**:
-- Tile-based shift-and-deposit
-- Atomic accumulation (FAST mode)
-- Block-local reduction (DETERMINISTIC mode)
-
-**A_E (Energy Loss)**:
-- Coordinate-based interpolation on GPU
-- Strided E access (acceptable for throughput)
-- Cutoff handling with atomic dose deposition
+| Kernel | File | Features |
+|--------|------|----------|
+| **A_θ** | `angular_scattering.cu` | FFT-based convolution, sparse gather |
+| **A_E** | `energy_loss.cu` | Binary search LUT, bin splitting, dose deposition |
+| **A_s** | `spatial_streaming.cu` | Bilinear scatter, atomic accumulation |
 
 ### Memory Layout
 
 Canonical GPU layout: `psi[E, theta, z, x]`
 
-**Tile configuration**:
-- Block size: `(32, 8, 1)` → `(x, z, theta)` tiles
-- Shared memory: ~8 KB per block
-- Coalescing: x access fully coalesced
+**Performance characteristics**:
+- Expected speedup: 10-30× vs NumPy
+- Memory bandwidth: ~400 GB/s on RTX 3090
+- Atomic overhead: <15% with deterministic mode
 
-**Performance Characteristics**:
-- Expected speedup: 10-30× vs NumPy (grid-dependent)
-- Memory bandwidth: ~400 GB/s utilization on RTX 3090
-- Atomic overhead: <15% (mitigated with DETERMINISTIC mode)
+---
+
+## Validation
+
+### Physics Verification
+
+Compare against established benchmarks:
+
+| Metric | Expected (70 MeV) | Verification Source |
+|--------|------------------|---------------------|
+| **Bragg Peak (R90)** | ~40 mm | NIST PSTAR CSDA range |
+| **Stopping Power** | 13.7 MeV²cm²/g | NIST PSTAR at 70 MeV |
+| **Lateral Spread** | x_rms ~1-3 mm | MC simulations |
+
+**For detailed validation procedures**, see PHYSICS_INTERACTIONS.md.
+
+### Conservation Tests
+
+The system includes automatic validation:
+- **Column sum verification**: `sum(psi_out) = sum(psi_in) - escapes`
+- **Positivity check**: `psi >= 0` everywhere
+- **Mass balance**: All 4 escape channels tracked
+
+---
+
+## Configuration Parameters
+
+### Grid Parameters
+
+| Parameter | Default | Range | Description |
+|-----------|---------|-------|-------------|
+| `Nx` | 12 | 6-24 | Lateral grid points |
+| `Nz` | 60 | 30-120 | Depth grid points |
+| `Ntheta` | 41 | 21-181 | Angular grid points |
+| `Ne` | 35 | 20-100 | Energy grid points |
+| `x_max` | 12 mm | 6-24 mm | Lateral domain extent |
+| `z_max` | 60 mm | 30-120 mm | Depth domain extent |
+| `E_max` | 70 MeV | 50-250 MeV | Maximum energy |
+| `E_cutoff` | 0.1 MeV | 0.01-1 MeV | Energy cutoff |
+
+### Beam Parameters
+
+| Parameter | Default | Range | Description |
+|-----------|---------|-------|-------------|
+| `E_init` | 70.0 MeV | 50-250 MeV | Initial beam energy |
+| `theta_init` | 0.0° | -180 to 180° | Initial beam angle (0° = forward along +z) |
+| `beam_width_sigma` | 1.0 mm | 0.5-5 mm | Gaussian beam width |
+
+### Transport Parameters
+
+| Parameter | Default | Range | Description |
+|-----------|---------|-------|-------------|
+| `delta_s` | auto | 0.1-2 mm | Step length |
+| `n_buckets` | 32 | 16-64 | Sigma bucket count |
+| `k_cutoff` | 5.0 | 3-7 | Kernel cutoff [sigma] |
+
+---
+
+## Current Limitations
+
+| Limitation | Impact | Mitigation |
+|------------|--------|------------|
+| **Numerical diffusion** | Grid-based characteristic | Use finer grids |
+| **Ray effect** | Coarse angular resolution | Use Ntheta >= 72 |
+| **No energy straggling** | Missing stochastic energy loss | Planned for v8.0 |
+| **No nuclear interactions** | Missing fragmentation channels | Planned for future |
+| **2D geometry** | Azimuthal symmetry only | Use for symmetric problems |
+
+---
 
 ## Future Work
 
-- Nuclear interaction operators
-- Energy straggling models
-- 3D generalization
-- Adaptive angular quadrature for ray effect mitigation
-- Shared memory kernel optimization for A_theta
-- Multi-GPU support for larger grids
+- [ ] Energy straggling models (Vavilov distribution)
+- [ ] Nuclear interaction operators
+- [ ] 3D generalization
+- [ ] Adaptive angular quadrature
+- [ ] Multi-material support
+- [ ] Multi-GPU support
+
+---
+
+## Physics Data Sources
+
+### NIST PSTAR
+**Stopping Power Data**: https://physics.nist.gov/PhysRefData/Star/Text/PSTAR.html
+- Material: Liquid water (H2O)
+- Energy range: 0.01 - 200 MeV
+- Processed to: `data/processed/stopping_power_water.npy`
+
+### ICRU Report 49
+**Radiation Length**: X₀ = 360.8 mm for water
+
+### PDG
+**Fundamental Constants**: https://pdg.lbl.gov/
+- Proton mass: 938.27 MeV/c²
+- Highland constant: 13.6 MeV
+
+---
 
 ## References
 
-Specification: `spec.md` (v7.2)
-Key design principles from:
-- Operator-factorized transport theory
-- GPU/CUDA best practices for physics simulation
-- Medical physics validation frameworks
+### Documentation
+- **PHYSICS_INTERACTIONS.md**: Detailed physics implementation guide
+- `spec.md`: Implementation specification v7.2
+
+### Physics Theory
+1. Bethe-Bloch equation for stopping power
+2. Molière theory for multiple Coulomb scattering
+3. Highland formula for practical MCS approximation
+4. CSDA (ICRU Report 37)
+
+### Code Implementation
+| File | Purpose |
+|------|---------|
+| `smatrix_2d/operators/angular_scattering.py` | CPU reference for scattering |
+| `smatrix_2d/operators/energy_loss.py` | CPU reference for energy loss |
+| `smatrix_2d/operators/spatial_streaming.py` | CPU reference for streaming |
+| `smatrix_2d/gpu/cuda_kernels/*.cu` | GPU kernel implementations |
+| `smatrix_2d/transport/simulation.py` | Main simulation loop |
+
+---
 
 ## License
 
 Same as parent Smatrix project.
+
+---
+
+*For detailed physics implementation, operator-by-operator explanations, and verification procedures, see [PHYSICS_INTERACTIONS.md](PHYSICS_INTERACTIONS.md).*

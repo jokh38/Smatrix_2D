@@ -12,11 +12,11 @@ particle:
     unit: MeV
     description: "Initial proton beam energy"
 
-  # Initial beam angle (measured from +x axis, 90° = +z direction)
+  # Initial beam angle (0° = forward/vertical along +z, 90° = right/horizontal along +x)
   angle:
-    value: 90.0          # degrees
+    value: 0.0           # degrees
     unit: degrees
-    description: "Initial beam direction (90° = along +z axis)"
+    description: "Initial beam direction (0° = along +z axis, 90° = along +x axis)"
 
   # Initial beam width (Gaussian spot size)
   beam_width:
@@ -61,7 +61,7 @@ grid:
 
   # Angular grid (scattering angle distribution)
   angular:
-    center: 90.0         # degrees (beam direction)
+    center: 0.0          # degrees (beam direction)
     half_range: 40.0     # degrees (expanded to reduce particle escape and observe Bragg peak)
     delta: 0.25          # degrees (FURTHER IMPROVED: 0.25° to better resolve scattering)
     unit: degrees

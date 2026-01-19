@@ -64,7 +64,7 @@ for ckpt_file in ckpt_files[:5]:  # First 5 checkpoints
 
     print(f"\n  Distribution peaks:")
     print(f"    z peak: index {z_peak_idx} (z = {z_peak_idx * 1.0:.1f} mm)")
-    print(f"    theta peak: index {theta_peak_idx} (theta = {50 + theta_peak_idx * 2:.1f}°)")
+    print(f"    theta peak: index {theta_peak_idx} (theta = {-40 + theta_peak_idx * 2:.1f}°)")
     print(f"    E peak: index {E_peak_idx}")
 
     # Check if particles are at z=0
@@ -79,11 +79,11 @@ for ckpt_file in ckpt_files[:5]:  # First 5 checkpoints
     print(f"    z=2 (index 2): {weight_at_z2:.6f}")
     print(f"    z=5 (index 5): {weight_at_z5:.6f}")
 
-    # Weight in forward direction (theta around 90°)
+    # Weight in forward direction (theta around 0°)
     theta_center_idx = Ntheta // 2
     theta_range = 3  # Check ±3 indices
     weight_forward = np.sum(psi[:, theta_center_idx-theta_range:theta_center_idx+theta_range+1, :, :])
-    print(f"\n  Weight in forward direction (theta ≈ 90°): {weight_forward:.6f}")
+    print(f"\n  Weight in forward direction (theta ≈ 0°): {weight_forward:.6f}")
 
     # Check if particles have moved from initial position
     initial_z_idx = 0
@@ -92,7 +92,7 @@ for ckpt_file in ckpt_files[:5]:  # First 5 checkpoints
     initial_x_idx = Nx // 2
 
     weight_at_initial = psi[initial_E_idx, initial_theta_idx, initial_z_idx, :]
-    print(f"\n  Weight at initial (E=E_max, theta=90°, z=0):")
+    print(f"\n  Weight at initial (E=E_max, theta=0°, z=0):")
     print(f"    Sum over x: {np.sum(weight_at_initial):.6f}")
 
     # Check for forward movement

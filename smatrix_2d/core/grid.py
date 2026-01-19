@@ -398,7 +398,7 @@ def create_angular_grid(
     theta_max: float,
     Ntheta: int,
     grid_type: AngularGridType = AngularGridType.UNIFORM,
-    theta0: float = 90.0,
+    theta0: float = 0.0,  # Central beam angle (0° = forward along +z axis)
 ) -> tuple[np.ndarray, np.ndarray]:
     """Generate angular grid edges and centers.
 
@@ -458,7 +458,7 @@ def create_phase_space_grid(specs: GridSpecs) -> PhaseSpaceGrid:
         specs.theta_max,
         specs.Ntheta,
         specs.angular_grid_type,
-        theta0=90.0,  # Default beam direction
+        theta0=0.0,  # Default beam direction (0° = forward along +z)
     )
     # For non-uniform grids, delta_theta represents average spacing
     delta_theta = (th_edges[-1] - th_edges[0]) / len(th_centers)

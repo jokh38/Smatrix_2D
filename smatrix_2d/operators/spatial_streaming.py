@@ -72,9 +72,10 @@ class SpatialStreamingV2:
         self.grid = grid
 
         # Precompute velocity lookup tables (SPEC 6.1)
-        # Direction cosines: vx = cos(theta), vz = sin(theta)
-        self.vx = np.cos(grid.th_centers_rad)  # [Ntheta]
-        self.vz = np.sin(grid.th_centers_rad)  # [Ntheta]
+        # Direction cosines: vx = sin(theta), vz = cos(theta)
+        # With theta=0° as forward (along +z): vx = 0, vz = 1
+        self.vx = np.sin(grid.th_centers_rad)  # [Ntheta] - lateral component
+        self.vz = np.cos(grid.th_centers_rad)  # [Ntheta] - forward component
 
         # Store grid dimensions for convenience
         self.Ne = grid.Ne

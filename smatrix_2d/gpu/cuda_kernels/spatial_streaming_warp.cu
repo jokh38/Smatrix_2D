@@ -22,14 +22,15 @@ void spatial_streaming_kernel_warp(
 
     if (ix_in >= Nx || iz_in >= Nz || ith >= Ntheta) return;
 
-    float sin_th = sin_theta_lut[ith];
-    float cos_th = cos_theta_lut[ith];
+    float sin_th = sin_theta_lut[ith];  // lateral component (x-direction)
+    float cos_th = cos_theta_lut[ith];  // forward component (z-direction)
 
     float x_src = x_min + ix_in * delta_x + delta_x / 2.0f;
     float z_src = z_min + iz_in * delta_z + delta_z / 2.0f;
 
-    float x_tgt = x_src + delta_s * cos_th;
-    float z_tgt = z_src + delta_s * sin_th;
+    // Velocity: vx = sin(theta) for lateral (x), vz = cos(theta) for forward (z)
+    float x_tgt = x_src + delta_s * sin_th;
+    float z_tgt = z_src + delta_s * cos_th;
 
     float x_domain_min = x_min;
     float x_domain_max = x_min + Nx * delta_x;
