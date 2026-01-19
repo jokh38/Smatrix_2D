@@ -228,12 +228,17 @@ class TransportSimulation:
         E_initial = float(grid.E_centers[-1])  # Maximum energy in the grid (beam energy)
 
         # Create GPU transport step V3
+        # Path tracking DISABLED due to fundamental design flaw:
+        # - path_length array accumulates per spatial position, not per particle
+        # - This causes incorrect energy calculations when particles of different
+        #   energies pass through the same position
+        # - Standard kernel uses phase-space energy grid correctly (E from iE_in)
         self.transport_step = create_gpu_transport_step_v3(
             grid=grid,
             sigma_buckets=sigma_buckets,
             stopping_power_lut=stopping_power_lut,
             delta_s=self.config.transport.delta_s,
-            enable_path_tracking=True,  # Enable for Bragg peak physics
+            enable_path_tracking=False,  # Use standard energy loss kernel
             E_initial=E_initial,
         )
 

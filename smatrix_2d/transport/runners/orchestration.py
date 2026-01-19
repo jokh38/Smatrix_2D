@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 import cupy as cp
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
@@ -179,7 +180,7 @@ def run_simulation(config_path: str = "initial_info.yaml",
         E_min=E_min,
         E_max=E_max,
         E_cutoff=E_cutoff,
-        energy_grid_type=EnergyGridType.NON_UNIFORM,
+        energy_grid_type=EnergyGridType.NON_UNIFORM,  # Non-uniform with 1 MeV spacing in 30-70 MeV range
     )
 
     transport_config = TransportConfig(
@@ -464,7 +465,12 @@ def run_simulation(config_path: str = "initial_info.yaml",
     print("\n[8] BRAGG PEAK ANALYSIS")
     print("-" * 70)
 
-    depth_dose = np.sum(deposited_dose_cpu, axis=1)  # Sum over x
+    # Central axis PDD: dose along beam centerline (clinical PDD)
+    # For x-domain [0,12]mm with Nx=12, beam center at x=6mm is closest to index 6
+    x_center_idx = Nx // 2  # Index 6 corresponds to x-center at 6.5mm (closest to beam at 6mm)
+    depth_dose = deposited_dose_cpu[:, x_center_idx]  # Central axis profile
+
+    # Laterally integrated profile (for reference/analysis)
     lateral_profile = np.sum(deposited_dose_cpu, axis=0)  # Sum over z
 
     bragg_result = calculate_bragg_peak(depth_dose, grid)
@@ -536,7 +542,6 @@ def run_simulation(config_path: str = "initial_info.yaml",
 
     if output_config.enable_profile_csv and profile_streamer is not None:
         # Read from HDF5 and export to CSV
-        import h5py
         with h5py.File(output_config.hdf5_profiles_path(), 'r') as f:
             profile_data = f['profiles'][:]
         export_profile_data_chunked(

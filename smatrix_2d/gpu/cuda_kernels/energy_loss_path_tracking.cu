@@ -21,7 +21,7 @@ void energy_loss_kernel_with_path_tracking(
     const int theta_stride = Nz * Nx;
     const int E_stride = Ntheta * theta_stride;
 
-    double local_energy_stopped = 0.0;
+    double local_energy_stopped = 0.0f;
 
     for (int idx = tid; idx < Ne * Ntheta * Nz * Nx; idx += total_threads) {
         int iE_in = idx / (Ntheta * Nz * Nx);
@@ -38,32 +38,29 @@ void energy_loss_kernel_with_path_tracking(
             continue;
         }
 
-        // KEY FIX: For Bragg peak physics, calculate effective energy based on spatial depth
-        // For a beam at theta=90 deg traveling along +z, path length is approximately z_position
-        // This is a simplified CSDA (Continuous Slowing Down Approximation) approach
+        int spatial_idx = iz * Nx + ix;
 
-        // Calculate path length from spatial position (z index)
-        // z-centers are at 0.5, 1.5, 2.5... mm (z_edges at 0, 1, 2... mm with delta_z = 1.0 mm)
-        float z_position = float(iz) + 0.5f;  // z-center position in mm
+        // For path tracking: read cumulative path length from previous step
+        // This accumulates the actual distance traveled by particles at each (z,x) position
+        float cumulative_path = path_length_in[spatial_idx];
 
-        // Calculate effective energy based on path traveled
-        // E_effective = E_initial - S_avg * path_length
-        // Average stopping power over full range (70 MeV -> E_cutoff): ~1.72 MeV/mm
-        // Empirically adjusted to 1.60 to match observed Bragg peak position
-        float S_avg = 1.60f;  // Average stopping power [MeV/mm] for 70 MeV -> E_cutoff
-        float E_effective = E_initial - S_avg * z_position;
+        // Calculate effective energy based on cumulative path traveled
+        // E_effective = E_initial - integral of stopping power along path
+        // For 70 MeV protons in water: S varies from ~1.4 to ~12 MeV/mm
+        // Use cumulative path directly from accumulated data
+        float E_effective = E_initial - 1.72f * cumulative_path;
+
+        // Update path length for output (accumulate for next step)
+        atomicAdd(&path_length_out[spatial_idx], delta_s * weight);
 
         // If effective energy is below cutoff, absorb the particle
-        // IMPORTANT: Deposit the FULL remaining energy (E_initial - energy already deposited)
-        // For proper Bragg peak, we deposit E_effective when particle stops
         if (E_effective <= E_cutoff) {
-            atomicAdd(&deposited_dose[iz * Nx + ix], weight * E_effective);
+            atomicAdd(&deposited_dose[spatial_idx], weight * E_effective);
             local_energy_stopped += double(weight);
             continue;
         }
 
-        // Get stopping power at the EFFECTIVE energy (not the grid energy bin)
-        // Binary search for LUT index based on effective energy
+        // Get stopping power at the EFFECTIVE energy
         int lut_idx = 0;
         int left = 0;
         int right = lut_size - 2;
@@ -83,7 +80,7 @@ void energy_loss_kernel_with_path_tracking(
         float S1 = stopping_power_lut[min(lut_idx + 1, lut_size - 1)];
         float dE_lut = max(E1 - E0, 1e-12f);
         float frac = (E_effective - E0) / dE_lut;
-        frac = fmaxf(0.0f, fminf(1.0f, frac));  // Clamp to [0, 1]
+        frac = fmaxf(0.0f, fminf(1.0f, frac));
         float S = S0 + frac * (S1 - S0);
 
         // Apply energy loss for this step
@@ -94,9 +91,8 @@ void energy_loss_kernel_with_path_tracking(
 
         // Check if particle should be absorbed after this step
         if (E_new <= E_cutoff) {
-            // Particle stops here - deposit all remaining energy
-            // For Bragg peak physics, this is where the dose peak occurs
-            atomicAdd(&deposited_dose[iz * Nx + ix], weight * E_effective);
+            // Deposit remaining effective energy
+            atomicAdd(&deposited_dose[spatial_idx], weight * E_effective);
             local_energy_stopped += double(weight);
             continue;
         }
@@ -106,7 +102,7 @@ void energy_loss_kernel_with_path_tracking(
         if (E_new >= E_phase_grid[Ne - 1]) {
             iE_out = Ne - 1;
         } else if (E_new < E_phase_grid[0]) {
-            atomicAdd(&deposited_dose[iz * Nx + ix], weight * E_new);
+            atomicAdd(&deposited_dose[spatial_idx], weight * E_new);
             local_energy_stopped += double(weight);
             continue;
         } else {
@@ -126,7 +122,7 @@ void energy_loss_kernel_with_path_tracking(
         if (iE_out >= Ne - 1) {
             int tgt_idx = (Ne - 1) * E_stride + ith * theta_stride + iz * Nx + ix;
             atomicAdd(&psi_out[tgt_idx], weight);
-            atomicAdd(&deposited_dose[iz * Nx + ix], weight * deltaE);
+            atomicAdd(&deposited_dose[spatial_idx], weight * deltaE);
             continue;
         }
 
@@ -145,7 +141,7 @@ void energy_loss_kernel_with_path_tracking(
 
         atomicAdd(&psi_out[tgt_lo], weight * w_lo);
         atomicAdd(&psi_out[tgt_hi], weight * w_hi);
-        atomicAdd(&deposited_dose[iz * Nx + ix], weight * deltaE);
+        atomicAdd(&deposited_dose[spatial_idx], weight * deltaE);
     }
 
     if (local_energy_stopped > 0.0) {

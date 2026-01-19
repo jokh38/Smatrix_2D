@@ -33,7 +33,7 @@ E_CHARGE = 1.602176634e-19
 # Water (H2O) properties - liquid at room temperature
 # These are the authoritative values for all water material calculations
 WATER_DENSITY = 1.0  # [g/cm³]
-WATER_RADIATION_LENGTH = 36.08  # [mm] at unit density
+WATER_RADIATION_LENGTH = 360.8  # [mm] at unit density (36.08 cm, NOT 36.08 mm!)
 WATER_MEAN_EXCITATION_ENERGY = 75.0e-6  # [MeV] (75 eV)
 WATER_EFFECTIVE_Z = 7.42  # Effective atomic number for liquid water
 WATER_ATOMIC_MASS = 18.015  # [g/mol] Effective atomic mass

@@ -63,7 +63,7 @@ grid:
   angular:
     center: 90.0         # degrees (beam direction)
     half_range: 40.0     # degrees (expanded to reduce particle escape and observe Bragg peak)
-    delta: 2.0           # degrees (coarser resolution to cover wider range)
+    delta: 0.25          # degrees (FURTHER IMPROVED: 0.25° to better resolve scattering)
     unit: degrees
     description: "Angular scattering domain (θ = center ± half_range)"
 

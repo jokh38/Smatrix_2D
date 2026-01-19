@@ -80,7 +80,7 @@ class NonUniformGridSpecs:
     E_spacing_very_low: float = 0.1  # E_min to 2 MeV (Bragg peak region)
     E_spacing_low: float = 0.2       # 2-10 MeV
     E_spacing_mid: float = 0.5       # 10-30 MeV
-    E_spacing_high: float = 2.0      # 30-70 MeV
+    E_spacing_high: float = 1.0      # 30-70 MeV (reduced from 2.0 for better energy resolution)
 
     # Angular grid (non-uniform)
     theta_core_range: float = 10.0  # ±5 degrees from theta0
@@ -96,7 +96,7 @@ def create_non_uniform_energy_grid(
     spacing_very_low: float = 0.1,  # NEW: E_min to 2 MeV (Bragg peak region)
     spacing_low: float = 0.2,  # 2-10 MeV
     spacing_mid: float = 0.5,  # 10-30 MeV
-    spacing_high: float = 2.0,  # 30-70 MeV
+    spacing_high: float = 1.0,  # 30-70 MeV (reduced from 2.0 for better energy resolution)
 ) -> tuple[np.ndarray, np.ndarray, int]:
     """Create non-uniform energy grid.
 
@@ -107,7 +107,7 @@ def create_non_uniform_energy_grid(
     - E_min to 2 MeV: spacing_very_low (default 0.1 MeV) - Bragg peak formation
     - 2-10 MeV: 0.2 MeV spacing (40 bins)
     - 10-30 MeV: 0.5 MeV spacing (40 bins)
-    - 30-70 MeV: 2.0 MeV spacing (20 bins)
+    - 30-70 MeV: 1.0 MeV spacing (40 bins) - improved from 2.0 MeV
 
     Args:
         E_min: Minimum energy (MeV)
@@ -132,7 +132,9 @@ def create_non_uniform_energy_grid(
 
     # Extend ranges if E_max is different
     if E_max > 70.0:
-        spacing_high = max(spacing_high, (E_max - 30.0) / 20.0)
+        # Calculate spacing to maintain reasonable number of bins above 30 MeV
+        n_bins_high = max(20, int((E_max - 30.0) / spacing_high))
+        spacing_high = max(spacing_high, (E_max - 30.0) / n_bins_high)
 
     # Create energy edges for each region
     edges = []

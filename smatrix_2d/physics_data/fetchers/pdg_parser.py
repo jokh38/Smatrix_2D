@@ -102,8 +102,8 @@ class PDGConstants:
 # From PDG and ICRU reports
 _SCREENING_PARAMETERS = {
     "H2O": {
-        "radiation_length": 36.08,  # g/cm² (X₀)
-        "radiation_length_mm": 36.08,  # mm (for ρ=1 g/cm³)
+        "radiation_length": 36.08,  # g/cm² (X₀) - mass stopping power
+        "radiation_length_mm": 360.8,  # mm (36.08 cm for ρ=1 g/cm³, FIXED from 36.08)
         "Z": 7.42,  # Effective atomic number
         "A": 18.0,  # Effective atomic weight
         "I_eV": 75.0,  # Mean excitation energy [eV]
