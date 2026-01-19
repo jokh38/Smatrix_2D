@@ -81,7 +81,7 @@ def load_source(name: str) -> str:
 
     """
     path = get_kernel_path(name)
-    with open(path, 'r') as f:
+    with open(path, 'r', encoding='utf-8') as f:
         return f.read()
 
 
@@ -188,6 +188,11 @@ def load_energy_loss_kernel() -> cp.RawKernel:
     return load_kernel("energy_loss_kernel_v2", "energy_loss.cu")
 
 
+def load_energy_loss_path_tracking_kernel() -> cp.RawKernel:
+    """Load path-tracking energy loss kernel for Bragg peak physics."""
+    return load_kernel("energy_loss_kernel_with_path_tracking", "energy_loss_path_tracking.cu")
+
+
 def load_spatial_streaming_kernel() -> cp.RawKernel:
     """Load baseline spatial streaming kernel."""
     return load_kernel("spatial_streaming_kernel_v2", "spatial_streaming.cu")
@@ -266,6 +271,7 @@ __all__ = [
     # Baseline transport kernels
     "load_angular_scattering_kernel",
     "load_energy_loss_kernel",
+    "load_energy_loss_path_tracking_kernel",
     "load_spatial_streaming_kernel",
     "load_spatial_streaming_shared_kernel",
     # Warp-optimized kernels

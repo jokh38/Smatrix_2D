@@ -41,6 +41,7 @@ class GPUAccumulators:
     - Escape weights (5 channels)
     - Mass history (optional, for per-step tracking)
     - Deposited energy (dose)
+    - Path length tracking (for Bragg peak physics)
 
     All arrays are float64 for accurate conservation tracking.
 
@@ -50,6 +51,7 @@ class GPUAccumulators:
         mass_in_gpu: Per-step input mass tracking [max_steps]
         mass_out_gpu: Per-step output mass tracking [max_steps]
         deposited_step_gpu: Per-step deposited energy [max_steps]
+        path_length_gpu: Cumulative path length traveled at each (z, x) [Nz, Nx]
         current_step: Current step index for history arrays
         max_steps: Maximum number of steps (history array size)
 
@@ -60,6 +62,7 @@ class GPUAccumulators:
     mass_in_gpu: cp.ndarray | None = None
     mass_out_gpu: cp.ndarray | None = None
     deposited_step_gpu: cp.ndarray | None = None
+    path_length_gpu: cp.ndarray | None = None
     current_step: int = 0
     max_steps: int = 0
 
@@ -80,6 +83,7 @@ class GPUAccumulators:
         spatial_shape: tuple[int, int, int],  # (Nz, Nx) or (Nz, Nx) for dose
         max_steps: int = 0,
         enable_history: bool = False,
+        enable_path_length: bool = True,
     ) -> "GPUAccumulators":
         """Create GPU accumulators for a simulation.
 
@@ -87,6 +91,7 @@ class GPUAccumulators:
             spatial_shape: Shape of dose array (Nz, Nx)
             max_steps: Maximum number of steps (for history tracking)
             enable_history: Whether to track per-step mass/energy history
+            enable_path_length: Whether to track cumulative path length for Bragg peak physics
 
         Returns:
             Initialized GPUAccumulators instance
@@ -109,6 +114,11 @@ class GPUAccumulators:
         # NOTE: Must be float32 to match CUDA kernel signature (float* deposited_dose)
         dose_gpu = cp.zeros(spatial_shape, dtype=cp.float32)
 
+        # Path length accumulator (for Bragg peak physics)
+        path_length_gpu = None
+        if enable_path_length:
+            path_length_gpu = cp.zeros(spatial_shape, dtype=cp.float32)
+
         # History tracking (optional)
         mass_in_gpu = None
         mass_out_gpu = None
@@ -125,6 +135,7 @@ class GPUAccumulators:
             mass_in_gpu=mass_in_gpu,
             mass_out_gpu=mass_out_gpu,
             deposited_step_gpu=deposited_step_gpu,
+            path_length_gpu=path_length_gpu,
             current_step=0,
             max_steps=max_steps,
         )
@@ -145,6 +156,8 @@ class GPUAccumulators:
             self.mass_out_gpu.fill(0.0)
         if self.deposited_step_gpu is not None:
             self.deposited_step_gpu.fill(0.0)
+        if self.path_length_gpu is not None:
+            self.path_length_gpu.fill(0.0)
 
     def record_step(
         self,
@@ -241,6 +254,7 @@ def create_accumulators(
     spatial_shape: tuple[int, int],
     max_steps: int = 0,
     enable_history: bool = False,
+    enable_path_length: bool = True,
 ) -> GPUAccumulators:
     """Convenience function to create GPU accumulators.
 
@@ -250,6 +264,7 @@ def create_accumulators(
         spatial_shape: Shape of dose array (Nz, Nx)
         max_steps: Maximum number of steps (for history tracking)
         enable_history: Whether to track per-step mass/energy history
+        enable_path_length: Whether to track cumulative path length for Bragg peak physics
 
     Returns:
         Initialized GPUAccumulators instance
@@ -267,6 +282,7 @@ def create_accumulators(
         spatial_shape=spatial_shape,
         max_steps=max_steps,
         enable_history=enable_history,
+        enable_path_length=enable_path_length,
     )
 
 
@@ -346,6 +362,21 @@ def get_dose_pointer(accumulators: GPUAccumulators) -> int:
     if accumulators.dose_gpu is None:
         raise ValueError("Dose accumulator not initialized")
     return accumulators.dose_gpu.data.ptr
+
+
+def get_path_length_pointer(accumulators: GPUAccumulators) -> int:
+    """Get pointer to path_length_gpu array for CUDA kernel.
+
+    Args:
+        accumulators: GPUAccumulators instance
+
+    Returns:
+        Integer pointer to GPU memory (for RawKernel)
+
+    """
+    if accumulators.path_length_gpu is None:
+        raise ValueError("Path length accumulator not initialized")
+    return accumulators.path_length_gpu.data.ptr
 
 
 @dataclass
@@ -512,6 +543,7 @@ __all__ = [
     "create_accumulators",
     "get_dose_pointer",
     "get_escapes_pointer",
+    "get_path_length_pointer",
     "reset_accumulators",
     "sync_accumulators_to_cpu",
 ]

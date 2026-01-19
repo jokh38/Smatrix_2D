@@ -37,13 +37,19 @@ void energy_loss_kernel_v2(
 
         float E = E_phase_grid[iE_in];
 
+        // FIX 2.1: Binary search for LUT index (handles all energy ranges correctly)
         int lut_idx = 0;
-        for (int i = 1; i < lut_size - 1; i++) {
-            if (E < E_lut_grid[i + 1]) {
-                lut_idx = i;
-                break;
+        int left = 0;
+        int right = lut_size - 2;  // Last valid interval index
+        while (left < right) {
+            int mid = (left + right) / 2;
+            if (E < E_lut_grid[mid + 1]) {
+                right = mid;
+            } else {
+                left = mid + 1;
             }
         }
+        lut_idx = left;
 
         float E0 = E_lut_grid[lut_idx];
         float E1 = E_lut_grid[min(lut_idx + 1, lut_size - 1)];
@@ -62,16 +68,32 @@ void energy_loss_kernel_v2(
             continue;
         }
 
+        // FIX 2.3: Find output energy bin with proper edge case handling
         int iE_out = 0;
-        while (iE_out < Ne - 1 && E_phase_grid[iE_out + 1] <= E_new) {
-            iE_out++;
-        }
-
-        if (iE_out < 0) {
+        if (E_new >= E_phase_grid[Ne - 1]) {
+            // Clamp to highest energy bin
+            iE_out = Ne - 1;
+        } else if (E_new < E_phase_grid[0]) {
+            // Below lowest energy bin - treat as stopped
             atomicAdd(&deposited_dose[iz * Nx + ix], weight * E_new);
             local_energy_stopped += double(weight);
             continue;
+        } else {
+            // Binary search for correct bin
+            left = 0;
+            right = Ne - 2;
+            while (left < right) {
+                int mid = (left + right) / 2;
+                if (E_new < E_phase_grid[mid + 1]) {
+                    right = mid;
+                } else {
+                    left = mid + 1;
+                }
+            }
+            iE_out = left;
         }
+
+        // FIX 2.2: Removed dead code (iE_out < 0 was unreachable)
 
         if (iE_out >= Ne - 1) {
             int tgt_idx = (Ne - 1) * E_stride + ith * theta_stride + iz * Nx + ix;

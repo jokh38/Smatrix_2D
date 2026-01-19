@@ -260,6 +260,119 @@ class PerStepLateralProfileTracker:
             self._writer.writerow(row)
 
 
+class DetailedEnergyDebugTracker:
+    """Detailed energy and stopping power debug tracker.
+
+    This tracker writes per-(x, z) data for each step including:
+    - Mean energy at each position
+    - Stopping power (from LUT) at that energy
+    - Energy loss per step (S * delta_s)
+    - Particle weight
+
+    This helps identify where energy loss is happening and whether
+    the stopping power values match the LUT.
+    """
+
+    def __init__(self, filename: str, stopping_power_lut, delta_s: float):
+        """Initialize detailed energy debug tracker.
+
+        Args:
+            filename: Output CSV filename
+            stopping_power_lut: StoppingPowerLUT for looking up S(E)
+            delta_s: Step size [mm]
+        """
+        self.filename = filename
+        self.stopping_power_lut = stopping_power_lut
+        self.delta_s = delta_s
+        self._file = None
+        self._writer = None
+
+    def __enter__(self):
+        """Open CSV file and write header."""
+        self._file = open(self.filename, 'w', newline='')
+        self._writer = csv.writer(self._file)
+        header = [
+            "step_idx",
+            "z_idx",
+            "z_mm",
+            "x_idx",
+            "x_mm",
+            "E_mean_MeV",
+            "S_lut_MeV_per_mm",
+            "deltaE_MeV",
+            "particle_weight",
+        ]
+        self._writer.writerow(header)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close CSV file."""
+        if self._file is not None:
+            self._file.close()
+
+    def append_step(self, psi_gpu, grid, step_idx: int, E_centers_gpu):
+        """Record detailed energy debug data for current step.
+
+        Args:
+            psi_gpu: Phase space distribution [Ne, Ntheta, Nz, Nx]
+            grid: PhaseSpaceGridV2 object
+            step_idx: Current transport step
+            E_centers_gpu: Energy grid centers in MeV
+        """
+        import cupy as cp
+
+        # Get energy grid on CPU for lookup
+        E_centers_cpu = cp.asnumpy(E_centers_gpu)
+        z_centers_cpu = grid.z_centers
+        x_centers_cpu = grid.x_centers
+
+        Nz, Nx = len(z_centers_cpu), len(x_centers_cpu)
+
+        # Sum over theta to get [Ne, Nz, Nx]
+        psi_no_theta = cp.sum(psi_gpu, axis=1)  # [Ne, Nz, Nx]
+
+        # Convert to CPU
+        psi_cpu = cp.asnumpy(psi_no_theta)
+
+        # For each (z, x) position, compute statistics
+        for iz in range(Nz):
+            z_mm = z_centers_cpu[iz]
+            for ix in range(Nx):
+                x_mm = x_centers_cpu[ix]
+
+                # Get the energy distribution at this (z, x) position
+                E_dist = psi_cpu[:, iz, ix]  # [Ne]
+
+                # Total weight at this position
+                weight = float(np.sum(E_dist))
+
+                if weight < 1e-12:
+                    continue
+
+                # Compute mean energy
+                E_mean = float(np.sum(E_dist * E_centers_cpu) / weight)
+
+                # Get stopping power from LUT at this energy
+                S_lut = self.stopping_power_lut.get_stopping_power(E_mean)
+
+                # Energy loss per step
+                deltaE = S_lut * self.delta_s
+
+                # Write row
+                row = [
+                    step_idx,
+                    iz,
+                    f"{z_mm:.3f}",
+                    ix,
+                    f"{x_mm:.3f}",
+                    f"{E_mean:.6f}",
+                    f"{S_lut:.6f}",
+                    f"{deltaE:.6f}",
+                    f"{weight:.8e}",
+                ]
+                self._writer.writerow(row)
+
+
 class ChunkedCSVWriter:
     """Write CSV files in chunks to avoid memory buildup.
 
@@ -699,7 +812,7 @@ def export_summary_csv(deposited_dose, grid, z_peak, d_peak, fwhm,
     Args:
         deposited_dose: 2D dose array [Nz, Nx]
         grid: PhaseSpaceGridV2 object
-        z_peak: Bragg peak position [mm]
+        z_peak: R90 Bragg peak position (distal 90% of maximum dose) [mm]
         d_peak: Peak dose [MeV]
         fwhm: Full width at half maximum [mm]
         final_weight: Final particle weight
@@ -745,7 +858,7 @@ def export_summary_csv(deposited_dose, grid, z_peak, d_peak, fwhm,
 
         # Results
         writer.writerow(["RESULTS", "", ""])
-        writer.writerow(["Bragg Peak Position", f"{z_peak:.4f}", "mm"])
+        writer.writerow(["Bragg Peak Position (R90)", f"{z_peak:.4f}", "mm"])
         writer.writerow(["Peak Dose", f"{d_peak:.8e}", "MeV"])
         writer.writerow(["FWHM", f"{fwhm:.4f}", "mm"])
         writer.writerow(["Total Dose Deposited", f"{final_dose:.8e}", "MeV"])
@@ -853,7 +966,7 @@ def export_lateral_profile_cumulative(
 
 
 def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
-                          grid, z_peak, d_peak, idx_peak, reports,
+                          grid, z_peak, d_peak, idx_r90, z_r100, reports,
                           config, output_dir=None, dpi=150):
     """Save separate PNG figures for each plot.
 
@@ -862,9 +975,10 @@ def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
         deposited_dose: 2D dose array [Nz, Nx]
         lateral_profile: Lateral profile array
         grid: PhaseSpaceGridV2 object
-        z_peak: Bragg peak position
+        z_peak: R90 Bragg peak position (distal 90%)
         d_peak: Peak dose
-        idx_peak: Index of Bragg peak
+        idx_r90: Index of R90 position
+        z_r100: R100 maximum dose position
         reports: Conservation reports
         config: Configuration dictionary
         output_dir: Output directory for figures (defaults to 'output')
@@ -886,13 +1000,15 @@ def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
     lateral_file = output_dir / Path(fig_cfg.get("lateral_spreading", {}).get("filename", "lateral_spreading_analysis.png")).name
 
     x_min, x_max = grid.x_edges[0], grid.x_edges[-1]
-    z_min, z_max = grid.z_edges[0], grid.z_edges[-1]
+    z_min, z_max_edge = grid.z_edges[0], grid.z_edges[-1]
 
     # Figure 1: Depth-Dose Curve (PDD)
     fig1, ax1 = plt.subplots(figsize=(10, 6))
     ax1.plot(grid.z_centers, depth_dose, linewidth=2, color="blue")
     ax1.axvline(z_peak, linestyle="--", color="red", alpha=0.7,
-                label=f"Bragg Peak ({z_peak:.1f} mm)")
+                label=f"R90 ({z_peak:.1f} mm)")
+    ax1.axvline(z_r100, linestyle=":", color="orange", alpha=0.7,
+                label=f"R100 ({z_r100:.1f} mm)")
     ax1.axhline(d_peak / 2, linestyle=":", color="gray", alpha=0.5,
                 label=f"50% Level ({d_peak/2:.4f} MeV)")
     ax1.set_xlabel("Depth z [mm]")
@@ -911,7 +1027,7 @@ def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
         deposited_dose.T,
         origin="lower",
         aspect="auto",
-        extent=[z_min, z_max, x_min, x_max],
+        extent=[z_min, z_max_edge, x_min, x_max],
         cmap="viridis",
     )
     plt.colorbar(im, ax=ax2, label="Dose [MeV]")
@@ -933,9 +1049,11 @@ def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
     valid_mask = np.sum(deposited_dose, axis=1) > 0
     x_beam_center = float(np.mean(x_center_axis[valid_mask])) if np.any(valid_mask) else 0.0
 
-    # Plot Bragg Peak (vertical line)
+    # Plot R90 and R100 positions (vertical lines)
     ax2.axvline(z_peak, linestyle="--", color="red", alpha=0.7,
-                label=f"Bragg Peak ({z_peak:.1f} mm)")
+                label=f"R90 ({z_peak:.1f} mm)")
+    ax2.axvline(z_r100, linestyle=":", color="orange", alpha=0.7,
+                label=f"R100 ({z_r100:.1f} mm)")
 
     # Plot beam center axis (horizontal line at data-calculated center)
     ax2.axhline(x_beam_center, linestyle="-.", color="yellow", alpha=0.8,
@@ -953,17 +1071,17 @@ def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
     # Figure 3: Lateral Spreading Analysis
     fig3, axes3 = plt.subplots(1, 2, figsize=(14, 5))
 
-    # Left: Lateral profile at Bragg peak
+    # Left: Lateral profile at R90 (Bragg peak)
     ax3a = axes3[0]
-    if idx_peak < grid.Nz:
-        lateral_at_peak = deposited_dose[idx_peak, :]
+    if idx_r90 is not None and idx_r90 < grid.Nz:
+        lateral_at_peak = deposited_dose[idx_r90, :]
         ax3a.plot(grid.x_centers, lateral_at_peak, linewidth=2, color="green",
-                  label=f"At z={z_peak:.1f} mm")
+                  label=f"At R90 (z={z_peak:.1f} mm)")
         ax3a.axvline(grid.x_centers[np.argmax(lateral_at_peak)],
                      linestyle="--", color="red", alpha=0.7, label="Peak")
     ax3a.set_xlabel("Lateral Position x [mm]")
     ax3a.set_ylabel("Dose [MeV]")
-    ax3a.set_title("Lateral Profile at Bragg Peak")
+    ax3a.set_title("Lateral Profile at R90 (Bragg Peak)")
     ax3a.grid(True, alpha=0.3)
     ax3a.legend()
 
@@ -986,7 +1104,9 @@ def save_separate_figures(depth_dose, deposited_dose, lateral_profile,
         ax3b.plot(z_positions, lateral_spreads, linewidth=2, color="purple",
                   marker="o", markersize=3)
         ax3b.axvline(z_peak, linestyle="--", color="red", alpha=0.7,
-                     label=f"Bragg Peak ({z_peak:.1f} mm)")
+                     label=f"R90 ({z_peak:.1f} mm)")
+        ax3b.axvline(z_r100, linestyle=":", color="orange", alpha=0.7,
+                     label=f"R100 ({z_r100:.1f} mm)")
         ax3b.set_xlabel("Depth z [mm]")
         ax3b.set_ylabel("Lateral Spread σ [mm]")
         ax3b.set_title("Lateral Spreading Analysis")
@@ -1297,6 +1417,18 @@ def main():
     lateral_tracker.__enter__()
     print(f"  ✓ Per-step lateral profile tracker: {lateral_profile_file}")
 
+    # Initialize detailed energy debug tracker
+    from smatrix_2d.core.lut import create_water_stopping_power_lut
+    stopping_power_lut = create_water_stopping_power_lut()
+    debug_energy_file = output_dir / "energy_debug_per_step.csv"
+    debug_tracker = DetailedEnergyDebugTracker(
+        filename=str(debug_energy_file),
+        stopping_power_lut=stopping_power_lut,
+        delta_s=transport_config.delta_s
+    )
+    debug_tracker.__enter__()
+    print(f"  ✓ Detailed energy debug tracker: {debug_energy_file}")
+
     # ========================================================================
     # 6. Run Simulation
     # ========================================================================
@@ -1378,6 +1510,14 @@ def main():
             E_centers_gpu=E_centers_gpu,
         )
 
+        # Track detailed energy debug data (per-x,z with S and deltaE)
+        debug_tracker.append_step(
+            psi_gpu=sim.psi_gpu,
+            grid=grid,
+            step_idx=step,
+            E_centers_gpu=E_centers_gpu,
+        )
+
         # Stream profile data to HDF5 (minimal memory footprint)
         if step % streaming_config['profile_save_interval'] == 0:
             step_dose_cpu = cp.asnumpy(step_dose_gpu)
@@ -1422,6 +1562,10 @@ def main():
     # Finalize lateral profile tracker
     lateral_tracker.__exit__(None, None, None)
     print(f"  ✓ Per-step lateral profile saved: {lateral_profile_file}")
+
+    # Finalize detailed energy debug tracker
+    debug_tracker.__exit__(None, None, None)
+    print(f"  ✓ Detailed energy debug saved: {debug_energy_file}")
 
     # ========================================================================
     # 7. Final Statistics
@@ -1489,11 +1633,23 @@ def main():
     depth_dose = np.sum(deposited_dose_cpu, axis=1)  # Sum over x
     lateral_profile = np.sum(deposited_dose_cpu, axis=0)  # Sum over z
 
-    # Find Bragg peak
+    # Find Bragg peak (R90: distal 90% of maximum dose)
     if np.max(depth_dose) > 0:
-        idx_peak = np.argmax(depth_dose)
-        z_peak = grid.z_centers[idx_peak]
-        d_peak = depth_dose[idx_peak]
+        idx_max = np.argmax(depth_dose)
+        z_max = grid.z_centers[idx_max]
+        d_peak = depth_dose[idx_max]
+
+        # Find R90: distal depth where dose falls to 90% of maximum
+        idx_r90 = None
+        for i in range(idx_max, len(depth_dose)):
+            if depth_dose[i] < 0.9 * d_peak:
+                idx_r90 = i
+                break
+
+        if idx_r90 is not None:
+            z_peak = grid.z_centers[idx_r90]
+        else:
+            z_peak = z_max  # Fallback to max position if R90 not found
 
         # Find FWHM
         half_max = d_peak / 2.0
@@ -1505,10 +1661,10 @@ def main():
             fwhm = 0.0
 
         # Find distal falloff (80%-20%)
-        if idx_peak < len(depth_dose) - 10:
+        if idx_max < len(depth_dose) - 10:
             idx_80 = None
             idx_20 = None
-            for i in range(idx_peak, len(depth_dose)):
+            for i in range(idx_max, len(depth_dose)):
                 if idx_80 is None and depth_dose[i] < 0.8 * d_peak:
                     idx_80 = i
                 if idx_20 is None and depth_dose[i] < 0.2 * d_peak:
@@ -1522,7 +1678,8 @@ def main():
         else:
             distal_fall = None
 
-        print(f"  Bragg peak position: {z_peak:.2f} mm")
+        print(f"  Bragg peak position (R90): {z_peak:.2f} mm")
+        print(f"  Maximum dose position (R100): {z_max:.2f} mm")
         print(f"  Peak dose: {d_peak:.4f} MeV")
         print(f"  FWHM: {fwhm:.2f} mm")
         if distal_fall:
@@ -1530,7 +1687,7 @@ def main():
 
         # Expected range for 70 MeV protons in water (~40 mm)
         print(f"\n  Expected range for {E_init} MeV protons: ~40 mm")
-        print(f"  Simulated range: {z_peak:.2f} mm")
+        print(f"  Simulated range (R90): {z_peak:.2f} mm")
         range_error = abs(z_peak - 40.0) / 40.0 * 100
         print(f"  Range error: {range_error:.1f}%")
 
@@ -1545,7 +1702,8 @@ def main():
     # Plot 1: Depth-dose curve
     ax1 = axes[0, 0]
     ax1.plot(grid.z_centers, depth_dose, linewidth=2, color="blue")
-    ax1.axvline(z_peak, linestyle="--", color="red", alpha=0.7, label=f"Bragg Peak ({z_peak:.1f} mm)")
+    ax1.axvline(z_peak, linestyle="--", color="red", alpha=0.7, label=f"R90 ({z_peak:.1f} mm)")
+    ax1.axvline(z_max, linestyle=":", color="orange", alpha=0.7, label=f"R100 ({z_max:.1f} mm)")
     ax1.axhline(10.0, linestyle=":", color="gray", alpha=0.5, label="10% Level")
     ax1.set_xlabel("Depth z [mm]")
     ax1.set_ylabel("Dose [MeV]")
@@ -1563,19 +1721,28 @@ def main():
         cmap="viridis",
     )
     plt.colorbar(im, ax=ax2, label="Dose [MeV]")
-    ax2.axvline(z_peak, linestyle="--", color="red", alpha=0.7)
+    ax2.axvline(z_peak, linestyle="--", color="red", alpha=0.7, label="R90")
+    ax2.axvline(z_max, linestyle=":", color="orange", alpha=0.7, label="R100")
     ax2.set_xlabel("Depth z [mm]")
     ax2.set_ylabel("Lateral x [mm]")
     ax2.set_title("2D Dose Distribution")
+    ax2.legend(loc="upper right")
 
-    # Plot 3: Lateral profile at Bragg peak
+    # Plot 3: Lateral profile at R90 (Bragg peak)
     ax3 = axes[1, 0]
-    if idx_peak < Nz:
-        lateral_at_peak = deposited_dose_cpu[idx_peak, :]
+    if idx_r90 is not None and idx_r90 < Nz:
+        lateral_at_peak = deposited_dose_cpu[idx_r90, :]
         ax3.plot(grid.x_centers, lateral_at_peak, linewidth=2, color="green")
         ax3.set_xlabel("Lateral Position x [mm]")
         ax3.set_ylabel("Dose [MeV]")
-        ax3.set_title(f"Lateral Profile at Bragg Peak (z={z_peak:.1f} mm)")
+        ax3.set_title(f"Lateral Profile at R90 (z={z_peak:.1f} mm)")
+        ax3.grid(True, alpha=0.3)
+    elif idx_max < Nz:
+        lateral_at_peak = deposited_dose_cpu[idx_max, :]
+        ax3.plot(grid.x_centers, lateral_at_peak, linewidth=2, color="green")
+        ax3.set_xlabel("Lateral Position x [mm]")
+        ax3.set_ylabel("Dose [MeV]")
+        ax3.set_title(f"Lateral Profile at R100 (z={z_max:.1f} mm)")
         ax3.grid(True, alpha=0.3)
 
     # Plot 4: Conservation tracking
@@ -1658,7 +1825,7 @@ def main():
     if csv_cfg.get("enabled", True):
         save_separate_figures(
             depth_dose, deposited_dose_cpu, lateral_profile,
-            grid, z_peak, d_peak, idx_peak, reports,
+            grid, z_peak, d_peak, idx_r90, z_max, reports,
             config, output_dir=output_dir, dpi=150,
         )
     else:
